@@ -1,0 +1,25 @@
+# Go build artifacts
+/bin/
+/dist/
+/*.exe
+/*.dll
+/*.so
+/*.dylib
+
+# Go test cache
+*.test
+*.out
+
+# Dependency directories (Go Modules handles deps)
+vendor/
+
+# IDE/editor junk
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS junk
+.DS_Store
+Thumbs.db

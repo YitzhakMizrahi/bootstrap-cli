@@ -15,6 +15,7 @@ type UserConfig struct {
 	UseRelativeLinks  bool              `yaml:"use_relative_links"`
 	DevMode           bool              `yaml:"dev_mode"`
 	BackupExisting    bool              `yaml:"backup_existing"`
+	Editors           []string          `yaml:"editors"`
 }
 
 // ToolOption defines metadata for installable tools

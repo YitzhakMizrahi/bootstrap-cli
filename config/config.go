@@ -47,3 +47,22 @@ func expandPath(p string) string {
 	}
 	return p
 }
+
+// Load reads the user's saved config.yaml into a UserConfig
+func Load() (types.UserConfig, error) {
+	var cfg types.UserConfig
+	path := expandPath(ConfigPath)
+
+	f, err := os.Open(path)
+	if err != nil {
+		return cfg, fmt.Errorf("could not open config file: %w", err)
+	}
+	defer f.Close()
+
+	decoder := yaml.NewDecoder(f)
+	if err := decoder.Decode(&cfg); err != nil {
+		return cfg, fmt.Errorf("failed to parse config: %w", err)
+	}
+
+	return cfg, nil
+}

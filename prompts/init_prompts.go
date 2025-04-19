@@ -41,7 +41,7 @@ func RunInitWizard() types.UserConfig {
 	// CLI Tools (excluding prompt tools)
 	survey.AskOne(&survey.MultiSelect{
 		Message: "Select CLI tools to install:",
-		Options: []string{"lsd", "fzf", "bat", "zoxide", "eza", "curlie", "tmux"},
+		Options: []string{"lsd", "fzf", "bat", "zoxide", "eza", "curlie", "tmux", "lazygit", "yazi"},
 		Default: []string{"lsd"},
 	}, &cfg.CLITools)
 
@@ -72,6 +72,13 @@ func RunInitWizard() types.UserConfig {
 			cfg.PackageManagers["rust"] = "cargo"
 		}
 	}
+
+	// Editors
+	survey.AskOne(&survey.MultiSelect{
+		Message: "Which editors do you want to set up?",
+		Options: []string{"vim", "nvim", "nvim (LazyVim)", "nvim (AstroNvim)", "none"},
+		Default: []string{"nvim"},
+	}, &cfg.Editors)
 
 	// Dotfiles path
 	survey.AskOne(&survey.Input{

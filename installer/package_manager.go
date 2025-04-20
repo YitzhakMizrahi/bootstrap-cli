@@ -207,10 +207,9 @@ func (m SimplePackageModel) View() string {
 	// Add title
 	s.WriteString(titleStyle.Render(m.title) + "\n\n")
 	
-	// Add progress info
+	// Add progress info without the progress bar yet
 	progressText := fmt.Sprintf("Installing %d/%d tools", m.current, len(m.packages))
-	s.WriteString(progressText + "\n")
-	s.WriteString(m.progress.View() + "\n\n")
+	s.WriteString(progressText + "\n\n")
 	
 	// Add completed packages
 	for i := 0; i < m.current; i++ {
@@ -241,6 +240,12 @@ func (m SimplePackageModel) View() string {
 	for i := m.current + 1; i < len(m.packages); i++ {
 		s.WriteString("  " + m.packages[i] + "\n")
 	}
+	
+	// Add a spacer before the progress bar
+	s.WriteString("\n")
+	
+	// Add progress bar after the list of tools
+	s.WriteString(m.progress.View() + "\n")
 	
 	// Add help text
 	s.WriteString("\nPress Ctrl+C to cancel\n")

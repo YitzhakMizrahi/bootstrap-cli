@@ -1026,10 +1026,9 @@ func (m LanguageInstallModel) View() string {
 	// Add title
 	s.WriteString(titleStyle.Render(m.title) + "\n\n")
 	
-	// Add progress bar
+	// Add progress info without the progress bar yet
 	progressText := fmt.Sprintf("Installing %d/%d languages", completed, len(m.languages))
-	s.WriteString(progressText + "\n")
-	s.WriteString(m.progress.View() + "\n\n")
+	s.WriteString(progressText + "\n\n")
 	
 	// Add language list with status indicators
 	successMark := lipgloss.NewStyle().Foreground(lipgloss.Color("#73F59F")).SetString("✓")
@@ -1085,6 +1084,12 @@ func (m LanguageInstallModel) View() string {
 		
 		s.WriteString("\n")
 	}
+	
+	// Add a spacer before the progress bar
+	s.WriteString("\n")
+	
+	// Add progress bar after the list of languages
+	s.WriteString(m.progress.View() + "\n")
 	
 	// Add helpful instructions
 	s.WriteString("\n" + lipgloss.NewStyle().Faint(true).Render("Press Ctrl+C to cancel"))

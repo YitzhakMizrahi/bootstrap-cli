@@ -151,15 +151,50 @@ func (m SimplePackageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m SimplePackageModel) View() string {
 	if m.done {
+		// Summary view after completion
 		var s strings.Builder
-		s.WriteString(doneStyle.Render(fmt.Sprintf("Installed %d/%d packages", m.current, len(m.packages))))
-		return s.String()
+		s.WriteString(titleStyle.Render(m.title) + "\n\n")
+		
+		// Count successes
+		successCount := 0
+		for _, status := range m.results {
+			if status == "success" {
+				successCount++
+			}
+		}
+		
+		// Show a summary of results
+		s.WriteString(fmt.Sprintf("✅ Installed %d/%d tools\n\n", successCount, len(m.packages)))
+		
+		// Show status for each package with its status
+		for _, pkg := range m.packages {
+			marker := "  "
+			
+			if status, ok := m.results[pkg]; ok {
+				switch status {
+				case "success":
+					marker = successMark.String() + " "
+				case "error":
+					marker = errorMark.String() + " "
+				case "skipped":
+					marker = skippedMark.String() + " "
+				}
+			}
+			
+			s.WriteString(marker + pkg)
+			
+			// Add error message if there was one
+			if err, hasError := m.errors[pkg]; hasError {
+				errorMsg := fmt.Sprintf(" - Error: %v", err)
+				s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#FF4672")).Render(errorMsg))
+			}
+			
+			s.WriteString("\n")
+		}
+		
+		return doneStyle.Render(s.String())
 	}
 
-	// Calculate required widths
-	w := len(fmt.Sprintf("%d", len(m.packages)))
-	pkgCount := fmt.Sprintf(" %*d/%*d", w, m.current+1, w, len(m.packages))
-	
 	// Get current package name
 	pkgName := ""
 	if m.current < len(m.packages) {
@@ -171,6 +206,11 @@ func (m SimplePackageModel) View() string {
 	
 	// Add title
 	s.WriteString(titleStyle.Render(m.title) + "\n\n")
+	
+	// Add progress info
+	progressText := fmt.Sprintf("Installing %d/%d tools", m.current, len(m.packages))
+	s.WriteString(progressText + "\n")
+	s.WriteString(m.progress.View() + "\n\n")
 	
 	// Add completed packages
 	for i := 0; i < m.current; i++ {
@@ -192,25 +232,25 @@ func (m SimplePackageModel) View() string {
 	}
 	
 	// Add current package with spinner
-	current := m.spinner.View() + " " + currentPkgStyle.Render(pkgName)
-	s.WriteString(current + "\n")
+	if m.current < len(m.packages) {
+		current := m.spinner.View() + " " + currentPkgStyle.Render(pkgName)
+		s.WriteString(current + "\n")
+	}
 	
 	// Add pending packages
 	for i := m.current + 1; i < len(m.packages); i++ {
 		s.WriteString("  " + m.packages[i] + "\n")
 	}
 	
-	// Add a spacer
-	s.WriteString("\n")
-	
-	// Add progress bar
-	prog := m.progress.View()
-	s.WriteString(prog + pkgCount + "\n\n")
-	
 	// Add help text
-	s.WriteString("Press Ctrl+C to cancel\n")
+	s.WriteString("\nPress Ctrl+C to cancel\n")
 	
-	return s.String()
+	// Apply a consistent style to the whole output
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#7D56F4")).
+		Padding(1, 2).
+		Render(s.String())
 }
 
 // installCurrentPackage creates a command to install the current package

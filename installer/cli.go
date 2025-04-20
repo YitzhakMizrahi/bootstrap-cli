@@ -164,6 +164,439 @@ var LanguagePackages = map[string]Language{
 	},
 }
 
+// ToolInstallModel represents a model for tool installation UI
+type ToolInstallModel struct {
+	title        string
+	tools        []string
+	current      int
+	width        int
+	height       int
+	spinner      spinner.Model
+	progress     progress.Model
+	done         bool
+	results      map[string]string // tool -> status
+	errors       map[string]error
+	packageMgr   platform.PackageManager
+	activeInstall bool
+	installChan  chan toolResultMsg
+}
+
+// NewToolInstallModel creates a new model for tool installation UI
+func NewToolInstallModel(title string, tools []string, packageMgr platform.PackageManager) ToolInstallModel {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
+
+	p := progress.New(
+		progress.WithDefaultGradient(),
+		progress.WithWidth(40),
+		progress.WithoutPercentage(),
+	)
+
+	return ToolInstallModel{
+		title:        title,
+		tools:        tools,
+		spinner:      s,
+		progress:     p,
+		results:      make(map[string]string),
+		errors:       make(map[string]error),
+		packageMgr:   packageMgr,
+		installChan:  make(chan toolResultMsg),
+	}
+}
+
+// Init initializes the model
+func (m ToolInstallModel) Init() tea.Cmd {
+	if len(m.tools) == 0 {
+		return tea.Quit
+	}
+	
+	return tea.Batch(
+		m.spinner.Tick,
+		m.waitForToolInstall(),
+		m.startToolInstalls(),
+	)
+}
+
+// startToolInstalls launches all tool installs in parallel
+func (m ToolInstallModel) startToolInstalls() tea.Cmd {
+	return func() tea.Msg {
+		m.activeInstall = true
+		
+		// Start a goroutine to install all tools
+		go func() {
+			for i, toolName := range m.tools {
+				tool, exists := ToolPackages[toolName]
+				
+				if !exists {
+					m.installChan <- toolResultMsg{
+						tool:   toolName,
+						index:  i,
+						status: "error",
+						err:    fmt.Errorf("unknown tool"),
+					}
+					continue
+				}
+				
+				// Check if already installed
+				if isCommandAvailable(toolName) {
+					// For apps that don't install as commands with the same name
+					alreadyInstalled := true
+					switch toolName {
+					case "fd":
+						// Check for fd/fdfind
+						if !isCommandAvailable("fd") && !isCommandAvailable("fdfind") {
+							alreadyInstalled = false
+						}
+					case "ripgrep":
+						// Check for rg
+						if !isCommandAvailable("rg") {
+							alreadyInstalled = false
+						}
+					}
+					
+					if alreadyInstalled {
+						m.installChan <- toolResultMsg{
+							tool:   toolName,
+							index:  i,
+							status: "skipped",
+						}
+						continue
+					}
+				}
+				
+				// Get the package name based on package manager
+				var packageName string
+				var installErr error
+				
+				switch m.packageMgr {
+				case platform.Homebrew:
+					packageName = tool.BrewPackage
+					if packageName != "" {
+						cmd := exec.Command("brew", "install", packageName)
+						cmd.Stdout = nil
+						cmd.Stderr = nil
+						installErr = cmd.Run()
+					} else {
+						installErr = fmt.Errorf("no brew package available")
+					}
+				case platform.Apt:
+					packageName = tool.AptPackage
+					if packageName != "" {
+						cmd := exec.Command("sudo", "apt-get", "install", "-y", packageName)
+						cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+						cmd.Stdout = nil
+						cmd.Stderr = nil
+						installErr = cmd.Run()
+					} else {
+						installErr = fmt.Errorf("no apt package available")
+					}
+				case platform.Dnf:
+					packageName = tool.DnfPackage
+					if packageName != "" {
+						cmd := exec.Command("sudo", "dnf", "install", "-y", packageName)
+						cmd.Stdout = nil
+						cmd.Stderr = nil
+						installErr = cmd.Run()
+					} else {
+						installErr = fmt.Errorf("no dnf package available")
+					}
+				case platform.Pacman:
+					packageName = tool.PacmanPackage
+					if packageName != "" {
+						cmd := exec.Command("sudo", "pacman", "-S", "--noconfirm", packageName)
+						cmd.Stdout = nil
+						cmd.Stderr = nil
+						installErr = cmd.Run()
+					} else {
+						installErr = fmt.Errorf("no pacman package available")
+					}
+				case platform.Zypper:
+					packageName = tool.ZypperPackage
+					if packageName != "" {
+						cmd := exec.Command("sudo", "zypper", "install", "-y", packageName)
+						cmd.Stdout = nil
+						cmd.Stderr = nil
+						installErr = cmd.Run()
+					} else {
+						installErr = fmt.Errorf("no zypper package available")
+					}
+				case platform.Chocolatey:
+					packageName = tool.ChocoPackage
+					if packageName != "" {
+						cmd := exec.Command("choco", "install", packageName, "-y")
+						cmd.Stdout = nil
+						cmd.Stderr = nil
+						installErr = cmd.Run()
+					} else {
+						installErr = fmt.Errorf("no chocolatey package available")
+					}
+				default:
+					installErr = fmt.Errorf("unsupported package manager: %s", m.packageMgr)
+				}
+				
+				// Try alternative installation if package manager failed
+				if installErr != nil && tool.InstallScript != nil {
+					// Try alternative installation method
+					installScriptErr := tool.InstallScript()
+					if installScriptErr == nil {
+						// Alternative installation succeeded
+						installErr = nil
+					}
+				}
+				
+				if installErr != nil {
+					m.installChan <- toolResultMsg{
+						tool:   toolName,
+						index:  i,
+						status: "error",
+						err:    installErr,
+					}
+				} else {
+					m.installChan <- toolResultMsg{
+						tool:   toolName,
+						index:  i,
+						status: "success",
+					}
+				}
+				
+				// Add a small delay for UI
+				time.Sleep(300 * time.Millisecond)
+			}
+			
+			// Close the channel when all installs are complete
+			close(m.installChan)
+		}()
+		
+		return nil
+	}
+}
+
+// waitForToolInstall waits for tool installations to complete
+func (m ToolInstallModel) waitForToolInstall() tea.Cmd {
+	return func() tea.Msg {
+		msg, ok := <-m.installChan
+		if !ok {
+			return toolResultMsg{
+				status: "done",
+			}
+		}
+		return msg
+	}
+}
+
+// Update updates the model
+func (m ToolInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+
+	case tea.KeyMsg:
+		if msg.Type == tea.KeyCtrlC || msg.Type == tea.KeyEsc {
+			return m, tea.Quit
+		}
+		return m, nil
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
+	case progress.FrameMsg:
+		progressModel, cmd := m.progress.Update(msg)
+		if p, ok := progressModel.(progress.Model); ok {
+			m.progress = p
+		}
+		return m, cmd
+
+	case toolResultMsg:
+		if msg.status == "done" {
+			m.done = true
+			return m, tea.Sequence(
+				m.progress.SetPercent(1.0),
+				tea.Tick(time.Millisecond*750, func(time.Time) tea.Msg { return nil }),
+				tea.Quit,
+			)
+		}
+		
+		// Record result
+		m.results[msg.tool] = msg.status
+		if msg.err != nil {
+			m.errors[msg.tool] = msg.err
+		}
+
+		// Count completed tools
+		completed := len(m.results)
+		
+		// Update progress based on completed tools
+		progCmd := m.progress.SetPercent(float64(completed) / float64(len(m.tools)))
+		
+		// Check if we've completed all tools
+		if completed >= len(m.tools) {
+			m.done = true
+			return m, tea.Sequence(
+				m.progress.SetPercent(1.0),
+				tea.Tick(time.Millisecond*750, func(time.Time) tea.Msg { return nil }),
+				tea.Quit,
+			)
+		}
+
+		// Keep waiting for more results
+		return m, tea.Batch(
+			progCmd,
+			m.waitForToolInstall(),
+		)
+	}
+	
+	return m, nil
+}
+
+// View renders the current view of the model
+func (m ToolInstallModel) View() string {
+	if m.done {
+		// Summary view after completion
+		var s strings.Builder
+		s.WriteString(titleStyle.Render(m.title) + "\n\n")
+		
+		// Count successes
+		successCount := 0
+		for _, status := range m.results {
+			if status == "success" {
+				successCount++
+			}
+		}
+		
+		// Show a summary of results
+		s.WriteString(fmt.Sprintf("✅ Installed %d/%d tools\n\n", successCount, len(m.tools)))
+		
+		// Show status for each tool
+		successMark := lipgloss.NewStyle().Foreground(lipgloss.Color("#73F59F")).SetString("✓")
+		errorMark := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF4672")).SetString("✗")
+		skippedMark := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFAE19")).SetString("•")
+		
+		for _, toolName := range m.tools {
+			displayName := toolName
+			if tool, ok := ToolPackages[toolName]; ok {
+				displayName = tool.Name
+				if tool.Description != "" {
+					displayName = fmt.Sprintf("%s (%s)", tool.Name, tool.Description)
+				}
+			}
+			
+			marker := "  "
+			if status, ok := m.results[toolName]; ok {
+				switch status {
+				case "success":
+					marker = successMark.String() + " "
+				case "error":
+					marker = errorMark.String() + " "
+				case "skipped":
+					marker = skippedMark.String() + " "
+				}
+			}
+			
+			s.WriteString(marker + displayName)
+			
+			// Add error message if there was one
+			if err, hasError := m.errors[toolName]; hasError {
+				errorMsg := fmt.Sprintf(" - Error: %v", err)
+				s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#FF4672")).Render(errorMsg))
+			}
+			
+			s.WriteString("\n")
+		}
+		
+		return doneStyle.Render(s.String())
+	}
+
+	// Get count of completed tools
+	completed := len(m.results)
+	
+	// Print previously installed tools with their statuses
+	var s strings.Builder
+	
+	// Add title
+	s.WriteString(titleStyle.Render(m.title) + "\n\n")
+	
+	// Add progress bar
+	progressText := fmt.Sprintf("Installing %d/%d tools", completed, len(m.tools))
+	s.WriteString(progressText + "\n")
+	s.WriteString(m.progress.View() + "\n\n")
+	
+	// Add tool list with status indicators
+	for i, toolName := range m.tools {
+		marker := "  "
+		tool, exists := ToolPackages[toolName]
+		
+		displayName := toolName
+		if exists {
+			displayName = tool.Name
+		}
+		
+		if status, ok := m.results[toolName]; ok {
+			switch status {
+			case "success":
+				marker = successMark.String() + " "
+			case "error":
+				marker = errorMark.String() + " "
+			case "skipped":
+				marker = skippedMark.String() + " "
+			}
+		} else if completed < len(m.tools) && i == completed {
+			// Current tool being installed
+			marker = m.spinner.View() + " "
+			displayName = currentPkgStyle.Render(displayName)
+		}
+		
+		s.WriteString(marker + displayName + "\n")
+	}
+	
+	// Add help text at the bottom
+	s.WriteString("\nPress Ctrl+C to cancel\n")
+	
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#7D56F4")).
+		Padding(1, 2).
+		Render(s.String())
+}
+
+// toolResultMsg represents a message with tool installation result
+type toolResultMsg struct {
+	tool   string
+	index  int
+	status string
+	err    error
+}
+
+// InstallToolsWithUI installs tools with a bubbletea UI
+func InstallToolsWithUI(title string, tools []string, packageManager platform.PackageManager) error {
+	if len(tools) == 0 {
+		fmt.Println("No tools to install.")
+		return nil
+	}
+	
+	model := NewToolInstallModel(title, tools, packageManager)
+	p := tea.NewProgram(model)
+	
+	_, err := p.Run()
+	if err != nil {
+		fmt.Printf("Error running tool installation UI: %v\n", err)
+	}
+	
+	// Print errors after completion
+	if len(model.errors) > 0 {
+		fmt.Println("\nThe following tools encountered errors:")
+		for tool, err := range model.errors {
+			fmt.Printf("  - %s: %v\n", tool, err)
+		}
+	}
+	
+	return err
+}
+
 // InstallCLITools installs the selected CLI tools
 func InstallCLITools(tools []string) error {
 	platformInfo, err := platform.Detect()
@@ -176,7 +609,7 @@ func InstallCLITools(tools []string) error {
 		return fmt.Errorf("failed to get package manager: %w", err)
 	}
 	
-	fmt.Printf("📦 Installing CLI tools using %s...\n", primaryPM)
+	fmt.Printf("🛠️ Installing CLI tools using %s...\n", primaryPM)
 	
 	// If we should use the UI-based installer
 	if usePackageManagerUI() {
@@ -192,7 +625,7 @@ func InstallCLITools(tools []string) error {
 				}
 				packages = append(packages, tool.BrewPackage)
 			}
-			return InstallPackagesWithUI("Package Manager", packages, "brew")
+			return InstallPackagesWithUI("CLI Tools", packages, "brew")
 			
 		case platform.Apt:
 			// Get the actual package names for all tools
@@ -205,7 +638,7 @@ func InstallCLITools(tools []string) error {
 				}
 				packages = append(packages, tool.AptPackage)
 			}
-			return InstallPackagesWithUI("Package Manager", packages, "apt")
+			return InstallPackagesWithUI("CLI Tools", packages, "apt")
 			
 		default:
 			// Fall back to regular installation for other package managers
@@ -343,30 +776,25 @@ func InstallLanguages(languages []string, packageManagers map[string]string) err
 	return nil
 }
 
-// languageModel represents the model for language installation
-type languageModel struct {
+// LanguageInstallModel represents a model for language installation UI
+type LanguageInstallModel struct {
+	title        string
 	languages    []string
 	current      int
-	results      map[string]string
-	errors       map[string]error
-	pkgManagers  map[string]string
-}
-
-// teaLanguageModel is a Tea-compatible wrapper for the languageModel
-type teaLanguageModel struct {
-	*languageModel
-	title        string
 	width        int
 	height       int
 	spinner      spinner.Model
 	progress     progress.Model
 	done         bool
+	results      map[string]string // language -> status
+	errors       map[string]error
+	pkgManagers  map[string]string
 	activeInstall bool
 	installChan  chan languageResultMsg
 }
 
 // NewLanguageInstallModel creates a new model for language installation UI
-func NewLanguageInstallModel(title string, languages []string, packageManagers map[string]string) teaLanguageModel {
+func NewLanguageInstallModel(title string, languages []string, packageManagers map[string]string) LanguageInstallModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
@@ -377,22 +805,20 @@ func NewLanguageInstallModel(title string, languages []string, packageManagers m
 		progress.WithoutPercentage(),
 	)
 
-	return teaLanguageModel{
-		languageModel: &languageModel{
-			languages:    languages,
-			results:      make(map[string]string),
-			errors:       make(map[string]error),
-			pkgManagers:  packageManagers,
-		},
+	return LanguageInstallModel{
 		title:        title,
+		languages:    languages,
 		spinner:      s,
 		progress:     p,
+		results:      make(map[string]string),
+		errors:       make(map[string]error),
+		pkgManagers:  packageManagers,
 		installChan:  make(chan languageResultMsg),
 	}
 }
 
 // Init initializes the model
-func (m teaLanguageModel) Init() tea.Cmd {
+func (m LanguageInstallModel) Init() tea.Cmd {
 	if len(m.languages) == 0 {
 		return tea.Quit
 	}
@@ -405,7 +831,7 @@ func (m teaLanguageModel) Init() tea.Cmd {
 }
 
 // startLanguageInstalls launches all language installs in parallel
-func (m teaLanguageModel) startLanguageInstalls() tea.Cmd {
+func (m LanguageInstallModel) startLanguageInstalls() tea.Cmd {
 	return func() tea.Msg {
 		m.activeInstall = true
 		
@@ -454,7 +880,7 @@ func (m teaLanguageModel) startLanguageInstalls() tea.Cmd {
 }
 
 // waitForLanguageInstall waits for language installations to complete
-func (m teaLanguageModel) waitForLanguageInstall() tea.Cmd {
+func (m LanguageInstallModel) waitForLanguageInstall() tea.Cmd {
 	return func() tea.Msg {
 		msg, ok := <-m.installChan
 		if !ok {
@@ -467,7 +893,7 @@ func (m teaLanguageModel) waitForLanguageInstall() tea.Cmd {
 }
 
 // Update updates the model
-func (m teaLanguageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m LanguageInstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -535,7 +961,7 @@ func (m teaLanguageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the current view of the model
-func (m teaLanguageModel) View() string {
+func (m LanguageInstallModel) View() string {
 	if m.done {
 		// Summary view after completion
 		var s strings.Builder
@@ -680,30 +1106,30 @@ type languageResultMsg struct {
 	output string
 }
 
-// InstallLanguagesWithUI installs languages with a UI
+// InstallLanguagesWithUI installs languages with a bubbletea UI
 func InstallLanguagesWithUI(title string, languages []string, packageManagers map[string]string) error {
-	model := NewLanguageInstallModel(title, languages, packageManagers)
-	program := tea.NewProgram(model)
-	
-	_, err := program.Run()
-	if err != nil {
-		return fmt.Errorf("failed to run language installer UI: %w", err)
+	if len(languages) == 0 {
+		fmt.Println("No languages to install.")
+		return nil
 	}
 	
-	// Check for errors
-	hasErrors := false
-	for _, lang := range languages {
-		if model.results[lang] == "error" {
-			hasErrors = true
-			break
+	model := NewLanguageInstallModel(title, languages, packageManagers)
+	p := tea.NewProgram(model)
+	
+	_, err := p.Run()
+	if err != nil {
+		fmt.Printf("Error running language installation UI: %v\n", err)
+	}
+	
+	// Print errors after completion
+	if len(model.errors) > 0 {
+		fmt.Println("\nThe following languages encountered errors:")
+		for lang, err := range model.errors {
+			fmt.Printf("  - %s: %v\n", lang, err)
 		}
 	}
 	
-	if hasErrors {
-		return fmt.Errorf("some languages failed to install")
-	}
-	
-	return nil
+	return err
 }
 
 // Language installations

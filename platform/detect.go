@@ -181,3 +181,8 @@ func contains(slice []PackageManager, item PackageManager) bool {
 	}
 	return false
 }
+
+// Contains checks if a slice contains a value
+func Contains(slice []PackageManager, item PackageManager) bool {
+	return contains(slice, item)
+}

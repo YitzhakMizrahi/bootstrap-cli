@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -55,7 +56,40 @@ func LinkDotfiles(config types.UserConfig) error {
 
 	// Check if dotfiles directory exists
 	if _, err := os.Stat(dotfilesPath); os.IsNotExist(err) {
-		return fmt.Errorf("dotfiles directory not found: %s", dotfilesPath)
+		// Dotfiles directory doesn't exist, prompt user to create it
+		fmt.Printf("📂 Dotfiles directory not found: %s\n", dotfilesPath)
+		fmt.Printf("Would you like to create it with basic template files? (y/n): ")
+		
+		var response string
+		fmt.Scanln(&response)
+		
+		if strings.ToLower(response) == "y" || strings.ToLower(response) == "yes" {
+			// Create directory
+			if err := os.MkdirAll(dotfilesPath, 0755); err != nil {
+				return fmt.Errorf("failed to create dotfiles directory: %w", err)
+			}
+			
+			// Create basic template files
+			if err := createDotfilesTemplates(dotfilesPath); err != nil {
+				return fmt.Errorf("failed to create template files: %w", err)
+			}
+			
+			fmt.Printf("✅ Created dotfiles directory at %s with template files\n", dotfilesPath)
+			
+			// Ask if the user wants to initialize a git repository
+			fmt.Print("Would you like to initialize a Git repository for your dotfiles? (y/n): ")
+			fmt.Scanln(&response)
+			
+			if strings.ToLower(response) == "y" || strings.ToLower(response) == "yes" {
+				if err := initGitRepo(dotfilesPath); err != nil {
+					fmt.Printf("⚠️ Failed to initialize Git repository: %v\n", err)
+				} else {
+					fmt.Println("✅ Initialized Git repository for your dotfiles")
+				}
+			}
+		} else {
+			return fmt.Errorf("dotfiles directory not found: %s", dotfilesPath)
+		}
 	}
 
 	// Discover dotfiles and their mappings
@@ -256,4 +290,175 @@ func isEqualRelative(existingLink, sourcePath, targetPath string) bool {
 	resolvedPath, _ = filepath.Abs(resolvedPath)
 	
 	return resolvedPath == sourcePath
+}
+
+// createDotfilesTemplates creates basic template files in the dotfiles directory
+func createDotfilesTemplates(dotfilesPath string) error {
+	// Create template files with some sensible defaults
+	templates := map[string]string{
+		".zshrc": `# ~/.zshrc - ZSH Configuration
+# Created by bootstrap-cli
+
+# Set some basic options
+setopt autocd
+setopt extendedglob
+setopt nomatch
+setopt notify
+
+# Basic history configuration
+HISTFILE=~/.histfile
+HISTSIZE=1000
+SAVEHIST=1000
+setopt appendhistory
+
+# Basic prompt
+PS1="%n@%m:%~$ "
+
+# Add paths
+export PATH=$HOME/bin:$PATH
+
+# Aliases
+alias ls='ls --color=auto'
+alias la='ls -la'
+alias ll='ls -l'
+alias grep='grep --color=auto'
+
+# Load any local config if it exists
+[[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
+`,
+		".bashrc": `# ~/.bashrc - Bash Configuration
+# Created by bootstrap-cli
+
+# If not running interactively, don't do anything
+[[ $- != *i* ]] && return
+
+# Basic prompt
+PS1='[\u@\h \W]\$ '
+
+# Add paths
+export PATH=$HOME/bin:$PATH
+
+# Aliases
+alias ls='ls --color=auto'
+alias la='ls -la'
+alias ll='ls -l'
+alias grep='grep --color=auto'
+
+# Load any local config if it exists
+[[ -f ~/.bashrc.local ]] && source ~/.bashrc.local
+`,
+		".gitconfig": `# ~/.gitconfig - Git Configuration
+# Created by bootstrap-cli
+
+[user]
+	name = Your Name
+	email = your.email@example.com
+
+[core]
+	editor = vim
+	autocrlf = input
+
+[color]
+	ui = auto
+
+[alias]
+	st = status
+	ci = commit
+	co = checkout
+	br = branch
+	lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
+`,
+		"README.md": `# Dotfiles
+
+This is your personal dotfiles repository, created by bootstrap-cli.
+
+## Structure
+
+- '.zshrc' - ZSH shell configuration
+- '.bashrc' - Bash shell configuration
+- '.gitconfig' - Git configuration
+
+## Usage
+
+These files are symlinked to their appropriate locations by bootstrap-cli.
+You can edit them here and the changes will be reflected in your system.
+
+## Adding More Files
+
+Add more configuration files to this repository and run:
+
+` + "```" + `
+bootstrap-cli link
+` + "```" + `
+
+to symlink them to your home directory.
+`,
+	}
+
+	// Create each template file
+	for filename, content := range templates {
+		filePath := filepath.Join(dotfilesPath, filename)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			return fmt.Errorf("failed to create template file %s: %w", filename, err)
+		}
+	}
+
+	return nil
+}
+
+// initGitRepo initializes a Git repository in the dotfiles directory
+func initGitRepo(dotfilesPath string) error {
+	// Check if git is installed
+	if _, err := exec.LookPath("git"); err != nil {
+		return fmt.Errorf("git is not installed, skipping repository initialization")
+	}
+
+	// Initialize the repository
+	cmd := exec.Command("git", "init")
+	cmd.Dir = dotfilesPath
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	// Create a .gitignore file
+	gitignore := `# bootstrap-cli gitignore
+.DS_Store
+*.swp
+*~
+.history/
+`
+	if err := os.WriteFile(filepath.Join(dotfilesPath, ".gitignore"), []byte(gitignore), 0644); err != nil {
+		return fmt.Errorf("failed to create .gitignore: %w", err)
+	}
+
+	// Stage all files
+	cmd = exec.Command("git", "add", ".")
+	cmd.Dir = dotfilesPath
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	// Create initial commit
+	cmd = exec.Command("git", "commit", "-m", "Initial dotfiles commit by bootstrap-cli")
+	cmd.Dir = dotfilesPath
+	cmd.Env = append(os.Environ(), 
+		"GIT_AUTHOR_NAME=bootstrap-cli",
+		"GIT_AUTHOR_EMAIL=bootstrap-cli@example.com",
+		"GIT_COMMITTER_NAME=bootstrap-cli",
+		"GIT_COMMITTER_EMAIL=bootstrap-cli@example.com")
+		
+	// Ignore errors from commit as it might fail if user needs to configure git first
+	cmd.Run()
+
+	// Provide instructions for setting up a remote repository
+	fmt.Println("\n💡 To push your dotfiles to GitHub or other remote repositories:")
+	fmt.Println("   1. Create a new repository on GitHub")
+	fmt.Println("   2. Run the following commands in your dotfiles directory:")
+	fmt.Printf("      cd %s\n", dotfilesPath)
+	fmt.Println("      git remote add origin https://github.com/yourusername/dotfiles.git")
+	fmt.Println("      git push -u origin main")
+
+	return nil
 }

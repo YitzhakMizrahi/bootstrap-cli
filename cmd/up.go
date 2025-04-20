@@ -46,6 +46,21 @@ Run: func(cmd *cobra.Command, args []string) {
         fmt.Printf("🔍 Available package managers: %v\n", platformInfo.PackageManagers)
     }
 
+    // For apt-based systems, set up a sudo session first and handle service prompts
+    if platform.Contains(platformInfo.PackageManagers, platform.Apt) {
+        // Obtain sudo early
+        if err := installer.GetSudoSession(); err != nil {
+            fmt.Printf("⚠️ Could not obtain sudo privileges. Some installations may fail: %v\n", err)
+        }
+        
+        // Prevent service restart prompts during installation
+        if err := installer.PreventServicePrompts(); err != nil {
+            fmt.Printf("⚠️ Could not configure service prompt handling: %v\n", err)
+        }
+        // Set up a cleanup for when we're done
+        defer installer.CleanupServicePromptConfig()
+    }
+
     // Handle welcome message
     printWelcomeMessage()
 
@@ -149,6 +164,33 @@ Run: func(cmd *cobra.Command, args []string) {
 		// Symlink dotfiles
 		if !skipLink && cfg.DotfilesPath != "" {
 			fmt.Println("\n🔗 Linking dotfiles...")
+			err := symlink.LinkDotfiles(cfg)
+			if err != nil {
+				fmt.Printf("❌ Failed to link dotfiles: %v\n", err)
+			}
+		} else if !skipLink && cfg.DotfilesPath == "" {
+			fmt.Println("\n🔗 Preparing for dotfiles linking...")
+			fmt.Println("ℹ️ No dotfiles path configured.")
+			
+			// Ask for dotfiles path
+			fmt.Print("Enter path to your dotfiles repository [~/dotfiles]: ")
+			var path string
+			fmt.Scanln(&path)
+			
+			if path == "" {
+				// Use default
+				path = "~/dotfiles"
+			}
+			
+			// Update the config with the new path
+			cfg.DotfilesPath = path
+			if err := config.Save(cfg); err != nil {
+				fmt.Println("⚠️ Failed to save config with new dotfiles path:", err)
+			} else {
+				fmt.Println("✅ Updated config with dotfiles path:", path)
+			}
+			
+			// Link the dotfiles
 			err := symlink.LinkDotfiles(cfg)
 			if err != nil {
 				fmt.Printf("❌ Failed to link dotfiles: %v\n", err)

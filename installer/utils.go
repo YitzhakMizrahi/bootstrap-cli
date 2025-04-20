@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 )
@@ -34,6 +35,7 @@ func brewInstall(pkg string) error {
 	return cmd.Run()
 }
 
+// aptInstall installs a package using apt
 func aptInstall(pkg string) error {
     // Use environment variables to ensure non-interactive mode
     env := os.Environ()
@@ -80,4 +82,85 @@ func chocoInstall(pkg string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// GetSudoSession obtains a sudo session up front to avoid prompting during installation
+func GetSudoSession() error {
+    // Check if we already have sudo privileges
+    testCmd := exec.Command("sudo", "-n", "true")
+    if err := testCmd.Run(); err == nil {
+        // We already have sudo privileges
+        return nil
+    }
+
+    fmt.Println("🔐 Requesting sudo privileges for installation...")
+    
+    // Request sudo password up front
+    cmd := exec.Command("sudo", "true")
+    cmd.Stdin = os.Stdin
+    cmd.Stdout = os.Stdout
+    cmd.Stderr = os.Stderr
+    
+    return cmd.Run()
+}
+
+// PreventServicePrompts configures apt to prevent service restart prompts
+func PreventServicePrompts() error {
+    // Only applicable on Debian/Ubuntu systems
+    if _, err := os.Stat("/etc/apt/apt.conf.d"); os.IsNotExist(err) {
+        return nil // Not a Debian/Ubuntu system
+    }
+    
+    // Create the config if it doesn't exist
+    configFile := "/etc/apt/apt.conf.d/90bootstrap-no-restart"
+    configContent := `// Configured by bootstrap-cli to prevent service restart prompts
+DPkg::Options {
+    "--force-confdef";
+    "--force-confold";
+}
+Dpkg::NoTriggers "true";
+Dpkg::Options::="--force-confdef";
+Dpkg::Options::="--force-confold";
+`
+    
+    // Create a temporary file with the content
+    tempFile, err := os.CreateTemp("", "bootstrap-apt-conf")
+    if err != nil {
+        return fmt.Errorf("failed to create temp file: %w", err)
+    }
+    defer os.Remove(tempFile.Name())
+    
+    if _, err := tempFile.WriteString(configContent); err != nil {
+        return fmt.Errorf("failed to write to temp file: %w", err)
+    }
+    
+    if err := tempFile.Close(); err != nil {
+        return fmt.Errorf("failed to close temp file: %w", err)
+    }
+    
+    // Use sudo to move the file to the correct location
+    cmd := exec.Command("sudo", "cp", tempFile.Name(), configFile)
+    if err := cmd.Run(); err != nil {
+        return fmt.Errorf("failed to copy config file: %w", err)
+    }
+    
+    return nil
+}
+
+// CleanupServicePromptConfig removes the temporary apt configuration
+func CleanupServicePromptConfig() error {
+    configFile := "/etc/apt/apt.conf.d/90bootstrap-no-restart"
+    
+    // Check if file exists
+    if _, err := os.Stat(configFile); os.IsNotExist(err) {
+        return nil // File doesn't exist, nothing to do
+    }
+    
+    // Remove the file
+    cmd := exec.Command("sudo", "rm", configFile)
+    if err := cmd.Run(); err != nil {
+        return fmt.Errorf("failed to remove config file: %w", err)
+    }
+    
+    return nil
 }

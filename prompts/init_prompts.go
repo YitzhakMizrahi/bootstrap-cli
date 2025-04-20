@@ -6,8 +6,10 @@ import (
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/platform"
 	"github.com/YitzhakMizrahi/bootstrap-cli/types"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Step represents a stage in the setup wizard
@@ -50,6 +52,11 @@ type wizardModel struct {
 	languagesOptions  []Option
 	editorsOptions    []Option
 	
+	// UI components
+	tabs             TabState
+	progressIndicator ProgressIndicator
+	spinner          CustomSpinner
+	
 	// Cursors for navigation
 	shellCursor      int
 	pluginCursor     int
@@ -65,6 +72,8 @@ type wizardModel struct {
 	
 	quitting       bool
 	err            error
+	width          int
+	height         int
 }
 
 // Initialize the wizard model
@@ -94,7 +103,23 @@ func initializeModel() (wizardModel, error) {
 		},
 		useRelative:    true,
 		backupExisting: true,
+		width:          80,
+		height:         24,
 	}
+	
+	// Setup UI components
+	
+	// Tabs for shell, plugin manager, prompt, etc.
+	tabNames := []string{
+		"Shell", "Plugins", "Prompt", "Tools", "Languages", "Packages", "Editors", "Dotfiles", "Options", "Confirm",
+	}
+	m.tabs = NewTabState(tabNames)
+	
+	// Progress indicator based on steps
+	m.progressIndicator = NewProgressIndicator(len(m.steps))
+	
+	// Spinner for loading states
+	m.spinner = NewSpinner("Initializing...")
 	
 	// Setup shell options
 	m.shellOptions = []Option{
@@ -153,6 +178,17 @@ func initializeModel() (wizardModel, error) {
 // Update handles user input
 func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+	
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		spinnerModel, cmd := m.spinner.Model.Update(msg)
+		m.spinner.Model = spinnerModel
+		return m, cmd
+		
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
@@ -160,9 +196,12 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			if m.currentStep > 0 {
 				m.currentStep--
+				// Update progress indicator
+				m.progressIndicator.Prev()
+				// Update active tab
+				m.tabs.ActiveTab = m.currentStep
 				// Reset cursor position when going back
 				m.promptCursor = 0
-				return m, nil
 			}
 			return m, tea.Quit
 		}
@@ -185,6 +224,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Filter plugin options based on shell
 				m.filterPluginOptions()
 				m.currentStep++
+				// Update progress indicator
+				m.progressIndicator.Next()
+				// Update active tab
+				m.tabs.ActiveTab = m.currentStep
 				// Reset cursor for next step
 				m.promptCursor = 0
 			}
@@ -204,6 +247,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				m.config.PluginManager = m.pluginOptions[m.pluginCursor].Value
 				m.currentStep++
+				// Update progress indicator
+				m.progressIndicator.Next()
+				// Update active tab
+				m.tabs.ActiveTab = m.currentStep
 				// Reset cursor for next step
 				m.promptCursor = 0
 			}
@@ -223,6 +270,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				m.config.Prompt = m.promptOptions[m.promptCursor].Value
 				m.currentStep++
+				// Update progress indicator
+				m.progressIndicator.Next()
+				// Update active tab
+				m.tabs.ActiveTab = m.currentStep
 				// Reset cursor for next step
 				m.promptCursor = 0
 			}
@@ -254,6 +305,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.config.CLITools = tools
 				m.currentStep++
+				// Update progress indicator
+				m.progressIndicator.Next()
+				// Update active tab
+				m.tabs.ActiveTab = m.currentStep
 				// Reset cursor for next step
 				m.promptCursor = 0
 			}
@@ -286,6 +341,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.config.Languages = langs
 				m.currentStep++
+				// Update progress indicator
+				m.progressIndicator.Next()
+				// Update active tab
+				m.tabs.ActiveTab = m.currentStep
 				// Reset cursor for next step
 				m.promptCursor = 0
 			}
@@ -294,6 +353,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Handle package managers
 			if len(m.config.Languages) == 0 {
 				m.currentStep++
+				// Update progress indicator
+				m.progressIndicator.Next()
+				// Update active tab
+				m.tabs.ActiveTab = m.currentStep
 				return m, nil
 			}
 			
@@ -314,6 +377,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			
 			if msg.String() == "enter" {
 				m.currentStep++
+				// Update progress indicator
+				m.progressIndicator.Next()
+				// Update active tab
+				m.tabs.ActiveTab = m.currentStep
 			}
 			
 		case StepEditors:
@@ -344,6 +411,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.config.Editors = editors
 				m.currentStep++
+				// Update progress indicator
+				m.progressIndicator.Next()
+				// Update active tab
+				m.tabs.ActiveTab = m.currentStep
 			}
 			
 		case StepDotfilesPath:
@@ -358,6 +429,10 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.config.DotfilesPath = path
 				m.currentStep++
+				// Update progress indicator
+				m.progressIndicator.Next()
+				// Update active tab
+				m.tabs.ActiveTab = m.currentStep
 			}
 			
 			return m, cmd
@@ -376,17 +451,27 @@ func (m wizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.config.BackupExisting = m.backupExisting
 				m.config.DevMode = m.devMode
 				m.currentStep++
+				// Update progress indicator
+				m.progressIndicator.Next()
+				// Update active tab
+				m.tabs.ActiveTab = m.currentStep
 			}
 			
 		case StepConfirm:
 			// Handle confirmation
 			if msg.Type == tea.KeyEnter || msg.String() == "y" {
 				m.currentStep++
+				// Complete progress indicator
+				m.progressIndicator.Current = m.progressIndicator.Total
 				return m, tea.Quit
 			}
 			if msg.String() == "n" {
 				// Go back to the beginning
 				m.currentStep = 0
+				// Reset progress indicator
+				m.progressIndicator.Current = 0
+				// Reset active tab
+				m.tabs.ActiveTab = 0
 			}
 		
 		case StepDone:
@@ -407,7 +492,7 @@ func (m wizardModel) View() string {
 		return "Configuration complete!\n"
 	}
 	
-	// Add step information header
+	// Get the step name
 	stepName := "Unknown"
 	switch m.steps[m.currentStep] {
 	case StepShell:
@@ -432,9 +517,16 @@ func (m wizardModel) View() string {
 		stepName = "Confirmation"
 	}
 	
-	// Create progress indicator
-	header := fmt.Sprintf("Step %d/%d: %s", m.currentStep+1, len(m.steps), stepName)
+	// Create a styled header
+	headerStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#7D56F4")).
+		Padding(0, 1).
+		Width(m.width - 4)
 	
+	header := headerStyle.Render(stepName)
+	
+	// Generate content based on current step
 	var content strings.Builder
 	
 	// Main content based on current step
@@ -494,9 +586,8 @@ func (m wizardModel) View() string {
 		}
 		
 	case StepLanguages:
-		content.WriteString("\nSelect languages to install (space to toggle, enter to continue):\n\n")
+		content.WriteString("\nSelect programming languages (space to toggle, enter to continue):\n\n")
 		
-		// Display languages options with checkboxes and indentation
 		for i, option := range m.languagesOptions {
 			cursor := " "
 			if i == m.promptCursor {
@@ -512,34 +603,21 @@ func (m wizardModel) View() string {
 		}
 		
 	case StepPackageManagers:
-		// Handle the package managers step content
 		if len(m.config.Languages) == 0 {
 			content.WriteString("\nNo languages selected. Press Enter to continue.\n")
 		} else {
-			content.WriteString("\nDefault package managers will be installed:\n\n")
-			for _, lang := range m.config.Languages {
-				var pkgManager string
-				switch lang {
-				case "node":
-					pkgManager = "pnpm (Node.js package manager)"
-				case "python":
-					pkgManager = "pip (Python package manager)"
-				case "go":
-					pkgManager = "No separate package manager needed for Go"
-				case "rust":
-					pkgManager = "cargo (Rust package manager)"
-				default:
-					pkgManager = "Unknown"
-				}
-				content.WriteString(fmt.Sprintf("• %s: %s\n", lang, pkgManager))
+			content.WriteString("\nPackage manager selection (defaults):\n\n")
+			
+			for lang, pm := range m.config.PackageManagers {
+				content.WriteString(fmt.Sprintf("  %s: %s\n", lang, pm))
 			}
-			content.WriteString("\nPress Enter to continue.\n")
+			
+			content.WriteString("\nPress Enter to continue with these defaults.\n")
 		}
 		
 	case StepEditors:
-		content.WriteString("\nSelect editors (space to toggle, enter to continue):\n\n")
+		content.WriteString("\nSelect code editors (space to toggle, enter to continue):\n\n")
 		
-		// Display editors options with checkboxes and indentation
 		for i, option := range m.editorsOptions {
 			cursor := " "
 			if i == m.promptCursor {
@@ -555,9 +633,9 @@ func (m wizardModel) View() string {
 		}
 		
 	case StepDotfilesPath:
-		content.WriteString("\nEnter path to your dotfiles repository:\n\n")
+		content.WriteString("\nEnter the path to your dotfiles repository:\n\n")
 		content.WriteString(m.pathInput.View())
-		content.WriteString("\n\n(Press Enter to continue)")
+		content.WriteString("\n\nLeave empty to use default (~/dotfiles).")
 		
 	case StepOptions:
 		content.WriteString("\nOptions:\n\n")
@@ -598,16 +676,29 @@ func (m wizardModel) View() string {
 		content.WriteString("\n🎉 Configuration complete!\n")
 	}
 	
+	// Set the tab content
+	m.tabs.SetContent(m.currentStep, content.String())
+	
+	// Create progress indicator
+	progressBar := m.progressIndicator.SimpleView()
+	
 	// Navigation help
 	navHelp := "\nPress Esc to go back, Ctrl+C to quit"
 	
 	// Combine all elements
-	return fmt.Sprintf("%s\n%s\n%s", header, content.String(), navHelp)
+	return lipgloss.JoinVertical(
+		lipgloss.Center,
+		"",
+		header,
+		progressBar,
+		m.tabs.View(m.width),
+		navHelp,
+	)
 }
 
 // Init initializes the model
 func (m wizardModel) Init() tea.Cmd {
-	return nil
+	return spinner.Tick
 }
 
 // RunInitWizard starts the interactive setup wizard and returns the resulting config
@@ -618,7 +709,7 @@ func RunInitWizard() types.UserConfig {
 		return types.UserConfig{}
 	}
 	
-	// Use a larger terminal size to ensure all items are visible
+	// Use alt screen mode for a full-terminal UI
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	finalModel, err := p.Run()
 	if err != nil {

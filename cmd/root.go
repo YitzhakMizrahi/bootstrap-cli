@@ -1,30 +1,34 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-
-*/
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 )
 
-
+var cfgFile string
+var verbose bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "bootstrap-cli",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Short: "Quickly bootstrap your development environment",
+	Long: `bootstrap-cli is a modular, interactive command-line tool designed to 
+bootstrap a personalized development environment quickly and consistently 
+across platforms.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+It allows you to select shells, plugin managers, prompts, editors, CLI tools, 
+programming languages, and symlink your dotfiles intelligently.
+
+🔥 Main Commands:
+  • bootstrap-cli up     - Run the complete setup process (recommended)
+  • bootstrap-cli init   - Run only the configuration wizard
+  • bootstrap-cli install - Install selected components
+  • bootstrap-cli link   - Link your dotfiles to the right locations
+
+For more details on each command, run: bootstrap-cli [command] --help`,
+	Version: "0.1.0",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -32,20 +36,29 @@ to quickly create a Cobra application.`,
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.bootstrap-cli.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// Global flags
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/bootstrap/config.yaml)")
+	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "enable verbose output")
+	rootCmd.PersistentFlags().Bool("dry-run", false, "show what would be done without making changes")
+	
+	// Set custom version template
+	template := `{{with .Name}}{{printf "%s " .}}{{end}}{{printf "version %s" .Version}}
+`
+	rootCmd.SetVersionTemplate(template)
 }
 
+// GetVerbose returns the value of the verbose flag
+func GetVerbose() bool {
+	return verbose
+}
 
+// GetConfigPath returns the config file path
+func GetConfigPath() string {
+	return cfgFile
+}

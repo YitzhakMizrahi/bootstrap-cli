@@ -5,6 +5,7 @@
 /*.dll
 /*.so
 /*.dylib
+bootstrap-cli
 
 # Go test cache
 *.test

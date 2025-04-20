@@ -174,6 +174,19 @@ func InstallShell(shellName string) error {
 	// Check if the shell is already installed
 	if isCommandAvailable(shellName) {
 		fmt.Printf("✅ %s is already installed\n", shell.Name)
+		
+		// Check if it's the default shell
+		currentShell, err := GetCurrentShell()
+		if err == nil && currentShell != shellName {
+			fmt.Printf("🔄 Current shell is %s, setting %s as default...\n", currentShell, shellName)
+			if err := SetDefaultShell(shellName); err != nil {
+				fmt.Printf("⚠️ Could not set %s as default shell: %v\n", shellName, err)
+				fmt.Printf("💡 You can manually change your shell with: chsh -s $(which %s)\n", shellName)
+			} else {
+				fmt.Printf("✅ Default shell changed to %s\n", shellName)
+			}
+		}
+		
 		return nil
 	}
 
@@ -214,30 +227,27 @@ func InstallShell(shellName string) error {
 	// Set as default shell if on Unix-like systems
 	if runtime.GOOS != "windows" {
 		fmt.Printf("🔄 Setting %s as default shell...\n", shell.Name)
+		
+		// Make sure shell is in /etc/shells
 		shellPath, err := exec.Command("which", shellName).Output()
 		if err != nil {
 			fmt.Printf("⚠️ Could not find path to %s: %v\n", shell.Name, err)
-			return nil
-		}
-
-		shellPathStr := strings.TrimSpace(string(shellPath))
-		
-		// Check if shell is in /etc/shells
-		checkCmd := fmt.Sprintf("grep -q '^%s$' /etc/shells || sudo sh -c 'echo %s >> /etc/shells'", 
-			shellPathStr, shellPathStr)
-		checkShellCmd := exec.Command("bash", "-c", checkCmd)
-		checkShellCmd.Run() // Ignore errors
-		
-		// Change default shell
-		chshCmd := exec.Command("chsh", "-s", shellPathStr)
-		chshCmd.Stdout = os.Stdout
-		chshCmd.Stderr = os.Stderr
-		
-		if err := chshCmd.Run(); err != nil {
-			fmt.Printf("⚠️ Could not change default shell: %v\n", err)
-			fmt.Printf("💡 You can manually change your shell with: chsh -s %s\n", shellPathStr)
 		} else {
-			fmt.Printf("✅ Default shell changed to %s\n", shell.Name)
+			shellPathStr := strings.TrimSpace(string(shellPath))
+			
+			// Check if shell is in /etc/shells
+			checkCmd := fmt.Sprintf("grep -q '^%s$' /etc/shells || sudo sh -c 'echo %s >> /etc/shells'", 
+				shellPathStr, shellPathStr)
+			checkShellCmd := exec.Command("bash", "-c", checkCmd)
+			checkShellCmd.Run() // Ignore errors
+			
+			// Set as default shell using our utility
+			if err := SetDefaultShell(shellName); err != nil {
+				fmt.Printf("⚠️ Could not set %s as default shell: %v\n", shellName, err)
+				fmt.Printf("💡 You can manually change your shell with: chsh -s %s\n", shellPathStr)
+			} else {
+				fmt.Printf("✅ Default shell changed to %s\n", shell.Name)
+			}
 		}
 	}
 

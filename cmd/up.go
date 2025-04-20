@@ -160,10 +160,20 @@ Run: func(cmd *cobra.Command, args []string) {
 		}
 
 		// Final message
-		fmt.Println("\n✨ Bootstrap complete! You may need to restart your terminal for all changes to take effect.")
+		fmt.Println("\n✨ Bootstrap complete!")
 		
-		// Show next steps
-		printNextSteps(cfg)
+		// Show next steps if not finishing
+		skipFinish, _ := cmd.Flags().GetBool("skip-finish")
+		if skipFinish {
+			printNextSteps(cfg)
+		} else {
+			// Use the finisher to handle post-install tasks and shell restart
+			if err := installer.FinishInstallation(cfg); err != nil {
+				fmt.Printf("⚠️ Could not complete finalization: %v\n", err)
+				// Fall back to showing next steps
+				printNextSteps(cfg)
+			}
+		}
 	},
 }
 
@@ -174,6 +184,7 @@ func init() {
 	upCmd.Flags().BoolP("force", "f", false, "Force run the init wizard even if config exists")
 	upCmd.Flags().Bool("skip-install", false, "Skip the installation phase")
 	upCmd.Flags().Bool("skip-link", false, "Skip the dotfile linking phase")
+	upCmd.Flags().Bool("skip-finish", false, "Skip the finalization phase")
 }
 
 // printWelcomeMessage displays a welcome message

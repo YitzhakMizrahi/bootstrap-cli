@@ -3,6 +3,7 @@ package shell
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -120,6 +121,28 @@ func (s *Shell) AppendToConfig(content string) error {
 	// Append the content
 	if _, err := file.WriteString(content); err != nil {
 		return fmt.Errorf("failed to append to config file: %w", err)
+	}
+
+	return nil
+}
+
+// AppendToRC appends content to the shell RC file
+func (s *Shell) AppendToRC(content string) error {
+	rcPath, err := s.GetRCPath()
+	if err != nil {
+		return fmt.Errorf("failed to get RC path: %w", err)
+	}
+
+	// Open the file in append mode, create if it doesn't exist
+	file, err := os.OpenFile(rcPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open RC file: %w", err)
+	}
+	defer file.Close()
+
+	// Append the content
+	if _, err := file.WriteString(content); err != nil {
+		return fmt.Errorf("failed to append to RC file: %w", err)
 	}
 
 	return nil
@@ -410,4 +433,127 @@ func (s *Shell) UpdatePlugin(pluginPath, newVersion string) error {
 	plugin.Version = newVersion
 	fmt.Printf("Updated plugin %s to version %s\n", pluginPath, newVersion)
 	return nil
+}
+
+// ValidateConfig validates the shell configuration file content
+func (s *Shell) ValidateConfig() error {
+	configPath, err := s.GetConfigPath()
+	if err != nil {
+		return fmt.Errorf("failed to get config path: %w", err)
+	}
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	// Check if the file is empty
+	if len(content) == 0 {
+		return fmt.Errorf("config file is empty")
+	}
+
+	// Check if the file contains only comments
+	lines := strings.Split(string(content), "\n")
+	hasNonComment := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+			hasNonComment = true
+			break
+		}
+	}
+	if !hasNonComment {
+		return fmt.Errorf("config file contains no configuration, only comments")
+	}
+
+	// For zsh and bash, we can use the shell's -n option to check syntax
+	if s.Name == "zsh" || s.Name == "bash" {
+		cmd := exec.Command(s.Name, "-n", configPath)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("shell syntax validation failed: %w", err)
+		}
+	}
+
+	// For fish, we can use the fish_indent command to check syntax
+	if s.Name == "fish" {
+		cmd := exec.Command("fish_indent", "--check", configPath)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("fish syntax validation failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// SetEnvVar sets an environment variable in the shell RC file
+func (s *Shell) SetEnvVar(key, value string) error {
+	rcPath, err := s.GetRCPath()
+	if err != nil {
+		return fmt.Errorf("failed to get RC path: %w", err)
+	}
+
+	// Read the current RC file content
+	content, err := os.ReadFile(rcPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read RC file: %w", err)
+	}
+
+	// Create the environment variable line based on shell type
+	var envLine string
+	switch s.Name {
+	case "zsh", "bash":
+		envLine = fmt.Sprintf("export %s=%s\n", key, value)
+	case "fish":
+		envLine = fmt.Sprintf("set -gx %s %s\n", key, value)
+	default:
+		return fmt.Errorf("unsupported shell type: %s", s.Name)
+	}
+
+	// If the file doesn't exist, create it with the new environment variable
+	if os.IsNotExist(err) {
+		return os.WriteFile(rcPath, []byte(envLine), 0644)
+	}
+
+	// Check if the environment variable already exists
+	lines := strings.Split(string(content), "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "export "+key+"=") || 
+		   strings.HasPrefix(strings.TrimSpace(line), "set -gx "+key+" ") {
+			lines[i] = envLine
+			return os.WriteFile(rcPath, []byte(strings.Join(lines, "\n")), 0644)
+		}
+	}
+
+	// Append the new environment variable
+	return s.AppendToRC(envLine)
+}
+
+// GetEnvVar gets the value of an environment variable from the shell RC file
+func (s *Shell) GetEnvVar(key string) (string, error) {
+	rcPath, err := s.GetRCPath()
+	if err != nil {
+		return "", fmt.Errorf("failed to get RC path: %w", err)
+	}
+
+	content, err := os.ReadFile(rcPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read RC file: %w", err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		switch s.Name {
+		case "zsh", "bash":
+			if strings.HasPrefix(line, "export "+key+"=") {
+				return strings.TrimPrefix(line, "export "+key+"="), nil
+			}
+		case "fish":
+			if strings.HasPrefix(line, "set -gx "+key+" ") {
+				return strings.TrimPrefix(line, "set -gx "+key+" "), nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("environment variable %s not found", key)
 } 

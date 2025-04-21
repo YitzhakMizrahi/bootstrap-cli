@@ -1,8 +1,10 @@
 package shell
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -709,5 +711,519 @@ func TestPluginVersionManagement(t *testing.T) {
 	}
 	if updatedPlugin.Version != "2.0.0" {
 		t.Errorf("Expected version '2.0.0', got '%s'", updatedPlugin.Version)
+	}
+}
+
+func TestPluginRemoveAndDisable(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "shell-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a test shell with a custom config path
+	shell, err := New("zsh")
+	if err != nil {
+		t.Fatalf("Failed to create shell: %v", err)
+	}
+
+	// Override the GetConfigPath method to use our temp directory
+	testShell := &testShell{
+		Shell: shell,
+		getConfigPathFunc: func() (string, error) {
+			return filepath.Join(tempDir, ".zshrc"), nil
+		},
+	}
+
+	// Create an initial config file with some content
+	initialConfig := `# Initial config
+export PATH=$HOME/bin:$PATH
+source /path/to/other-plugin.zsh
+`
+	if err := os.WriteFile(filepath.Join(tempDir, ".zshrc"), []byte(initialConfig), 0644); err != nil {
+		t.Fatalf("Failed to create initial config file: %v", err)
+	}
+
+	// Add a plugin
+	pluginPath := "/path/to/test-plugin.zsh"
+	err = testShell.AddPlugin(pluginPath)
+	if err != nil {
+		t.Fatalf("Failed to add plugin: %v", err)
+	}
+
+	// Verify the plugin was added to the config file
+	configContent, err := os.ReadFile(filepath.Join(tempDir, ".zshrc"))
+	if err != nil {
+		t.Fatalf("Failed to read config file: %v", err)
+	}
+
+	expectedSource := fmt.Sprintf("source %s\n", pluginPath)
+	if !strings.Contains(string(configContent), expectedSource) {
+		t.Errorf("Config file does not contain the expected source line: %s", expectedSource)
+	}
+
+	// Test disabling the plugin
+	err = testShell.DisablePlugin(pluginPath)
+	if err != nil {
+		t.Errorf("Failed to disable plugin: %v", err)
+	}
+
+	// Verify the plugin was commented out in the config file
+	configContent, err = os.ReadFile(filepath.Join(tempDir, ".zshrc"))
+	if err != nil {
+		t.Fatalf("Failed to read config file: %v", err)
+	}
+
+	expectedCommented := fmt.Sprintf("# source %s\n", pluginPath)
+	if !strings.Contains(string(configContent), expectedCommented) {
+		t.Errorf("Config file does not contain the expected commented source line: %s", expectedCommented)
+	}
+
+	// Test removing the plugin
+	err = testShell.RemovePlugin(pluginPath)
+	if err != nil {
+		t.Errorf("Failed to remove plugin: %v", err)
+	}
+
+	// Verify the plugin was removed from the config file
+	configContent, err = os.ReadFile(filepath.Join(tempDir, ".zshrc"))
+	if err != nil {
+		t.Fatalf("Failed to read config file: %v", err)
+	}
+
+	if strings.Contains(string(configContent), expectedSource) || strings.Contains(string(configContent), expectedCommented) {
+		t.Errorf("Config file still contains the plugin source line after removal")
+	}
+}
+
+func TestPluginRemoveAndDisableErrors(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "shell-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a test shell with a custom config path
+	shell, err := New("zsh")
+	if err != nil {
+		t.Fatalf("Failed to create shell: %v", err)
+	}
+
+	// Override the GetConfigPath method to use our temp directory
+	testShell := &testShell{
+		Shell: shell,
+		getConfigPathFunc: func() (string, error) {
+			return filepath.Join(tempDir, ".zshrc"), nil
+		},
+	}
+
+	// Test removing a non-existent plugin
+	err = testShell.RemovePlugin("/path/to/non-existent-plugin.zsh")
+	if err == nil {
+		t.Error("Expected error when removing non-existent plugin, got nil")
+	}
+
+	// Test disabling a non-existent plugin
+	err = testShell.DisablePlugin("/path/to/non-existent-plugin.zsh")
+	if err == nil {
+		t.Error("Expected error when disabling non-existent plugin, got nil")
+	}
+
+	// Add a plugin
+	pluginPath := "/path/to/test-plugin.zsh"
+	err = testShell.AddPlugin(pluginPath)
+	if err != nil {
+		t.Fatalf("Failed to add plugin: %v", err)
+	}
+
+	// Test disabling an already disabled plugin
+	err = testShell.DisablePlugin(pluginPath)
+	if err != nil {
+		t.Fatalf("Failed to disable plugin: %v", err)
+	}
+	err = testShell.DisablePlugin(pluginPath)
+	if err == nil {
+		t.Error("Expected error when disabling already disabled plugin, got nil")
+	}
+
+	// Test removing an already removed plugin
+	err = testShell.RemovePlugin(pluginPath)
+	if err != nil {
+		t.Fatalf("Failed to remove plugin: %v", err)
+	}
+	err = testShell.RemovePlugin(pluginPath)
+	if err == nil {
+		t.Error("Expected error when removing already removed plugin, got nil")
+	}
+}
+
+func TestShellTypeValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		shellType   string
+		expectError bool
+		configFile  string
+		rcFile      string
+	}{
+		{
+			name:        "Valid zsh shell",
+			shellType:   "zsh",
+			expectError: false,
+			configFile:  ".zshrc",
+			rcFile:      ".zshenv",
+		},
+		{
+			name:        "Valid bash shell",
+			shellType:   "bash",
+			expectError: false,
+			configFile:  ".bashrc",
+			rcFile:      ".bash_profile",
+		},
+		{
+			name:        "Valid fish shell",
+			shellType:   "fish",
+			expectError: false,
+			configFile:  "config.fish",
+			rcFile:      "config.fish",
+		},
+		{
+			name:        "Invalid shell type",
+			shellType:   "invalid",
+			expectError: true,
+		},
+		{
+			name:        "Empty shell type",
+			shellType:   "",
+			expectError: true,
+		},
+		{
+			name:        "Case insensitive zsh",
+			shellType:   "ZSH",
+			expectError: false,
+			configFile:  ".zshrc",
+			rcFile:      ".zshenv",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shell, err := New(tt.shellType)
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error for invalid shell type, got nil")
+				}
+				if shell != nil {
+					t.Error("Expected nil shell for invalid shell type")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error for valid shell type: %v", err)
+			}
+
+			if shell.Name != strings.ToLower(tt.shellType) {
+				t.Errorf("Expected shell name %s, got %s", strings.ToLower(tt.shellType), shell.Name)
+			}
+
+			if shell.ConfigFile != tt.configFile {
+				t.Errorf("Expected config file %s, got %s", tt.configFile, shell.ConfigFile)
+			}
+
+			if shell.RCFile != tt.rcFile {
+				t.Errorf("Expected RC file %s, got %s", tt.rcFile, shell.RCFile)
+			}
+		})
+	}
+}
+
+func TestShellConfigContentValidation(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "shell-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a test shell
+	shell, err := New("zsh")
+	if err != nil {
+		t.Fatalf("Failed to create shell: %v", err)
+	}
+
+	// Override the GetConfigPath method to use our temp directory
+	testShell := &testShell{
+		Shell: shell,
+		getConfigPathFunc: func() (string, error) {
+			return filepath.Join(tempDir, ".zshrc"), nil
+		},
+	}
+
+	tests := []struct {
+		name          string
+		content       string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "Valid config content",
+			content:     "# Test config\nexport PATH=$HOME/bin:$PATH\n",
+			expectError: false,
+		},
+		{
+			name:          "Invalid shell syntax",
+			content:       "export PATH=$HOME/bin:$PATH\nif [ true ]; then\n",
+			expectError:   true,
+			errorContains: "unclosed",
+		},
+		{
+			name:          "Empty content",
+			content:       "",
+			expectError:   true,
+			errorContains: "empty",
+		},
+		{
+			name:          "Only comments",
+			content:       "# This is a comment\n# Another comment\n",
+			expectError:   true,
+			errorContains: "no configuration",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create the config file with the test content
+			configPath := filepath.Join(tempDir, ".zshrc")
+			if err := os.WriteFile(configPath, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("Failed to write test config: %v", err)
+			}
+
+			// Try to validate the config
+			err := testShell.ValidateConfig()
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error for invalid config, got nil")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("Expected error to contain %q, got %q", tt.errorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error for valid config: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestShellRCFileManagement(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "shell-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := []struct {
+		name        string
+		shellType   string
+		rcContent   string
+		expectError bool
+	}{
+		{
+			name:      "Zsh RC file",
+			shellType: "zsh",
+			rcContent: `# Zsh environment variables
+export EDITOR=vim
+export LANG=en_US.UTF-8
+`,
+			expectError: false,
+		},
+		{
+			name:      "Bash RC file",
+			shellType: "bash",
+			rcContent: `# Bash environment variables
+export EDITOR=vim
+export LANG=en_US.UTF-8
+`,
+			expectError: false,
+		},
+		{
+			name:      "Fish RC file",
+			shellType: "fish",
+			rcContent: `# Fish environment variables
+set -gx EDITOR vim
+set -gx LANG en_US.UTF-8
+`,
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a test shell
+			shell, err := New(tt.shellType)
+			if err != nil {
+				t.Fatalf("Failed to create shell: %v", err)
+			}
+
+			// Override the GetRCPath method to use our temp directory
+			testShell := &testShell{
+				Shell: shell,
+				getConfigPathFunc: func() (string, error) {
+					return filepath.Join(tempDir, shell.ConfigFile), nil
+				},
+			}
+
+			// Create the RC file
+			rcPath := filepath.Join(tempDir, shell.RCFile)
+			if err := os.WriteFile(rcPath, []byte(tt.rcContent), 0644); err != nil {
+				t.Fatalf("Failed to write RC file: %v", err)
+			}
+
+			// Test reading the RC file
+			content, err := os.ReadFile(rcPath)
+			if err != nil {
+				t.Fatalf("Failed to read RC file: %v", err)
+			}
+
+			if string(content) != tt.rcContent {
+				t.Errorf("Expected RC content %q, got %q", tt.rcContent, string(content))
+			}
+
+			// Test appending to the RC file
+			additionalContent := "\n# Additional settings\n"
+			if err := testShell.AppendToRC(additionalContent); err != nil {
+				if !tt.expectError {
+					t.Errorf("Failed to append to RC file: %v", err)
+				}
+				return
+			}
+
+			// Verify the appended content
+			content, err = os.ReadFile(rcPath)
+			if err != nil {
+				t.Fatalf("Failed to read RC file after append: %v", err)
+			}
+
+			expectedContent := tt.rcContent + additionalContent
+			if string(content) != expectedContent {
+				t.Errorf("Expected RC content after append %q, got %q", expectedContent, string(content))
+			}
+		})
+	}
+}
+
+func TestShellEnvironmentVariables(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "shell-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := []struct {
+		name        string
+		shellType   string
+		envVars     map[string]string
+		expectError bool
+	}{
+		{
+			name:      "Zsh environment variables",
+			shellType: "zsh",
+			envVars: map[string]string{
+				"EDITOR": "vim",
+				"LANG":   "en_US.UTF-8",
+				"PATH":   "$HOME/bin:$PATH",
+			},
+			expectError: false,
+		},
+		{
+			name:      "Bash environment variables",
+			shellType: "bash",
+			envVars: map[string]string{
+				"EDITOR": "vim",
+				"LANG":   "en_US.UTF-8",
+				"PATH":   "$HOME/bin:$PATH",
+			},
+			expectError: false,
+		},
+		{
+			name:      "Fish environment variables",
+			shellType: "fish",
+			envVars: map[string]string{
+				"EDITOR": "vim",
+				"LANG":   "en_US.UTF-8",
+				"PATH":   "$HOME/bin $PATH",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a test shell
+			shell, err := New(tt.shellType)
+			if err != nil {
+				t.Fatalf("Failed to create shell: %v", err)
+			}
+
+			// Override the GetRCPath method to use our temp directory
+			testShell := &testShell{
+				Shell: shell,
+				getConfigPathFunc: func() (string, error) {
+					return filepath.Join(tempDir, shell.ConfigFile), nil
+				},
+			}
+
+			// Set environment variables
+			for key, value := range tt.envVars {
+				if err := testShell.SetEnvVar(key, value); err != nil {
+					if !tt.expectError {
+						t.Errorf("Failed to set environment variable %s: %v", key, err)
+					}
+					return
+				}
+			}
+
+			// Read the RC file to verify the environment variables
+			rcPath := filepath.Join(tempDir, shell.RCFile)
+			content, err := os.ReadFile(rcPath)
+			if err != nil {
+				t.Fatalf("Failed to read RC file: %v", err)
+			}
+
+			// Verify each environment variable is set correctly
+			for key, value := range tt.envVars {
+				var expectedLine string
+				switch shell.Name {
+				case "zsh", "bash":
+					expectedLine = fmt.Sprintf("export %s=%s\n", key, value)
+				case "fish":
+					expectedLine = fmt.Sprintf("set -gx %s %s\n", key, value)
+				}
+
+				if !strings.Contains(string(content), expectedLine) {
+					t.Errorf("Expected RC file to contain %q, got %q", expectedLine, string(content))
+				}
+			}
+
+			// Test getting environment variables
+			for key, value := range tt.envVars {
+				gotValue, err := testShell.GetEnvVar(key)
+				if err != nil {
+					if !tt.expectError {
+						t.Errorf("Failed to get environment variable %s: %v", key, err)
+					}
+					continue
+				}
+
+				if gotValue != value {
+					t.Errorf("Expected environment variable %s to be %q, got %q", key, value, gotValue)
+				}
+			}
+		})
 	}
 } 

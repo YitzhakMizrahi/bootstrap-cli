@@ -51,8 +51,8 @@
 - [x] Create Shell struct with necessary fields
 - [x] Implement shell configuration file management
 - [x] Implement default shell setting functionality
-- [ ] Implement shell plugin management
-- [ ] Add unit tests for shell management
+- [x] Implement shell plugin management
+- [x] Add unit tests for shell management
 
 #### Configuration Management
 - [x] Define Config struct with all necessary settings

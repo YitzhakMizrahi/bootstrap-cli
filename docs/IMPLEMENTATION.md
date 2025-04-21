@@ -73,8 +73,8 @@
 - [x] Implement progress bar component
 - [x] Implement spinner component for indeterminate tasks
 - [x] Implement basic prompt component
-- [ ] Implement basic display formatting
-- [ ] Add unit tests for UI components
+- [x] Implement basic display formatting
+- [x] Add unit tests for UI components
 
 ### Phase 3: Enhanced Features (Week 5-6)
 

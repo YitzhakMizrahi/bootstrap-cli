@@ -1,6 +1,7 @@
 package pkgmanager
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -606,5 +607,206 @@ func TestLoadState(t *testing.T) {
 	}
 	if !installer2.tools["test-tool"].Installed {
 		t.Error("LoadState() tool.Installed = false, want true")
+	}
+}
+
+// TestInstallTools tests the InstallTools method
+func TestInstallTools(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "installer-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a mock package manager
+	mockPM := &MockPackageManager{
+		name:          "mock",
+		isAvailable:   true,
+		installedPkgs: make(map[string]bool),
+		searchResults: make(map[string][]string),
+	}
+
+	// Create an installer
+	installer := NewInstaller(mockPM, tempDir, "state.json")
+
+	// Create tools
+	tool1 := &Tool{
+		Name:        "test-tool-1",
+		Description: "A test tool",
+		PackageName: "test-package-1",
+		Version:     "1.0.0",
+		Category:    "test",
+		URL:         "https://example.com/test-tool-1",
+		Installed:   false,
+	}
+
+	tool2 := &Tool{
+		Name:        "test-tool-2",
+		Description: "Another test tool",
+		PackageName: "test-package-2",
+		Version:     "1.0.0",
+		Category:    "test",
+		URL:         "https://example.com/test-tool-2",
+		Installed:   false,
+	}
+
+	// Register the tools
+	installer.RegisterTool(tool1)
+	installer.RegisterTool(tool2)
+
+	// Install the tools
+	err = installer.InstallTools([]string{"test-tool-1", "test-tool-2"})
+	if err != nil {
+		t.Errorf("InstallTools() error = %v", err)
+	}
+
+	// Check if the tools were installed
+	if !installer.tools["test-tool-1"].Installed {
+		t.Error("InstallTools() tool1.Installed = false, want true")
+	}
+	if !installer.tools["test-tool-2"].Installed {
+		t.Error("InstallTools() tool2.Installed = false, want true")
+	}
+	if !mockPM.IsInstalled("test-package-1") {
+		t.Error("InstallTools() package1 not installed in mock package manager")
+	}
+	if !mockPM.IsInstalled("test-package-2") {
+		t.Error("InstallTools() package2 not installed in mock package manager")
+	}
+}
+
+// TestInstallToolsWithError tests the InstallTools method with an error
+func TestInstallToolsWithError(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "installer-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a mock package manager with an install error
+	mockPM := &MockPackageManager{
+		name:          "mock",
+		isAvailable:   true,
+		installedPkgs: make(map[string]bool),
+		searchResults: make(map[string][]string),
+		installError:  fmt.Errorf("mock install error"),
+	}
+
+	// Create an installer
+	installer := NewInstaller(mockPM, tempDir, "state.json")
+
+	// Create tools
+	tool1 := &Tool{
+		Name:        "test-tool-1",
+		Description: "A test tool",
+		PackageName: "test-package-1",
+		Version:     "1.0.0",
+		Category:    "test",
+		URL:         "https://example.com/test-tool-1",
+		Installed:   false,
+	}
+
+	tool2 := &Tool{
+		Name:        "test-tool-2",
+		Description: "Another test tool",
+		PackageName: "test-package-2",
+		Version:     "1.0.0",
+		Category:    "test",
+		URL:         "https://example.com/test-tool-2",
+		Installed:   false,
+	}
+
+	// Register the tools
+	installer.RegisterTool(tool1)
+	installer.RegisterTool(tool2)
+
+	// Install the tools
+	err = installer.InstallTools([]string{"test-tool-1", "test-tool-2"})
+	if err == nil {
+		t.Error("InstallTools() error = nil, want error")
+	}
+
+	// Check if the tools were not installed
+	if installer.tools["test-tool-1"].Installed {
+		t.Error("InstallTools() tool1.Installed = true, want false")
+	}
+	if installer.tools["test-tool-2"].Installed {
+		t.Error("InstallTools() tool2.Installed = true, want false")
+	}
+	if mockPM.IsInstalled("test-package-1") {
+		t.Error("InstallTools() package1 installed in mock package manager, want not installed")
+	}
+	if mockPM.IsInstalled("test-package-2") {
+		t.Error("InstallTools() package2 installed in mock package manager, want not installed")
+	}
+}
+
+// TestInstallNonExistentTool tests the InstallTool method with a non-existent tool
+func TestInstallNonExistentTool(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "installer-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a mock package manager
+	mockPM := &MockPackageManager{
+		name:          "mock",
+		isAvailable:   true,
+		installedPkgs: make(map[string]bool),
+		searchResults: make(map[string][]string),
+	}
+
+	// Create an installer
+	installer := NewInstaller(mockPM, tempDir, "state.json")
+
+	// Try to install a non-existent tool
+	err = installer.InstallTool("non-existent-tool")
+	if err == nil {
+		t.Error("InstallTool() error = nil, want error")
+	}
+}
+
+// TestInstallAlreadyInstalledTool tests the InstallTool method with an already installed tool
+func TestInstallAlreadyInstalledTool(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "installer-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a mock package manager
+	mockPM := &MockPackageManager{
+		name:          "mock",
+		isAvailable:   true,
+		installedPkgs: make(map[string]bool),
+		searchResults: make(map[string][]string),
+	}
+
+	// Create an installer
+	installer := NewInstaller(mockPM, tempDir, "state.json")
+
+	// Create a tool
+	tool := &Tool{
+		Name:        "test-tool",
+		Description: "A test tool",
+		PackageName: "test-package",
+		Version:     "1.0.0",
+		Category:    "test",
+		URL:         "https://example.com/test-tool",
+		Installed:   true, // Already installed
+	}
+
+	// Register the tool
+	installer.RegisterTool(tool)
+
+	// Try to install the already installed tool
+	err = installer.InstallTool("test-tool")
+	if err == nil {
+		t.Error("InstallTool() error = nil, want error")
 	}
 } 

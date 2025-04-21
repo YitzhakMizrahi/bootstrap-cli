@@ -1,7 +1,11 @@
 package notification
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -20,29 +24,65 @@ const (
 	ErrorNotification
 )
 
+// NotificationPriority defines the priority of a notification
+type NotificationPriority int
+
+const (
+	// LowPriority is a low priority notification
+	LowPriority NotificationPriority = iota
+	// NormalPriority is a normal priority notification
+	NormalPriority
+	// HighPriority is a high priority notification
+	HighPriority
+	// CriticalPriority is a critical priority notification
+	CriticalPriority
+)
+
 // Notification represents a notification message
 type Notification struct {
 	Type      NotificationType
+	Priority  NotificationPriority
 	Message   string
 	Title     string
 	Duration  time.Duration
 	Timestamp time.Time
+	ExpiresAt time.Time
 }
 
 // NotificationManager manages notifications
 type NotificationManager struct {
-	notifications []*Notification
+	notifications    []*Notification
 	maxNotifications int
-	width          int
+	width           int
+	storagePath     string
+	cleanupInterval time.Duration
+	stopCleanup     chan struct{}
 }
 
 // NewNotificationManager creates a new notification manager
 func NewNotificationManager() *NotificationManager {
-	return &NotificationManager{
+	// Get user's home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		homeDir = "."
+	}
+	
+	// Create storage path in user's home directory
+	storagePath := filepath.Join(homeDir, ".bootstrap-cli", "notifications.json")
+	
+	manager := &NotificationManager{
 		notifications:    []*Notification{},
 		maxNotifications: 5,
 		width:           80,
+		storagePath:     storagePath,
+		cleanupInterval: 1 * time.Minute,
+		stopCleanup:     make(chan struct{}),
 	}
+	
+	// Start cleanup goroutine
+	go manager.startCleanup()
+	
+	return manager
 }
 
 // SetMaxNotifications sets the maximum number of notifications to display
@@ -62,13 +102,41 @@ func (m *NotificationManager) AddNotification(notification *Notification) {
 		notification.Timestamp = time.Now()
 	}
 	
+	// Set expiration time if duration is set
+	if notification.Duration > 0 {
+		notification.ExpiresAt = notification.Timestamp.Add(notification.Duration)
+	}
+	
+	// Set default priority if not set
+	if notification.Priority == 0 {
+		// Set priority based on notification type
+		switch notification.Type {
+		case InfoNotification:
+			notification.Priority = NormalPriority
+		case SuccessNotification:
+			notification.Priority = NormalPriority
+		case WarningNotification:
+			notification.Priority = HighPriority
+		case ErrorNotification:
+			notification.Priority = CriticalPriority
+		default:
+			notification.Priority = NormalPriority
+		}
+	}
+	
 	// Add notification to the list
 	m.notifications = append(m.notifications, notification)
+	
+	// Sort notifications by priority (highest first)
+	m.sortNotifications()
 	
 	// Trim notifications if exceeding max
 	if len(m.notifications) > m.maxNotifications {
 		m.notifications = m.notifications[len(m.notifications)-m.maxNotifications:]
 	}
+	
+	// Save notifications to file
+	m.saveNotifications()
 	
 	// Display the notification
 	m.displayNotification(notification)
@@ -165,41 +233,46 @@ func (m *NotificationManager) createNotificationBox(notification *Notification, 
 // Clear clears all notifications
 func (m *NotificationManager) Clear() {
 	m.notifications = []*Notification{}
+	m.saveNotifications()
 }
 
 // Info displays an info notification
 func (m *NotificationManager) Info(message string, title string) {
 	m.AddNotification(&Notification{
-		Type:    InfoNotification,
-		Message: message,
-		Title:   title,
+		Type:     InfoNotification,
+		Priority: NormalPriority,
+		Message:  message,
+		Title:    title,
 	})
 }
 
 // Success displays a success notification
 func (m *NotificationManager) Success(message string, title string) {
 	m.AddNotification(&Notification{
-		Type:    SuccessNotification,
-		Message: message,
-		Title:   title,
+		Type:     SuccessNotification,
+		Priority: NormalPriority,
+		Message:  message,
+		Title:    title,
 	})
 }
 
 // Warning displays a warning notification
 func (m *NotificationManager) Warning(message string, title string) {
 	m.AddNotification(&Notification{
-		Type:    WarningNotification,
-		Message: message,
-		Title:   title,
+		Type:     WarningNotification,
+		Priority: HighPriority,
+		Message:  message,
+		Title:    title,
 	})
 }
 
 // Error displays an error notification
 func (m *NotificationManager) Error(message string, title string) {
 	m.AddNotification(&Notification{
-		Type:    ErrorNotification,
-		Message: message,
-		Title:   title,
+		Type:     ErrorNotification,
+		Priority: CriticalPriority,
+		Message:  message,
+		Title:    title,
 	})
 }
 
@@ -210,5 +283,184 @@ func Notify(notificationType NotificationType, message string, title string) {
 		Type:    notificationType,
 		Message: message,
 		Title:   title,
+	})
+}
+
+// saveNotifications saves notifications to a file
+func (m *NotificationManager) saveNotifications() error {
+	// Create directory if it doesn't exist
+	dir := filepath.Dir(m.storagePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+	
+	// Marshal notifications to JSON
+	data, err := json.MarshalIndent(m.notifications, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal notifications: %w", err)
+	}
+	
+	// Write to file
+	if err := os.WriteFile(m.storagePath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write notifications to file: %w", err)
+	}
+	
+	return nil
+}
+
+// LoadNotifications loads notifications from a file
+func (m *NotificationManager) LoadNotifications() error {
+	// Check if file exists
+	if _, err := os.Stat(m.storagePath); os.IsNotExist(err) {
+		return nil // File doesn't exist, nothing to load
+	}
+	
+	// Read file
+	data, err := os.ReadFile(m.storagePath)
+	if err != nil {
+		return fmt.Errorf("failed to read notifications file: %w", err)
+	}
+	
+	// Unmarshal JSON
+	var notifications []*Notification
+	if err := json.Unmarshal(data, &notifications); err != nil {
+		return fmt.Errorf("failed to unmarshal notifications: %w", err)
+	}
+	
+	// Set notifications
+	m.notifications = notifications
+	
+	return nil
+}
+
+// startCleanup starts the cleanup goroutine
+func (m *NotificationManager) startCleanup() {
+	ticker := time.NewTicker(m.cleanupInterval)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-ticker.C:
+			m.cleanupExpiredNotifications()
+		case <-m.stopCleanup:
+			return
+		}
+	}
+}
+
+// cleanupExpiredNotifications removes expired notifications
+func (m *NotificationManager) cleanupExpiredNotifications() {
+	now := time.Now()
+	expired := false
+	
+	// Create a new slice to hold non-expired notifications
+	var newNotifications []*Notification
+	
+	// Check each notification
+	for _, notification := range m.notifications {
+		// Skip notifications without expiration
+		if notification.ExpiresAt.IsZero() {
+			newNotifications = append(newNotifications, notification)
+			continue
+		}
+		
+		// Check if notification has expired
+		if now.After(notification.ExpiresAt) {
+			expired = true
+			continue
+		}
+		
+		// Keep non-expired notification
+		newNotifications = append(newNotifications, notification)
+	}
+	
+	// Update notifications if any expired
+	if expired {
+		m.notifications = newNotifications
+		m.saveNotifications()
+	}
+}
+
+// StopCleanup stops the cleanup goroutine
+func (m *NotificationManager) StopCleanup() {
+	close(m.stopCleanup)
+}
+
+// InfoWithDuration displays an info notification with a duration
+func (m *NotificationManager) InfoWithDuration(message string, title string, duration time.Duration) {
+	m.AddNotification(&Notification{
+		Type:     InfoNotification,
+		Priority: NormalPriority,
+		Message:  message,
+		Title:    title,
+		Duration: duration,
+	})
+}
+
+// SuccessWithDuration displays a success notification with a duration
+func (m *NotificationManager) SuccessWithDuration(message string, title string, duration time.Duration) {
+	m.AddNotification(&Notification{
+		Type:     SuccessNotification,
+		Priority: NormalPriority,
+		Message:  message,
+		Title:    title,
+		Duration: duration,
+	})
+}
+
+// WarningWithDuration displays a warning notification with a duration
+func (m *NotificationManager) WarningWithDuration(message string, title string, duration time.Duration) {
+	m.AddNotification(&Notification{
+		Type:     WarningNotification,
+		Priority: HighPriority,
+		Message:  message,
+		Title:    title,
+		Duration: duration,
+	})
+}
+
+// ErrorWithDuration displays an error notification with a duration
+func (m *NotificationManager) ErrorWithDuration(message string, title string, duration time.Duration) {
+	m.AddNotification(&Notification{
+		Type:     ErrorNotification,
+		Priority: CriticalPriority,
+		Message:  message,
+		Title:    title,
+		Duration: duration,
+	})
+}
+
+// sortNotifications sorts notifications by priority (highest first)
+func (m *NotificationManager) sortNotifications() {
+	// Sort notifications by priority (highest first)
+	sort.Slice(m.notifications, func(i, j int) bool {
+		// First sort by priority (highest first)
+		if m.notifications[i].Priority != m.notifications[j].Priority {
+			return m.notifications[i].Priority > m.notifications[j].Priority
+		}
+		
+		// Then sort by timestamp (newest first)
+		return m.notifications[i].Timestamp.After(m.notifications[j].Timestamp)
+	})
+}
+
+// AddNotificationWithPriority adds a notification with a specific priority
+func (m *NotificationManager) AddNotificationWithPriority(notificationType NotificationType, priority NotificationPriority, message string, title string) {
+	m.AddNotification(&Notification{
+		Type:     notificationType,
+		Priority: priority,
+		Message:  message,
+		Title:    title,
+	})
+}
+
+// AddNotificationWithPriorityAndDuration adds a notification with a specific priority and duration
+func (m *NotificationManager) AddNotificationWithPriorityAndDuration(notificationType NotificationType, priority NotificationPriority, message string, title string, duration time.Duration) {
+	m.AddNotification(&Notification{
+		Type:     notificationType,
+		Priority: priority,
+		Message:  message,
+		Title:    title,
+		Duration: duration,
 	})
 } 

@@ -58,6 +58,17 @@ func (f *FontManager) InstallNerdFonts(fonts []string) error {
 
 // installNerdFont installs a specific Nerd Font
 func (f *FontManager) installNerdFont(fontName string) error {
+	// Check if the font is already installed
+	if f.IsFontInstalled(fontName) {
+		fmt.Printf("Font %s is already installed, skipping...\n", fontName)
+		return nil
+	}
+
+	// Check if the font is available
+	if !f.IsNerdFontAvailable(fontName) {
+		return fmt.Errorf("font %s is not available", fontName)
+	}
+
 	// Construct the download URL
 	url := fmt.Sprintf("https://github.com/ryanoasis/nerd-fonts/releases/download/v3.1.1/%s.zip", fontName)
 
@@ -123,6 +134,7 @@ func (f *FontManager) installNerdFont(fontName string) error {
 		}
 	}
 
+	fmt.Printf("Successfully installed %s\n", fontName)
 	return nil
 }
 
@@ -210,6 +222,17 @@ func (f *FontManager) ListAvailableNerdFonts() []string {
 		"UbuntuMono",
 		"VictorMono",
 	}
+}
+
+// IsNerdFontAvailable checks if a Nerd Font is available for installation
+func (f *FontManager) IsNerdFontAvailable(fontName string) bool {
+	availableFonts := f.ListAvailableNerdFonts()
+	for _, font := range availableFonts {
+		if font == fontName {
+			return true
+		}
+	}
+	return false
 }
 
 // IsFontInstalled checks if a font is already installed
@@ -303,4 +326,88 @@ func (f *FontManager) GetInstalledFonts() ([]string, error) {
 	}
 
 	return fonts, nil
+}
+
+// GetFontDetails returns details about a specific font
+func (f *FontManager) GetFontDetails(fontName string) (map[string]interface{}, error) {
+	details := make(map[string]interface{})
+	
+	// Check if the font is installed
+	if !f.IsFontInstalled(fontName) {
+		return nil, fmt.Errorf("font %s is not installed", fontName)
+	}
+	
+	// Find all font files for this font
+	pattern := filepath.Join(f.FontsDir, "*"+fontName+"*.ttf")
+	ttfFiles, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list .ttf files: %w", err)
+	}
+	
+	pattern = filepath.Join(f.FontsDir, "*"+fontName+"*.otf")
+	otfFiles, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list .otf files: %w", err)
+	}
+	
+	allFiles := append(ttfFiles, otfFiles...)
+	
+	// Get file information
+	var totalSize int64
+	var fileCount int
+	
+	for _, file := range allFiles {
+		fileInfo, err := os.Stat(file)
+		if err != nil {
+			continue
+		}
+		
+		totalSize += fileInfo.Size()
+		fileCount++
+	}
+	
+	details["name"] = fontName
+	details["fileCount"] = fileCount
+	details["totalSize"] = totalSize
+	details["files"] = allFiles
+	
+	return details, nil
+}
+
+// UninstallFont removes a font from the system
+func (f *FontManager) UninstallFont(fontName string) error {
+	// Check if the font is installed
+	if !f.IsFontInstalled(fontName) {
+		return fmt.Errorf("font %s is not installed", fontName)
+	}
+	
+	// Find all font files for this font
+	pattern := filepath.Join(f.FontsDir, "*"+fontName+"*.ttf")
+	ttfFiles, err := filepath.Glob(pattern)
+	if err != nil {
+		return fmt.Errorf("failed to list .ttf files: %w", err)
+	}
+	
+	pattern = filepath.Join(f.FontsDir, "*"+fontName+"*.otf")
+	otfFiles, err := filepath.Glob(pattern)
+	if err != nil {
+		return fmt.Errorf("failed to list .otf files: %w", err)
+	}
+	
+	allFiles := append(ttfFiles, otfFiles...)
+	
+	// Remove each file
+	for _, file := range allFiles {
+		if err := os.Remove(file); err != nil {
+			return fmt.Errorf("failed to remove font file %s: %w", file, err)
+		}
+	}
+	
+	// Update font cache
+	if err := f.updateFontCache(); err != nil {
+		return fmt.Errorf("failed to update font cache: %w", err)
+	}
+	
+	fmt.Printf("Successfully uninstalled %s\n", fontName)
+	return nil
 } 

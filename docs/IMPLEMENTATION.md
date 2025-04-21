@@ -99,6 +99,13 @@
 - [x] Implement interactive selection component
 - [x] Implement form input component
 - [ ] Implement notification system
+  - [ ] Add notification persistence (save to file)
+  - [ ] Add notification expiration/auto-cleanup
+  - [ ] Add notification priority levels
+  - [ ] Add notification grouping/categorization
+  - [ ] Add notification actions/buttons
+  - [ ] Add notification sound support
+  - [ ] Add notification history
 - [ ] Implement help system
 - [ ] Add unit tests for advanced UI components
 

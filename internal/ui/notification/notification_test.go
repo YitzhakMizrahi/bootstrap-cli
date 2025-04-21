@@ -3,8 +3,10 @@ package notification
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // captureOutput captures the output of a function
@@ -249,5 +251,308 @@ func TestNotify(t *testing.T) {
 	}
 	if !strings.Contains(output, "Test message") {
 		t.Errorf("Expected output to contain 'Test message', got '%s'", output)
+	}
+}
+
+// TestSaveAndLoadNotifications tests saving and loading notifications
+func TestSaveAndLoadNotifications(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "notification-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+	
+	// Create a notification manager with custom storage path
+	manager := NewNotificationManager()
+	manager.storagePath = filepath.Join(tempDir, "notifications.json")
+	
+	// Add some notifications
+	manager.Info("Test info message", "Info Title")
+	manager.Success("Test success message", "Success Title")
+	manager.Warning("Test warning message", "Warning Title")
+	
+	// Create a new manager to test loading
+	manager2 := NewNotificationManager()
+	manager2.storagePath = filepath.Join(tempDir, "notifications.json")
+	
+	// Load notifications
+	if err := manager2.LoadNotifications(); err != nil {
+		t.Fatalf("Failed to load notifications: %v", err)
+	}
+	
+	// Check that notifications were loaded correctly
+	if len(manager2.notifications) != 3 {
+		t.Errorf("Expected 3 notifications, got %d", len(manager2.notifications))
+	}
+	
+	// Check notification types
+	if manager2.notifications[0].Type != InfoNotification {
+		t.Errorf("Expected InfoNotification, got %v", manager2.notifications[0].Type)
+	}
+	if manager2.notifications[1].Type != SuccessNotification {
+		t.Errorf("Expected SuccessNotification, got %v", manager2.notifications[1].Type)
+	}
+	if manager2.notifications[2].Type != WarningNotification {
+		t.Errorf("Expected WarningNotification, got %v", manager2.notifications[2].Type)
+	}
+	
+	// Check notification messages
+	if manager2.notifications[0].Message != "Test info message" {
+		t.Errorf("Expected 'Test info message', got '%s'", manager2.notifications[0].Message)
+	}
+	if manager2.notifications[1].Message != "Test success message" {
+		t.Errorf("Expected 'Test success message', got '%s'", manager2.notifications[1].Message)
+	}
+	if manager2.notifications[2].Message != "Test warning message" {
+		t.Errorf("Expected 'Test warning message', got '%s'", manager2.notifications[2].Message)
+	}
+	
+	// Check notification titles
+	if manager2.notifications[0].Title != "Info Title" {
+		t.Errorf("Expected 'Info Title', got '%s'", manager2.notifications[0].Title)
+	}
+	if manager2.notifications[1].Title != "Success Title" {
+		t.Errorf("Expected 'Success Title', got '%s'", manager2.notifications[1].Title)
+	}
+	if manager2.notifications[2].Title != "Warning Title" {
+		t.Errorf("Expected 'Warning Title', got '%s'", manager2.notifications[2].Title)
+	}
+}
+
+// TestClearWithPersistence tests that clearing notifications also clears the file
+func TestClearWithPersistence(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "notification-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+	
+	// Create a notification manager with custom storage path
+	manager := NewNotificationManager()
+	manager.storagePath = filepath.Join(tempDir, "notifications.json")
+	
+	// Add some notifications
+	manager.Info("Test info message", "Info Title")
+	manager.Success("Test success message", "Success Title")
+	
+	// Clear notifications
+	manager.Clear()
+	
+	// Create a new manager to test loading
+	manager2 := NewNotificationManager()
+	manager2.storagePath = filepath.Join(tempDir, "notifications.json")
+	
+	// Load notifications
+	if err := manager2.LoadNotifications(); err != nil {
+		t.Fatalf("Failed to load notifications: %v", err)
+	}
+	
+	// Check that notifications were cleared
+	if len(manager2.notifications) != 0 {
+		t.Errorf("Expected 0 notifications, got %d", len(manager2.notifications))
+	}
+}
+
+// TestNotificationExpiration tests that notifications expire after their duration
+func TestNotificationExpiration(t *testing.T) {
+	// Create a notification manager
+	manager := NewNotificationManager()
+	
+	// Add a notification with a short duration
+	manager.InfoWithDuration("This will expire", "Expiring Notification", 100*time.Millisecond)
+	
+	// Check that the notification was added
+	if len(manager.notifications) != 1 {
+		t.Errorf("Expected 1 notification, got %d", len(manager.notifications))
+	}
+	
+	// Wait for the notification to expire
+	time.Sleep(200 * time.Millisecond)
+	
+	// Manually trigger cleanup
+	manager.cleanupExpiredNotifications()
+	
+	// Check that the notification was removed
+	if len(manager.notifications) != 0 {
+		t.Errorf("Expected 0 notifications after expiration, got %d", len(manager.notifications))
+	}
+	
+	// Stop the cleanup goroutine
+	manager.StopCleanup()
+}
+
+// TestNotificationWithDuration tests creating notifications with duration
+func TestNotificationWithDuration(t *testing.T) {
+	// Create a notification manager
+	manager := NewNotificationManager()
+	
+	// Add notifications with different durations
+	manager.InfoWithDuration("Short duration", "Short", 1*time.Second)
+	manager.SuccessWithDuration("Medium duration", "Medium", 5*time.Second)
+	manager.WarningWithDuration("Long duration", "Long", 10*time.Second)
+	manager.ErrorWithDuration("No expiration", "No Exp", 0)
+	
+	// Check that all notifications were added
+	if len(manager.notifications) != 4 {
+		t.Errorf("Expected 4 notifications, got %d", len(manager.notifications))
+	}
+	
+	// Check that expiration times were set correctly
+	if manager.notifications[0].ExpiresAt.IsZero() {
+		t.Error("Expected non-zero expiration time for notification with duration")
+	}
+	
+	if manager.notifications[1].ExpiresAt.IsZero() {
+		t.Error("Expected non-zero expiration time for notification with duration")
+	}
+	
+	if manager.notifications[2].ExpiresAt.IsZero() {
+		t.Error("Expected non-zero expiration time for notification with duration")
+	}
+	
+	if !manager.notifications[3].ExpiresAt.IsZero() {
+		t.Error("Expected zero expiration time for notification without duration")
+	}
+	
+	// Stop the cleanup goroutine
+	manager.StopCleanup()
+}
+
+// TestNotificationPriority tests that notifications are sorted by priority
+func TestNotificationPriority(t *testing.T) {
+	// Create a notification manager
+	manager := NewNotificationManager()
+	
+	// Add notifications with different priorities
+	manager.AddNotificationWithPriority(InfoNotification, LowPriority, "Low priority message", "Low Priority")
+	manager.AddNotificationWithPriority(InfoNotification, CriticalPriority, "Critical priority message", "Critical Priority")
+	manager.AddNotificationWithPriority(InfoNotification, NormalPriority, "Normal priority message", "Normal Priority")
+	manager.AddNotificationWithPriority(InfoNotification, HighPriority, "High priority message", "High Priority")
+	
+	// Check that notifications are sorted by priority (highest first)
+	if len(manager.notifications) != 4 {
+		t.Errorf("Expected 4 notifications, got %d", len(manager.notifications))
+	}
+	
+	// Check that the first notification is the highest priority
+	if manager.notifications[0].Priority != CriticalPriority {
+		t.Errorf("Expected first notification to be CriticalPriority, got %v", manager.notifications[0].Priority)
+	}
+	
+	// Check that the second notification is the second highest priority
+	if manager.notifications[1].Priority != HighPriority {
+		t.Errorf("Expected second notification to be HighPriority, got %v", manager.notifications[1].Priority)
+	}
+	
+	// Check that the third notification is the third highest priority
+	if manager.notifications[2].Priority != NormalPriority {
+		t.Errorf("Expected third notification to be NormalPriority, got %v", manager.notifications[2].Priority)
+	}
+	
+	// Check that the fourth notification is the lowest priority
+	if manager.notifications[3].Priority != LowPriority {
+		t.Errorf("Expected fourth notification to be LowPriority, got %v", manager.notifications[3].Priority)
+	}
+}
+
+// TestDefaultPriority tests that notifications get default priorities based on their type
+func TestDefaultPriority(t *testing.T) {
+	// Create a notification manager
+	manager := NewNotificationManager()
+	
+	// Add notifications with different types
+	manager.Info("Info message", "Info")
+	manager.Success("Success message", "Success")
+	manager.Warning("Warning message", "Warning")
+	manager.Error("Error message", "Error")
+	
+	// Check that notifications have the correct default priorities
+	if len(manager.notifications) != 4 {
+		t.Errorf("Expected 4 notifications, got %d", len(manager.notifications))
+	}
+	
+	// Find notifications by type
+	var infoNotification, successNotification, warningNotification, errorNotification *Notification
+	
+	for _, notification := range manager.notifications {
+		switch notification.Type {
+		case InfoNotification:
+			infoNotification = notification
+		case SuccessNotification:
+			successNotification = notification
+		case WarningNotification:
+			warningNotification = notification
+		case ErrorNotification:
+			errorNotification = notification
+		}
+	}
+	
+	// Check that Info notifications have NormalPriority
+	if infoNotification.Priority != NormalPriority {
+		t.Errorf("Expected Info notification to have NormalPriority, got %v", infoNotification.Priority)
+	}
+	
+	// Check that Success notifications have NormalPriority
+	if successNotification.Priority != NormalPriority {
+		t.Errorf("Expected Success notification to have NormalPriority, got %v", successNotification.Priority)
+	}
+	
+	// Check that Warning notifications have HighPriority
+	if warningNotification.Priority != HighPriority {
+		t.Errorf("Expected Warning notification to have HighPriority, got %v", warningNotification.Priority)
+	}
+	
+	// Check that Error notifications have CriticalPriority
+	if errorNotification.Priority != CriticalPriority {
+		t.Errorf("Expected Error notification to have CriticalPriority, got %v", errorNotification.Priority)
+	}
+}
+
+// TestPriorityWithDuration tests that notifications with priority and duration work correctly
+func TestPriorityWithDuration(t *testing.T) {
+	// Create a notification manager
+	manager := NewNotificationManager()
+	
+	// Add notifications with different priorities and durations
+	manager.AddNotificationWithPriorityAndDuration(InfoNotification, LowPriority, "Low priority message", "Low Priority", 5*time.Second)
+	manager.AddNotificationWithPriorityAndDuration(InfoNotification, CriticalPriority, "Critical priority message", "Critical Priority", 10*time.Second)
+	
+	// Check that notifications are sorted by priority (highest first)
+	if len(manager.notifications) != 2 {
+		t.Errorf("Expected 2 notifications, got %d", len(manager.notifications))
+	}
+	
+	// Check that the first notification is the highest priority
+	if manager.notifications[0].Priority != CriticalPriority {
+		t.Errorf("Expected first notification to be CriticalPriority, got %v", manager.notifications[0].Priority)
+	}
+	
+	// Check that the second notification is the lowest priority
+	if manager.notifications[1].Priority != LowPriority {
+		t.Errorf("Expected second notification to be LowPriority, got %v", manager.notifications[1].Priority)
+	}
+	
+	// Check that the first notification has the correct duration
+	if manager.notifications[0].Duration != 10*time.Second {
+		t.Errorf("Expected first notification to have duration 10s, got %v", manager.notifications[0].Duration)
+	}
+	
+	// Check that the second notification has the correct duration
+	if manager.notifications[1].Duration != 5*time.Second {
+		t.Errorf("Expected second notification to have duration 5s, got %v", manager.notifications[1].Duration)
+	}
+	
+	// Check that the first notification has the correct expiration time
+	expectedExpiration := manager.notifications[0].Timestamp.Add(10 * time.Second)
+	if !manager.notifications[0].ExpiresAt.Equal(expectedExpiration) {
+		t.Errorf("Expected first notification to expire at %v, got %v", expectedExpiration, manager.notifications[0].ExpiresAt)
+	}
+	
+	// Check that the second notification has the correct expiration time
+	expectedExpiration = manager.notifications[1].Timestamp.Add(5 * time.Second)
+	if !manager.notifications[1].ExpiresAt.Equal(expectedExpiration) {
+		t.Errorf("Expected second notification to expire at %v, got %v", expectedExpiration, manager.notifications[1].ExpiresAt)
 	}
 } 

@@ -47,7 +47,7 @@ func TestShellPluginManagement(t *testing.T) {
 
 	// Test listing plugins
 	plugins := shell.ListPlugins()
-	if len(plugins) != 1 || plugins[0] != plugin {
+	if len(plugins) != 1 || plugins[0].Path != plugin {
 		t.Errorf("Expected plugin list to contain %s, got %v", plugin, plugins)
 	}
 
@@ -75,6 +75,196 @@ func TestShellPluginManagement(t *testing.T) {
 	}
 }
 
+func TestShellPluginWithMetadata(t *testing.T) {
+	// Create a test shell
+	shell, err := New("zsh")
+	if err != nil {
+		t.Fatalf("Failed to create shell: %v", err)
+	}
+
+	// Test adding a plugin with metadata
+	pluginPath := "/path/to/plugin.zsh"
+	pluginName := "test-plugin"
+	pluginVersion := "1.2.3"
+	pluginDescription := "A test plugin"
+	pluginDependencies := []string{"dependency1", "dependency2"}
+
+	err = shell.AddPluginWithMetadata(pluginName, pluginPath, pluginVersion, pluginDescription, pluginDependencies)
+	if err != nil {
+		t.Errorf("Failed to add plugin with metadata: %v", err)
+	}
+
+	// Test getting the plugin
+	plugin, err := shell.GetPlugin(pluginPath)
+	if err != nil {
+		t.Errorf("Failed to get plugin: %v", err)
+	}
+
+	// Check plugin metadata
+	if plugin.Name != pluginName {
+		t.Errorf("Expected plugin name to be %s, got %s", pluginName, plugin.Name)
+	}
+	if plugin.Path != pluginPath {
+		t.Errorf("Expected plugin path to be %s, got %s", pluginPath, plugin.Path)
+	}
+	if plugin.Version != pluginVersion {
+		t.Errorf("Expected plugin version to be %s, got %s", pluginVersion, plugin.Version)
+	}
+	if plugin.Description != pluginDescription {
+		t.Errorf("Expected plugin description to be %s, got %s", pluginDescription, plugin.Description)
+	}
+	if !plugin.Enabled {
+		t.Error("Plugin should be enabled")
+	}
+	if len(plugin.Dependencies) != len(pluginDependencies) {
+		t.Errorf("Expected %d dependencies, got %d", len(pluginDependencies), len(plugin.Dependencies))
+	}
+}
+
+func TestShellPluginEnableDisable(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "shell-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a test shell
+	baseShell, err := New("zsh")
+	if err != nil {
+		t.Fatalf("Failed to create shell: %v", err)
+	}
+
+	// Create a temporary config file path
+	configPath := filepath.Join(tempDir, baseShell.ConfigFile)
+	
+	// Create a test shell with a custom GetConfigPath method
+	testShell := &testShell{
+		Shell: baseShell,
+		getConfigPathFunc: func() (string, error) {
+			return configPath, nil
+		},
+	}
+
+	// Add a plugin
+	pluginPath := "/path/to/plugin.zsh"
+	err = testShell.AddPlugin(pluginPath)
+	if err != nil {
+		t.Errorf("Failed to add plugin: %v", err)
+	}
+
+	// Disable the plugin
+	err = testShell.DisablePlugin(pluginPath)
+	if err != nil {
+		t.Errorf("Failed to disable plugin: %v", err)
+	}
+
+	// Check if the plugin is disabled
+	plugin, err := testShell.GetPlugin(pluginPath)
+	if err != nil {
+		t.Errorf("Failed to get plugin: %v", err)
+	}
+	if plugin.Enabled {
+		t.Error("Plugin should be disabled")
+	}
+
+	// Enable the plugin
+	err = testShell.EnablePlugin(pluginPath)
+	if err != nil {
+		t.Errorf("Failed to enable plugin: %v", err)
+	}
+
+	// Check if the plugin is enabled
+	plugin, err = testShell.GetPlugin(pluginPath)
+	if err != nil {
+		t.Errorf("Failed to get plugin: %v", err)
+	}
+	if !plugin.Enabled {
+		t.Error("Plugin should be enabled")
+	}
+
+	// Try to enable an already enabled plugin (should fail)
+	err = testShell.EnablePlugin(pluginPath)
+	if err == nil {
+		t.Error("Enabling an already enabled plugin should fail")
+	}
+
+	// Try to disable an already disabled plugin (should fail)
+	err = testShell.DisablePlugin(pluginPath)
+	if err == nil {
+		t.Error("Disabling an already disabled plugin should fail")
+	}
+}
+
+func TestShellPluginConfig(t *testing.T) {
+	// Create a test shell
+	shell, err := New("zsh")
+	if err != nil {
+		t.Fatalf("Failed to create shell: %v", err)
+	}
+
+	// Add a plugin
+	pluginPath := "/path/to/plugin.zsh"
+	err = shell.AddPlugin(pluginPath)
+	if err != nil {
+		t.Errorf("Failed to add plugin: %v", err)
+	}
+
+	// Set a plugin configuration
+	configKey := "theme"
+	configValue := "dark"
+	err = shell.SetPluginConfig(pluginPath, configKey, configValue)
+	if err != nil {
+		t.Errorf("Failed to set plugin config: %v", err)
+	}
+
+	// Get the plugin configuration
+	value, err := shell.GetPluginConfig(pluginPath, configKey)
+	if err != nil {
+		t.Errorf("Failed to get plugin config: %v", err)
+	}
+	if value != configValue {
+		t.Errorf("Expected plugin config value to be %s, got %s", configValue, value)
+	}
+
+	// Try to get a non-existent configuration (should fail)
+	_, err = shell.GetPluginConfig(pluginPath, "non-existent-key")
+	if err == nil {
+		t.Error("Getting a non-existent configuration should fail")
+	}
+}
+
+func TestShellPluginUpdate(t *testing.T) {
+	// Create a test shell
+	shell, err := New("zsh")
+	if err != nil {
+		t.Fatalf("Failed to create shell: %v", err)
+	}
+
+	// Add a plugin
+	pluginPath := "/path/to/plugin.zsh"
+	err = shell.AddPlugin(pluginPath)
+	if err != nil {
+		t.Errorf("Failed to add plugin: %v", err)
+	}
+
+	// Update the plugin version
+	newVersion := "2.0.0"
+	err = shell.UpdatePlugin(pluginPath, newVersion)
+	if err != nil {
+		t.Errorf("Failed to update plugin: %v", err)
+	}
+
+	// Check if the plugin version was updated
+	plugin, err := shell.GetPlugin(pluginPath)
+	if err != nil {
+		t.Errorf("Failed to get plugin: %v", err)
+	}
+	if plugin.Version != newVersion {
+		t.Errorf("Expected plugin version to be %s, got %s", newVersion, plugin.Version)
+	}
+}
+
 func TestShellPluginConfiguration(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "shell-test")
@@ -84,20 +274,25 @@ func TestShellPluginConfiguration(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create a test shell
-	shell, err := New("zsh")
+	baseShell, err := New("zsh")
 	if err != nil {
 		t.Fatalf("Failed to create shell: %v", err)
 	}
 
-	// Create a temporary config file
-	configPath := filepath.Join(tempDir, shell.ConfigFile)
-	if err := os.WriteFile(configPath, []byte(""), 0644); err != nil {
-		t.Fatalf("Failed to create config file: %v", err)
+	// Create a temporary config file path
+	configPath := filepath.Join(tempDir, baseShell.ConfigFile)
+	
+	// Create a test shell with a custom GetConfigPath method
+	testShell := &testShell{
+		Shell: baseShell,
+		getConfigPathFunc: func() (string, error) {
+			return configPath, nil
+		},
 	}
 
 	// Add a plugin
 	plugin := "/path/to/plugin.zsh"
-	err = shell.AddPlugin(plugin)
+	err = testShell.AddPlugin(plugin)
 	if err != nil {
 		t.Errorf("Failed to add plugin: %v", err)
 	}
@@ -120,7 +315,7 @@ func TestShellPluginUnsupportedShell(t *testing.T) {
 		Name:       "unsupported",
 		ConfigFile: ".unsupportedrc",
 		RCFile:     ".unsupported_profile",
-		Plugins:    []string{},
+		Plugins:    []*Plugin{},
 	}
 
 	// Test adding a plugin to an unsupported shell

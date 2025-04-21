@@ -228,10 +228,29 @@ func (s *Shell) RemovePlugin(pluginPath string) error {
 	}
 
 	// Remove the plugin from the shell configuration
-	// This is a simplified implementation
-	// In a real implementation, we would parse the config file
-	// and remove the specific plugin line
-	fmt.Printf("Removing plugin %s from %s configuration\n", pluginPath, s.Name)
+	configPath, err := s.GetConfigPath()
+	if err != nil {
+		return err
+	}
+
+	// Read the current configuration
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	// Create a pattern to match the plugin source line
+	pattern := fmt.Sprintf("source %s\n", pluginPath)
+	
+	// Replace the pattern with an empty string
+	newContent := strings.Replace(string(content), pattern, "", 1)
+	
+	// Write the updated configuration back to the file
+	if err := os.WriteFile(configPath, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	fmt.Printf("Removed plugin %s from %s configuration\n", pluginPath, s.Name)
 	return nil
 }
 
@@ -327,10 +346,30 @@ func (s *Shell) DisablePlugin(pluginPath string) error {
 	plugin.Enabled = false
 
 	// Remove the plugin from the shell configuration
-	// This is a simplified implementation
-	// In a real implementation, we would parse the config file
-	// and remove the specific plugin line
-	fmt.Printf("Disabling plugin %s in %s configuration\n", pluginPath, s.Name)
+	configPath, err := s.GetConfigPath()
+	if err != nil {
+		return err
+	}
+
+	// Read the current configuration
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	// Create a pattern to match the plugin source line
+	pattern := fmt.Sprintf("source %s\n", pluginPath)
+	
+	// Replace the pattern with a commented out version
+	commentedPattern := fmt.Sprintf("# source %s\n", pluginPath)
+	newContent := strings.Replace(string(content), pattern, commentedPattern, 1)
+	
+	// Write the updated configuration back to the file
+	if err := os.WriteFile(configPath, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	fmt.Printf("Disabled plugin %s in %s configuration\n", pluginPath, s.Name)
 	return nil
 }
 

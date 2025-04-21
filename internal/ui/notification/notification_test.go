@@ -711,4 +711,230 @@ func TestNotificationGrouping(t *testing.T) {
 	if !installationTypes[ErrorNotification] {
 		t.Error("Expected ErrorNotification in Installation category")
 	}
+}
+
+// TestCategoryFiltering tests that notifications can be filtered by category
+func TestCategoryFiltering(t *testing.T) {
+	// Create a new notification manager
+	manager := NewNotificationManager()
+	
+	// Add notifications with different categories
+	manager.AddNotificationWithCategory(InfoNotification, "Info message", "Info title", "System")
+	manager.AddNotificationWithCategory(SuccessNotification, "Success message", "Success title", "Installation")
+	manager.AddNotificationWithCategory(WarningNotification, "Warning message", "Warning title", "System")
+	manager.AddNotificationWithCategory(ErrorNotification, "Error message", "Error title", "Installation")
+	
+	// Test filtering by System category
+	manager.SetFilterCategory("System")
+	systemNotifications := manager.GetFilteredNotifications()
+	
+	// Check that we have the expected number of notifications
+	if len(systemNotifications) != 2 {
+		t.Errorf("Expected 2 notifications in System category, got %d", len(systemNotifications))
+	}
+	
+	// Check that all notifications are in the System category
+	for _, notification := range systemNotifications {
+		if notification.Category != "System" {
+			t.Errorf("Expected notification in System category, got %s", notification.Category)
+		}
+	}
+	
+	// Test filtering by Installation category
+	manager.SetFilterCategory("Installation")
+	installationNotifications := manager.GetFilteredNotifications()
+	
+	// Check that we have the expected number of notifications
+	if len(installationNotifications) != 2 {
+		t.Errorf("Expected 2 notifications in Installation category, got %d", len(installationNotifications))
+	}
+	
+	// Check that all notifications are in the Installation category
+	for _, notification := range installationNotifications {
+		if notification.Category != "Installation" {
+			t.Errorf("Expected notification in Installation category, got %s", notification.Category)
+		}
+	}
+	
+	// Test filtering by non-existent category
+	manager.SetFilterCategory("NonExistent")
+	nonExistentNotifications := manager.GetFilteredNotifications()
+	
+	// Check that we have no notifications
+	if len(nonExistentNotifications) != 0 {
+		t.Errorf("Expected 0 notifications in NonExistent category, got %d", len(nonExistentNotifications))
+	}
+	
+	// Test clearing the filter
+	manager.ClearFilter()
+	allNotifications := manager.GetFilteredNotifications()
+	
+	// Check that we have all notifications
+	if len(allNotifications) != 4 {
+		t.Errorf("Expected 4 notifications after clearing filter, got %d", len(allNotifications))
+	}
+}
+
+// TestDisplayWithFilter tests that the Display method respects the category filter
+func TestDisplayWithFilter(t *testing.T) {
+	// Create a new notification manager
+	manager := NewNotificationManager()
+	
+	// Add notifications with different categories
+	manager.AddNotificationWithCategory(InfoNotification, "Info message", "Info title", "System")
+	manager.AddNotificationWithCategory(SuccessNotification, "Success message", "Success title", "Installation")
+	manager.AddNotificationWithCategory(WarningNotification, "Warning message", "Warning title", "System")
+	manager.AddNotificationWithCategory(ErrorNotification, "Error message", "Error title", "Installation")
+	
+	// Set filter to System category
+	manager.SetFilterCategory("System")
+	
+	// Capture the output
+	output := captureOutput(func() {
+		manager.Display()
+	})
+	
+	// Check that the output contains System category
+	if !strings.Contains(output, "System") {
+		t.Errorf("Expected output to contain 'System' category, got '%s'", output)
+	}
+	
+	// Check that the output contains Info and Warning notifications
+	if !strings.Contains(output, "Info title") {
+		t.Errorf("Expected output to contain 'Info title', got '%s'", output)
+	}
+	if !strings.Contains(output, "Warning title") {
+		t.Errorf("Expected output to contain 'Warning title', got '%s'", output)
+	}
+	
+	// Check that the output does not contain Installation category
+	if strings.Contains(output, "Installation") {
+		t.Errorf("Expected output not to contain 'Installation' category, got '%s'", output)
+	}
+	
+	// Check that the output does not contain Success and Error notifications
+	if strings.Contains(output, "Success title") {
+		t.Errorf("Expected output not to contain 'Success title', got '%s'", output)
+	}
+	if strings.Contains(output, "Error title") {
+		t.Errorf("Expected output not to contain 'Error title', got '%s'", output)
+	}
+	
+	// Set filter to non-existent category
+	manager.SetFilterCategory("NonExistent")
+	
+	// Capture the output
+	output = captureOutput(func() {
+		manager.Display()
+	})
+	
+	// Check that the output contains the "no notifications" message
+	if !strings.Contains(output, "No notifications in category 'NonExistent'") {
+		t.Errorf("Expected output to contain 'No notifications in category 'NonExistent'', got '%s'", output)
+	}
+	
+	// Clear the filter
+	manager.ClearFilter()
+	
+	// Capture the output
+	output = captureOutput(func() {
+		manager.Display()
+	})
+	
+	// Check that the output contains both categories
+	if !strings.Contains(output, "System") {
+		t.Errorf("Expected output to contain 'System' category, got '%s'", output)
+	}
+	if !strings.Contains(output, "Installation") {
+		t.Errorf("Expected output to contain 'Installation' category, got '%s'", output)
+	}
+	
+	// Check that the output contains all notifications
+	if !strings.Contains(output, "Info title") {
+		t.Errorf("Expected output to contain 'Info title', got '%s'", output)
+	}
+	if !strings.Contains(output, "Warning title") {
+		t.Errorf("Expected output to contain 'Warning title', got '%s'", output)
+	}
+	if !strings.Contains(output, "Success title") {
+		t.Errorf("Expected output to contain 'Success title', got '%s'", output)
+	}
+	if !strings.Contains(output, "Error title") {
+		t.Errorf("Expected output to contain 'Error title', got '%s'", output)
+	}
+}
+
+func TestCategoryStyles(t *testing.T) {
+	manager := NewNotificationManager()
+	
+	// Test default styles
+	style := manager.GetCategoryStyle("General")
+	if style.Color != "\033[37m" || style.Icon != "📋" {
+		t.Errorf("Default style for General category is incorrect. Got color: %s, icon: %s", style.Color, style.Icon)
+	}
+	
+	// Test custom style
+	manager.SetCategoryStyle("Custom", "\033[35m", "🎨")
+	style = manager.GetCategoryStyle("Custom")
+	if style.Color != "\033[35m" || style.Icon != "🎨" {
+		t.Errorf("Custom style is incorrect. Got color: %s, icon: %s", style.Color, style.Icon)
+	}
+	
+	// Test non-existent category
+	style = manager.GetCategoryStyle("NonExistent")
+	if style.Color != "\033[37m" || style.Icon != "📋" {
+		t.Errorf("Default style for non-existent category is incorrect. Got color: %s, icon: %s", style.Color, style.Icon)
+	}
+}
+
+func TestDisplayWithCategoryStyles(t *testing.T) {
+	manager := NewNotificationManager()
+	
+	// Add notifications with different categories
+	manager.AddNotificationWithCategory("System notification", "System", Info)
+	manager.AddNotificationWithCategory("Installation notification", "Installation", Success)
+	manager.AddNotificationWithCategory("Security notification", "Security", Warning)
+	
+	// Capture output
+	var output strings.Builder
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	
+	// Display notifications
+	manager.Display()
+	
+	// Restore stdout
+	w.Close()
+	os.Stdout = oldStdout
+	
+	// Read output
+	io.Copy(&output, r)
+	
+	// Check if output contains category styles
+	outputStr := output.String()
+	
+	// Check System category
+	if !strings.Contains(outputStr, "🖥️ System") {
+		t.Error("Output does not contain System category with correct icon")
+	}
+	if !strings.Contains(outputStr, "\033[36m") {
+		t.Error("Output does not contain System category with correct color")
+	}
+	
+	// Check Installation category
+	if !strings.Contains(outputStr, "📦 Installation") {
+		t.Error("Output does not contain Installation category with correct icon")
+	}
+	if !strings.Contains(outputStr, "\033[32m") {
+		t.Error("Output does not contain Installation category with correct color")
+	}
+	
+	// Check Security category
+	if !strings.Contains(outputStr, "🔒 Security") {
+		t.Error("Output does not contain Security category with correct icon")
+	}
+	if !strings.Contains(outputStr, "\033[31m") {
+		t.Error("Output does not contain Security category with correct color")
+	}
 } 

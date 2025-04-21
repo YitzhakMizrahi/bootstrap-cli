@@ -102,8 +102,8 @@
   - [x] Add notification persistence (save to file)
   - [x] Add notification expiration/auto-cleanup
   - [x] Add notification priority levels
-  - [ ] Add notification grouping/categorization
-    - [ ] Implement category-based filtering
+  - [x] Add notification grouping/categorization
+    - [x] Implement category-based filtering
     - [ ] Add category colors and icons
     - [ ] Support nested categories
   - [ ] Add notification actions/buttons
@@ -395,4 +395,4 @@ To begin implementation, we recommend starting with one of these options:
    - Configure dependencies
    - Initialize version control
 
-Choose your starting point, and we'll help you get started with the implementation. 
+Choose your starting point, and we'll help you get started with the implementation.

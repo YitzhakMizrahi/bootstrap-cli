@@ -50,6 +50,12 @@ type Notification struct {
 	Category  string // Category of the notification
 }
 
+// CategoryStyle defines the style for a category
+type CategoryStyle struct {
+	Color string
+	Icon  string
+}
+
 // NotificationManager manages notifications
 type NotificationManager struct {
 	notifications    []*Notification
@@ -58,6 +64,8 @@ type NotificationManager struct {
 	storagePath     string
 	cleanupInterval time.Duration
 	stopCleanup     chan struct{}
+	filterCategory  string // Category to filter by
+	categoryStyles  map[string]CategoryStyle // Styles for categories
 }
 
 // NewNotificationManager creates a new notification manager
@@ -71,6 +79,34 @@ func NewNotificationManager() *NotificationManager {
 	// Create storage path in user's home directory
 	storagePath := filepath.Join(homeDir, ".bootstrap-cli", "notifications.json")
 	
+	// Initialize category styles with defaults
+	categoryStyles := map[string]CategoryStyle{
+		"General": {
+			Color: "\033[37m", // White
+			Icon:  "📋",
+		},
+		"System": {
+			Color: "\033[36m", // Cyan
+			Icon:  "🖥️",
+		},
+		"Installation": {
+			Color: "\033[32m", // Green
+			Icon:  "📦",
+		},
+		"Security": {
+			Color: "\033[31m", // Red
+			Icon:  "🔒",
+		},
+		"Update": {
+			Color: "\033[33m", // Yellow
+			Icon:  "🔄",
+		},
+		"Error": {
+			Color: "\033[31m", // Red
+			Icon:  "❌",
+		},
+	}
+	
 	manager := &NotificationManager{
 		notifications:    []*Notification{},
 		maxNotifications: 5,
@@ -78,6 +114,8 @@ func NewNotificationManager() *NotificationManager {
 		storagePath:     storagePath,
 		cleanupInterval: 1 * time.Minute,
 		stopCleanup:     make(chan struct{}),
+		filterCategory:  "", // No filter by default
+		categoryStyles:  categoryStyles,
 	}
 	
 	// Start cleanup goroutine
@@ -94,6 +132,32 @@ func (m *NotificationManager) SetMaxNotifications(max int) {
 // SetWidth sets the width of the notifications
 func (m *NotificationManager) SetWidth(width int) {
 	m.width = width
+}
+
+// SetFilterCategory sets the category to filter by
+func (m *NotificationManager) SetFilterCategory(category string) {
+	m.filterCategory = category
+}
+
+// ClearFilter clears the category filter
+func (m *NotificationManager) ClearFilter() {
+	m.filterCategory = ""
+}
+
+// GetFilteredNotifications returns notifications filtered by the current filter
+func (m *NotificationManager) GetFilteredNotifications() []*Notification {
+	if m.filterCategory == "" {
+		return m.notifications
+	}
+	
+	var filteredNotifications []*Notification
+	for _, notification := range m.notifications {
+		if notification.Category == m.filterCategory {
+			filteredNotifications = append(filteredNotifications, notification)
+		}
+	}
+	
+	return filteredNotifications
 }
 
 // AddNotification adds a notification to the manager
@@ -153,13 +217,34 @@ func (m *NotificationManager) Display() {
 	// Clear the screen
 	fmt.Print("\033[H\033[2J")
 	
+	// Get filtered notifications
+	filteredNotifications := m.GetFilteredNotifications()
+	
+	// If no notifications to display, show a message
+	if len(filteredNotifications) == 0 {
+		if m.filterCategory != "" {
+			fmt.Printf("No notifications in category '%s'\n", m.filterCategory)
+		} else {
+			fmt.Println("No notifications")
+		}
+		return
+	}
+	
 	// Group notifications by category
 	notificationsByCategory := m.groupNotificationsByCategory()
 	
 	// Display notifications by category
 	for category, notifications := range notificationsByCategory {
-		// Display category header
-		fmt.Printf("\033[1m%s\033[0m\n", category)
+		// Skip categories that don't match the filter
+		if m.filterCategory != "" && category != m.filterCategory {
+			continue
+		}
+		
+		// Get category style
+		style := m.GetCategoryStyle(category)
+		
+		// Display category header with style
+		fmt.Printf("%s%s %s\033[0m\n", style.Color, style.Icon, category)
 		
 		// Display each notification in the category
 		for _, notification := range notifications {
@@ -575,4 +660,25 @@ func (m *NotificationManager) AddNotificationWithCategoryPriorityAndDuration(not
 		Category: category,
 		Duration: duration,
 	})
+}
+
+// SetCategoryStyle sets the style for a category
+func (m *NotificationManager) SetCategoryStyle(category string, color string, icon string) {
+	m.categoryStyles[category] = CategoryStyle{
+		Color: color,
+		Icon:  icon,
+	}
+}
+
+// GetCategoryStyle gets the style for a category
+func (m *NotificationManager) GetCategoryStyle(category string) CategoryStyle {
+	style, exists := m.categoryStyles[category]
+	if !exists {
+		// Return default style if category doesn't have a custom style
+		return CategoryStyle{
+			Color: "\033[37m", // White
+			Icon:  "📋",
+		}
+	}
+	return style
 } 

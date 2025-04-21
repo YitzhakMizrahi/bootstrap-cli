@@ -1,26 +1,45 @@
-# Go build artifacts
-/bin/
-/dist/
-/*.exe
-/*.dll
-/*.so
-/*.dylib
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 bootstrap-cli
 
-# Go test cache
+# Test binary, built with `go test -c`
 *.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Dependency directories (Go Modules handles deps)
+# Dependency directories (remove the comment below to include it)
 vendor/
 
-# IDE/editor junk
-.cursor/
-.vscode/
-.idea/
+# Go workspace file
+go.work
+
+# IDE specific files
+.idea
+.vscode
 *.swp
 *.swo
 
-# OS junk
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# Build directory
+build/
+dist/
+
+# Environment variables
+.env
+.env.local
+
+# Debug files
+__debug_bin

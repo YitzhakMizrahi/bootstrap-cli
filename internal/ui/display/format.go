@@ -38,6 +38,12 @@ const (
 	BoxVertical    = "│"
 )
 
+// Progress bar characters
+const (
+	ProgressEmpty  = "░"
+	ProgressFilled = "█"
+)
+
 // Formatter provides methods for text formatting
 type Formatter struct {
 	Color     string
@@ -233,4 +239,79 @@ func (f *Formatter) Warning(message string) string {
 // Info formats an info message
 func (f *Formatter) Info(message string) string {
 	return f.WithColor(ColorBlue).WithStyle(StyleBold).Format("ℹ " + message)
+}
+
+// ProgressBar creates a progress bar with percentage
+func (f *Formatter) ProgressBar(percent int, width int) string {
+	if percent < 0 {
+		percent = 0
+	}
+	if percent > 100 {
+		percent = 100
+	}
+	if width <= 0 {
+		width = 20
+	}
+
+	filledWidth := (percent * width) / 100
+	emptyWidth := width - filledWidth
+
+	bar := strings.Repeat(ProgressFilled, filledWidth) + strings.Repeat(ProgressEmpty, emptyWidth)
+	percentage := fmt.Sprintf("%d%%", percent)
+
+	return f.Format(fmt.Sprintf("[%s] %s", bar, percentage))
+}
+
+// Indent creates an indented text block
+func (f *Formatter) Indent(text string, indentLevel int) string {
+	if indentLevel <= 0 {
+		return text
+	}
+
+	indent := strings.Repeat("  ", indentLevel)
+	lines := strings.Split(text, "\n")
+	
+	var result strings.Builder
+	for i, line := range lines {
+		result.WriteString(indent + line)
+		if i < len(lines)-1 {
+			result.WriteString("\n")
+		}
+	}
+	
+	return f.Format(result.String())
+}
+
+// CodeBlock creates a code block with optional syntax highlighting
+func (f *Formatter) CodeBlock(code string, language string) string {
+	// For now, we'll just use a simple box with the language name
+	// In a real implementation, we would use a syntax highlighter library
+	header := fmt.Sprintf("```%s", language)
+	footer := "```"
+	
+	// Create a box with the code
+	boxedCode := f.Box(code)
+	
+	return f.Format(header + "\n" + boxedCode + "\n" + footer)
+}
+
+// Collapsible creates a collapsible section
+func (f *Formatter) Collapsible(title string, content string, expanded bool) string {
+	var result strings.Builder
+	
+	// Add the title with an expand/collapse indicator
+	indicator := "▼"
+	if !expanded {
+		indicator = "▶"
+		content = "" // Hide content if collapsed
+	}
+	
+	result.WriteString(f.WithStyle(StyleBold).Format(indicator + " " + title) + "\n")
+	
+	// Add the content if expanded
+	if expanded && content != "" {
+		result.WriteString(f.Indent(content, 1) + "\n")
+	}
+	
+	return f.Format(result.String())
 } 

@@ -12,7 +12,7 @@
 - [x] Configure .gitignore for Go projects
 - [x] Set up Makefile with basic build targets
 - [x] Configure linter (.golangci.yml)
-- [ ] Set up CI/CD pipeline (.github/workflows)
+- [x] Set up CI/CD pipeline (.github/workflows)
 
 #### Core System Detection
 - [x] Implement OS detection (Linux, macOS, Windows)
@@ -22,7 +22,7 @@
 - [x] Implement system resource detection (CPU, RAM, disk space)
 - [x] Create SystemInfo struct to hold system information
 - [x] Implement GetSystemInfo() function
-- [ ] Add unit tests for system detection
+- [x] Add unit tests for system detection
 
 #### Package Manager Integration
 - [x] Implement package manager detection (apt, dnf, pacman, brew, choco)
@@ -32,7 +32,8 @@
 - [x] Implement package update functionality
 - [x] Implement package removal functionality
 - [x] Implement package search functionality
-- [ ] Add unit tests for package manager operations
+- [x] Add unit tests for package manager operations
+- [x] Add unit tests for tool installation
 
 #### Core Tool Installation
 - [x] Define Tool struct with necessary fields

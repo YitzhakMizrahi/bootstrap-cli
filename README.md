@@ -50,7 +50,7 @@ bootstrap-cli/
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/bootstrap-cli.git
+git clone https://github.com/YitzhakMizrahi/bootstrap-cli.git
 cd bootstrap-cli
 
 # Install dependencies
@@ -111,8 +111,8 @@ Status: Active Development - Core Features Implementation
 
 ## 📞 Contact
 
-- Issue Tracker: [GitHub Issues](https://github.com/yourusername/bootstrap-cli/issues)
-- Source Code: [GitHub Repository](https://github.com/yourusername/bootstrap-cli)
+- Issue Tracker: [GitHub Issues](https://github.com/YitzhakMizrahi/bootstrap-cli/issues)
+- Source Code: [GitHub Repository](https://github.com/YitzhakMizrahi/bootstrap-cli)
 
 ---
 

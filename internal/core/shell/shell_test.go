@@ -573,4 +573,141 @@ func TestSetDefaultShell(t *testing.T) {
 
 	// Note: This is a simplified test since the actual implementation
 	// just prints a message and doesn't actually change the default shell
+}
+
+func TestPluginDependencies(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir, err := os.MkdirTemp("", "shell-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a test shell
+	shell, err := New("zsh")
+	if err != nil {
+		t.Fatalf("Failed to create shell: %v", err)
+	}
+	shell.ConfigFile = filepath.Join(tmpDir, ".zshrc")
+
+	// Add plugins with dependencies
+	err = shell.AddPluginWithMetadata("plugin1", "/path/to/plugin1", "1.0.0", "Test plugin 1", nil)
+	if err != nil {
+		t.Fatalf("Failed to add plugin1: %v", err)
+	}
+
+	err = shell.AddPluginWithMetadata("plugin2", "/path/to/plugin2", "1.0.0", "Test plugin 2", []string{"plugin1"})
+	if err != nil {
+		t.Fatalf("Failed to add plugin2: %v", err)
+	}
+
+	// Try to enable plugin2 without enabling plugin1 (should fail)
+	err = shell.EnablePlugin("plugin2")
+	if err == nil {
+		t.Error("Expected error when enabling plugin2 without plugin1 enabled")
+	}
+
+	// Enable plugin1 first
+	if err := shell.EnablePlugin("plugin1"); err != nil {
+		t.Fatalf("Failed to enable plugin1: %v", err)
+	}
+
+	// Now enable plugin2 (should succeed)
+	if err := shell.EnablePlugin("plugin2"); err != nil {
+		t.Errorf("Failed to enable plugin2: %v", err)
+	}
+
+	// Try to disable plugin1 while plugin2 is enabled (should fail)
+	err = shell.DisablePlugin("plugin1")
+	if err == nil {
+		t.Error("Expected error when disabling plugin1 while plugin2 is enabled")
+	}
+
+	// Disable plugin2 first
+	if err := shell.DisablePlugin("plugin2"); err != nil {
+		t.Fatalf("Failed to disable plugin2: %v", err)
+	}
+
+	// Now disable plugin1 (should succeed)
+	if err := shell.DisablePlugin("plugin1"); err != nil {
+		t.Errorf("Failed to disable plugin1: %v", err)
+	}
+}
+
+func TestPluginConfiguration(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir, err := os.MkdirTemp("", "shell-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a test shell
+	shell, err := New("zsh")
+	if err != nil {
+		t.Fatalf("Failed to create shell: %v", err)
+	}
+	shell.ConfigFile = filepath.Join(tmpDir, ".zshrc")
+
+	// Add a plugin
+	err = shell.AddPluginWithMetadata("test-plugin", "/path/to/plugin", "1.0.0", "Test plugin", nil)
+	if err != nil {
+		t.Fatalf("Failed to add plugin: %v", err)
+	}
+
+	// Set plugin configuration
+	if err := shell.SetPluginConfig("test-plugin", "option1", "value1"); err != nil {
+		t.Fatalf("Failed to set plugin config: %v", err)
+	}
+
+	// Get plugin configuration
+	value, err := shell.GetPluginConfig("test-plugin", "option1")
+	if err != nil {
+		t.Fatalf("Failed to get plugin config: %v", err)
+	}
+	if value != "value1" {
+		t.Errorf("Expected config value 'value1', got '%s'", value)
+	}
+
+	// Try to get non-existent config
+	_, err = shell.GetPluginConfig("test-plugin", "nonexistent")
+	if err == nil {
+		t.Error("Expected error when getting non-existent config")
+	}
+}
+
+func TestPluginVersionManagement(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir, err := os.MkdirTemp("", "shell-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a test shell
+	shell, err := New("zsh")
+	if err != nil {
+		t.Fatalf("Failed to create shell: %v", err)
+	}
+	shell.ConfigFile = filepath.Join(tmpDir, ".zshrc")
+
+	// Add a plugin
+	err = shell.AddPluginWithMetadata("test-plugin", "/path/to/plugin", "1.0.0", "Test plugin", nil)
+	if err != nil {
+		t.Fatalf("Failed to add plugin: %v", err)
+	}
+
+	// Update plugin version
+	if err := shell.UpdatePlugin("test-plugin", "2.0.0"); err != nil {
+		t.Fatalf("Failed to update plugin version: %v", err)
+	}
+
+	// Verify version update
+	updatedPlugin, err := shell.GetPlugin("test-plugin")
+	if err != nil {
+		t.Fatalf("Failed to get updated plugin: %v", err)
+	}
+	if updatedPlugin.Version != "2.0.0" {
+		t.Errorf("Expected version '2.0.0', got '%s'", updatedPlugin.Version)
+	}
 } 

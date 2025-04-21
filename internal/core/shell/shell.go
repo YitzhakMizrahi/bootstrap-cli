@@ -10,12 +10,12 @@ import (
 
 // Plugin represents a shell plugin with additional metadata
 type Plugin struct {
-	Name        string
-	Path        string
-	Version     string
-	Description string
-	Enabled     bool
-	Config      map[string]string
+	Name         string
+	Path         string
+	Version      string
+	Description  string
+	Enabled      bool
+	Config       map[string]string
 	Dependencies []string
 }
 
@@ -250,7 +250,7 @@ func (s *Shell) HasPlugin(pluginPath string) bool {
 	return false
 }
 
-// GetPlugin returns a plugin by path
+// GetPlugin returns a plugin by its path
 func (s *Shell) GetPlugin(pluginPath string) (*Plugin, error) {
 	for _, p := range s.Plugins {
 		if p.Path == pluginPath {
@@ -271,6 +271,20 @@ func (s *Shell) EnablePlugin(pluginPath string) error {
 		return fmt.Errorf("plugin %s is already enabled", pluginPath)
 	}
 
+	// Check dependencies
+	for _, dep := range plugin.Dependencies {
+		depPlugin, err := s.GetPlugin(dep)
+		if err != nil {
+			return fmt.Errorf("dependency %s not found for plugin %s", dep, pluginPath)
+		}
+		if !depPlugin.Enabled {
+			return fmt.Errorf("dependency %s is not enabled for plugin %s", dep, pluginPath)
+		}
+	}
+
+	// Enable the plugin
+	plugin.Enabled = true
+
 	// Add the plugin to the shell configuration
 	var pluginConfig string
 	switch s.Name {
@@ -284,12 +298,7 @@ func (s *Shell) EnablePlugin(pluginPath string) error {
 		return fmt.Errorf("unsupported shell for plugin: %s", s.Name)
 	}
 
-	if err := s.AppendToConfig(pluginConfig); err != nil {
-		return err
-	}
-
-	plugin.Enabled = true
-	return nil
+	return s.AppendToConfig(pluginConfig)
 }
 
 // DisablePlugin disables a plugin
@@ -303,13 +312,25 @@ func (s *Shell) DisablePlugin(pluginPath string) error {
 		return fmt.Errorf("plugin %s is already disabled", pluginPath)
 	}
 
+	// Check if any other plugins depend on this one
+	for _, p := range s.Plugins {
+		if p.Enabled {
+			for _, dep := range p.Dependencies {
+				if dep == pluginPath {
+					return fmt.Errorf("cannot disable plugin %s: plugin %s depends on it", pluginPath, p.Path)
+				}
+			}
+		}
+	}
+
+	// Disable the plugin
+	plugin.Enabled = false
+
 	// Remove the plugin from the shell configuration
 	// This is a simplified implementation
 	// In a real implementation, we would parse the config file
 	// and remove the specific plugin line
 	fmt.Printf("Disabling plugin %s in %s configuration\n", pluginPath, s.Name)
-	
-	plugin.Enabled = false
 	return nil
 }
 
@@ -333,7 +354,7 @@ func (s *Shell) GetPluginConfig(pluginPath, key string) (string, error) {
 
 	value, ok := plugin.Config[key]
 	if !ok {
-		return "", fmt.Errorf("configuration option %s not found for plugin %s", key, pluginPath)
+		return "", fmt.Errorf("config key %s not found for plugin %s", key, pluginPath)
 	}
 
 	return value, nil
@@ -346,6 +367,8 @@ func (s *Shell) UpdatePlugin(pluginPath, newVersion string) error {
 		return err
 	}
 
+	// In a real implementation, we would download and install the new version
 	plugin.Version = newVersion
+	fmt.Printf("Updated plugin %s to version %s\n", pluginPath, newVersion)
 	return nil
 } 

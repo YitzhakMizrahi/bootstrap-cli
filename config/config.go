@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/types"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,8 +34,8 @@ func getConfigPath() (string, error) {
 }
 
 // Load reads the config file and returns a UserConfig
-func Load() (types.UserConfig, error) {
-	var config types.UserConfig
+func Load() (UserConfig, error) {
+	var config UserConfig
 	
 	configPath, err := getConfigPath()
 	if err != nil {
@@ -61,7 +60,7 @@ func Load() (types.UserConfig, error) {
 }
 
 // Save writes the UserConfig to the config file
-func Save(config types.UserConfig) error {
+func Save(config UserConfig) error {
 	configPath, err := getConfigPath()
 	if err != nil {
 		return err
@@ -84,8 +83,8 @@ func Save(config types.UserConfig) error {
 }
 
 // GetDefault returns a default configuration
-func GetDefault() types.UserConfig {
-	return types.UserConfig{
+func GetDefault() UserConfig {
+	return UserConfig{
 		Shell:            "zsh",
 		PluginManager:    "zinit",
 		Prompt:           "starship",

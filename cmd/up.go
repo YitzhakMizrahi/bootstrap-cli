@@ -9,10 +9,9 @@ import (
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/installer"
-	"github.com/YitzhakMizrahi/bootstrap-cli/platform"
+	"github.com/YitzhakMizrahi/bootstrap-cli/pkg/platform"
 	"github.com/YitzhakMizrahi/bootstrap-cli/prompts"
 	"github.com/YitzhakMizrahi/bootstrap-cli/symlink"
-	"github.com/YitzhakMizrahi/bootstrap-cli/types"
 )
 
 // upCmd orchestrates init → install → link
@@ -35,7 +34,8 @@ Run: func(cmd *cobra.Command, args []string) {
     verbose, _ := cmd.Flags().GetBool("verbose")
 
     // Detect platform
-    platformInfo, err := platform.Detect()
+    detector := platform.NewDetector()
+    platformInfo, err := detector.Detect()
     if err != nil {
         fmt.Printf("❌ Failed to detect platform: %v\n", err)
         os.Exit(1)
@@ -65,7 +65,7 @@ Run: func(cmd *cobra.Command, args []string) {
     printWelcomeMessage()
 
     // Load or create configuration
-    var cfg types.UserConfig
+    var cfg config.UserConfig
     
     loadedCfg, err := config.Load()
     if err != nil || force {
@@ -94,7 +94,7 @@ Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("\n📦 Starting installation phase...")
 
 			// Install shell if needed
-			if cfg.Shell != "" && !platform.IsCommandAvailable(cfg.Shell) {
+			if cfg.Shell != "" && !detector.IsCommandAvailable(cfg.Shell) {
 				fmt.Printf("🐚 Installing %s shell...\n", cfg.Shell)
 				err := installer.InstallShell(cfg.Shell)
 				if err != nil {
@@ -240,7 +240,7 @@ Follow the prompts to customize your setup.
 }
 
 // printConfigSummary displays a summary of the configuration
-func printConfigSummary(cfg types.UserConfig) {
+func printConfigSummary(cfg config.UserConfig) {
 	fmt.Println("\n📋 Configuration Summary:")
 	fmt.Printf("  Shell: %s\n", cfg.Shell)
 	fmt.Printf("  Plugin Manager: %s\n", cfg.PluginManager)
@@ -264,38 +264,11 @@ func printConfigSummary(cfg types.UserConfig) {
 }
 
 // printNextSteps displays next steps after bootstrapping
-func printNextSteps(cfg types.UserConfig) {
-	fmt.Println("\n🚀 Next Steps:")
-	
-	// Shell-specific advice
-	if cfg.Shell == "zsh" {
-		fmt.Println("  - Restart your terminal or run 'source ~/.zshrc' to load your new shell configuration")
-	} else if cfg.Shell == "bash" {
-		fmt.Println("  - Restart your terminal or run 'source ~/.bashrc' to load your new shell configuration")
-	} else if cfg.Shell == "fish" {
-		fmt.Println("  - Restart your terminal or run 'source ~/.config/fish/config.fish' to load your new shell configuration")
-	}
-
-	// If they installed a language, suggest command to verify
-	if containsString(cfg.Languages, "node") {
-		fmt.Println("  - Verify Node.js installation with 'node --version'")
-	}
-	if containsString(cfg.Languages, "python") {
-		fmt.Println("  - Verify Python installation with 'python --version'")
-	}
-	if containsString(cfg.Languages, "go") {
-		fmt.Println("  - Verify Go installation with 'go version'")
-	}
-	if containsString(cfg.Languages, "rust") {
-		fmt.Println("  - Verify Rust installation with 'rustc --version'")
-	}
-
-	// Editor advice
-	if containsString(cfg.Editors, "neovim") || containsString(cfg.Editors, "lazyvim") || containsString(cfg.Editors, "astronvim") {
-		fmt.Println("  - Launch Neovim with 'nvim' to complete any additional setup")
-	}
-
-	fmt.Println("  - Run 'bootstrap-cli --help' to see all available commands")
+func printNextSteps(cfg config.UserConfig) {
+	fmt.Println("\n📝 Next Steps:")
+	fmt.Println("  1. Restart your terminal to apply shell changes")
+	fmt.Println("  2. Run 'bootstrap-cli doctor' to verify your setup")
+	fmt.Println("  3. Customize your dotfiles and shell configuration")
 }
 
 // containsString checks if a string slice contains a specific value

@@ -1,9 +1,6 @@
-// types/types.go
 package types
 
 // UserConfig holds all the user's bootstrap preferences
-// This gets written to ~/.config/bootstrap/config.yaml
-
 type UserConfig struct {
 	Shell             string            `yaml:"shell"`
 	PluginManager     string            `yaml:"plugin_manager"`
@@ -19,12 +16,10 @@ type UserConfig struct {
 }
 
 // ToolOption defines metadata for installable tools
-// This allows prompt generation and future installer logic
-
 type ToolOption struct {
-	Name       string   // "pnpm"
-	Category   string   // "pkgmgr", "cli", "prompt"
-	Group      string   // Language it belongs to, like "node"
+	Name       string   // Tool name (e.g. "pnpm")
+	Category   string   // Tool category (e.g. "pkgmgr", "cli", "prompt")
+	Group      string   // Language/platform it belongs to (e.g. "node")
 	Default    bool     // Whether it's preselected
-	Alternates []string // Alternative tools (like yarn/npm for pnpm)
-}
+	Alternates []string // Alternative tools (e.g. yarn/npm for pnpm)
+} 

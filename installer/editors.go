@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/platform"
+	"github.com/YitzhakMizrahi/bootstrap-cli/pkg/platform"
 )
 
 // Editor represents a code editor that can be installed
@@ -55,12 +55,13 @@ var EditorOptions = map[string]Editor{
 
 // InstallEditors installs the selected editors
 func InstallEditors(editors []string) error {
-	platformInfo, err := platform.Detect()
+	detector := platform.NewDetector()
+	platformInfo, err := detector.Detect()
 	if err != nil {
 		return fmt.Errorf("failed to detect platform: %w", err)
 	}
 	
-	primaryPM, err := platform.GetPrimaryPackageManager(platformInfo)
+	primaryPM, err := detector.GetPrimaryPackageManager(platformInfo)
 	if err != nil {
 		return fmt.Errorf("failed to get package manager: %w", err)
 	}
@@ -95,8 +96,6 @@ func InstallEditors(editors []string) error {
 			installErr = dnfInstall(editor.DnfPackage)
 		case platform.Pacman:
 			installErr = pacmanInstall(editor.PacmanPackage)
-		case platform.Chocolatey:
-			installErr = chocoInstall(editor.ChocoPackage)
 		default:
 			installErr = fmt.Errorf("unsupported package manager: %s", primaryPM)
 		}
@@ -113,12 +112,13 @@ func InstallEditors(editors []string) error {
 
 // installNeovim installs Neovim 
 func installNeovim() error {
-	platformInfo, err := platform.Detect()
+	detector := platform.NewDetector()
+	platformInfo, err := detector.Detect()
 	if err != nil {
 		return fmt.Errorf("failed to detect platform: %w", err)
 	}
 
-	primaryPM, err := platform.GetPrimaryPackageManager(platformInfo)
+	primaryPM, err := detector.GetPrimaryPackageManager(platformInfo)
 	if err != nil {
 		return fmt.Errorf("failed to get package manager: %w", err)
 	}
@@ -134,8 +134,6 @@ func installNeovim() error {
 		installErr = dnfInstall("neovim")
 	case platform.Pacman:
 		installErr = pacmanInstall("neovim")
-	case platform.Chocolatey:
-		installErr = chocoInstall("neovim")
 	default:
 		installErr = fmt.Errorf("unsupported package manager: %s", primaryPM)
 	}

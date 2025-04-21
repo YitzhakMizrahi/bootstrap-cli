@@ -8,7 +8,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/platform"
+	pkgmanager "github.com/YitzhakMizrahi/bootstrap-cli/pkg/core/package"
+	"github.com/YitzhakMizrahi/bootstrap-cli/pkg/core/shell"
+	"github.com/YitzhakMizrahi/bootstrap-cli/pkg/platform"
 )
 
 // Shell defines installation methods for different shells
@@ -164,6 +166,59 @@ func init() {
 	}
 }
 
+// InstallShellComponents installs and configures a shell with its components
+func InstallShellComponents(shellName, pluginManager, prompt string) error {
+	// Get primary package manager
+	detector := platform.NewDetector()
+	platformInfo, err := detector.Detect()
+	if err != nil {
+		return fmt.Errorf("failed to detect platform: %w", err)
+	}
+
+	pm, err := detector.GetPrimaryPackageManager(platformInfo)
+	if err != nil {
+		return fmt.Errorf("failed to get package manager: %w", err)
+	}
+
+	// Create managers
+	pkgMgr := pkgmanager.NewManager(pm) // Create package manager instance
+	
+	// Create shell config
+	shellConfig := &shell.Config{
+		Type:      shell.Type(shellName),
+		PluginMgr: shell.PluginManager(pluginManager),
+	}
+
+	// Create shell manager
+	shellManager, err := shell.NewShellManagerWithDeps(pkgMgr, detector, shellConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create shell manager: %w", err)
+	}
+
+	// Setup shell environment (this will install the shell if needed)
+	if err := shellManager.Setup(shellConfig); err != nil {
+		return fmt.Errorf("failed to setup shell environment: %w", err)
+	}
+
+	// Install plugin manager if specified
+	if pluginManager != "" {
+		fmt.Printf("🔌 Installing %s...\n", pluginManager)
+		if err := shellManager.InstallPluginManager(shell.PluginManager(pluginManager), shellName); err != nil {
+			return fmt.Errorf("failed to install plugin manager: %w", err)
+		}
+	}
+
+	// Install prompt if specified
+	if prompt != "" {
+		fmt.Printf("💅 Installing %s...\n", prompt)
+		if err := shellManager.InstallPrompt(prompt, shellName); err != nil {
+			return fmt.Errorf("failed to install prompt: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // InstallShell installs the selected shell
 func InstallShell(shellName string) error {
 	shell, exists := ShellOptions[shellName]
@@ -190,13 +245,14 @@ func InstallShell(shellName string) error {
 		return nil
 	}
 
-	// Try to install with the appropriate package manager
-	platformInfo, err := platform.Detect()
+	// Get primary package manager
+	detector := platform.NewDetector()
+	platformInfo, err := detector.Detect()
 	if err != nil {
 		return fmt.Errorf("failed to detect platform: %w", err)
 	}
 
-	primaryPM, err := platform.GetPrimaryPackageManager(platformInfo)
+	primaryPM, err := detector.GetPrimaryPackageManager(platformInfo)
 	if err != nil {
 		return fmt.Errorf("failed to get package manager: %w", err)
 	}
@@ -208,16 +264,12 @@ func InstallShell(shellName string) error {
 		installErr = brewInstall(shell.BrewPackage)
 	case platform.Apt:
 		installErr = aptInstall(shell.AptPackage)
-	case platform.Dnf:
+	case platform.Yum:
 		installErr = dnfInstall(shell.DnfPackage)
 	case platform.Pacman:
 		installErr = pacmanInstall(shell.PacmanPackage)
-	case platform.Zypper:
-		installErr = zypperInstall(shell.ZypperPackage)
-	case platform.Chocolatey:
-		installErr = chocoInstall(shell.ChocoPackage)
 	default:
-		installErr = fmt.Errorf("unsupported package manager: %s", primaryPM)
+		return fmt.Errorf("unsupported package manager: %s", primaryPM)
 	}
 
 	if installErr != nil {
@@ -312,33 +364,34 @@ func InstallPrompt(promptName, shellName string) error {
 	}
 
 	// Otherwise, try to install with the package manager
-	platformInfo, err := platform.Detect()
+	detector := platform.NewDetector()
+	platformInfo, err := detector.Detect()
 	if err != nil {
 		return fmt.Errorf("failed to detect platform: %w", err)
 	}
 
-	primaryPM, err := platform.GetPrimaryPackageManager(platformInfo)
+	primaryPM, err := detector.GetPrimaryPackageManager(platformInfo)
 	if err != nil {
 		return fmt.Errorf("failed to get package manager: %w", err)
 	}
 
-	// Install the prompt
 	var installErr error
 	switch primaryPM {
 	case platform.Homebrew:
 		installErr = brewInstall(prompt.BrewPackage)
 	case platform.Apt:
 		installErr = aptInstall(prompt.AptPackage)
-	case platform.Dnf:
+	case platform.Yum:
 		installErr = dnfInstall(prompt.DnfPackage)
 	case platform.Pacman:
 		installErr = pacmanInstall(prompt.PacmanPackage)
-	case platform.Zypper:
-		installErr = zypperInstall(prompt.ZypperPackage)
-	case platform.Chocolatey:
-		installErr = chocoInstall(prompt.ChocoPackage)
 	default:
-		installErr = fmt.Errorf("unsupported package manager: %s", primaryPM)
+		// Fallback to direct download
+		installCmd := `curl -s https://ohmyposh.dev/install.sh | bash -s`
+		cmd := exec.Command("bash", "-c", installCmd)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		installErr = cmd.Run()
 	}
 
 	return installErr
@@ -733,12 +786,13 @@ zinit light sindresorhus/pure
 
 func installOhMyPosh(shell string) error {
 	// Install Oh My Posh using the package manager if available
-	platformInfo, err := platform.Detect()
+	detector := platform.NewDetector()
+	platformInfo, err := detector.Detect()
 	if err != nil {
 		return fmt.Errorf("failed to detect platform: %w", err)
 	}
 
-	primaryPM, err := platform.GetPrimaryPackageManager(platformInfo)
+	primaryPM, err := detector.GetPrimaryPackageManager(platformInfo)
 	if err != nil {
 		return fmt.Errorf("failed to get package manager: %w", err)
 	}
@@ -754,14 +808,10 @@ func installOhMyPosh(shell string) error {
 		installErr = brewInstall(prompt.BrewPackage)
 	case platform.Apt:
 		installErr = aptInstall(prompt.AptPackage)
-	case platform.Dnf:
+	case platform.Yum:
 		installErr = dnfInstall(prompt.DnfPackage)
 	case platform.Pacman:
 		installErr = pacmanInstall(prompt.PacmanPackage)
-	case platform.Zypper:
-		installErr = zypperInstall(prompt.ZypperPackage)
-	case platform.Chocolatey:
-		installErr = chocoInstall(prompt.ChocoPackage)
 	default:
 		// Fallback to direct download
 		installCmd := `curl -s https://ohmyposh.dev/install.sh | bash -s`

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/platform"
-	"github.com/YitzhakMizrahi/bootstrap-cli/types"
+	"github.com/YitzhakMizrahi/bootstrap-cli/config"
+	"github.com/YitzhakMizrahi/bootstrap-cli/pkg/platform"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -42,7 +42,7 @@ type wizardModel struct {
 	platformInfo platform.Info
 	steps        []Step
 	currentStep  int
-	config       types.UserConfig
+	config       config.UserConfig
 	
 	// Options for each step
 	shellOptions      []Option
@@ -78,7 +78,8 @@ type wizardModel struct {
 
 // Initialize the wizard model
 func initializeModel() (wizardModel, error) {
-	platformInfo, err := platform.Detect()
+	detector := platform.NewDetector()
+	platformInfo, err := detector.Detect()
 	if err != nil {
 		return wizardModel{}, fmt.Errorf("failed to detect platform: %w", err)
 	}
@@ -98,7 +99,7 @@ func initializeModel() (wizardModel, error) {
 			StepConfirm,
 		},
 		currentStep: 0,
-		config: types.UserConfig{
+		config: config.UserConfig{
 			PackageManagers: make(map[string]string),
 		},
 		useRelative:    true,
@@ -702,11 +703,11 @@ func (m wizardModel) Init() tea.Cmd {
 }
 
 // RunInitWizard starts the interactive setup wizard and returns the resulting config
-func RunInitWizard() types.UserConfig {
+func RunInitWizard() config.UserConfig {
 	model, err := initializeModel()
 	if err != nil {
 		fmt.Printf("Error initializing wizard: %v\n", err)
-		return types.UserConfig{}
+		return config.UserConfig{}
 	}
 	
 	// Use alt screen mode for a full-terminal UI
@@ -714,7 +715,7 @@ func RunInitWizard() types.UserConfig {
 	finalModel, err := p.Run()
 	if err != nil {
 		fmt.Printf("Error running wizard: %v\n", err)
-		return types.UserConfig{}
+		return config.UserConfig{}
 	}
 	
 	// Return the final config

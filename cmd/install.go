@@ -12,7 +12,6 @@ import (
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/installer"
-	"github.com/YitzhakMizrahi/bootstrap-cli/types"
 )
 
 // Installation stages
@@ -30,7 +29,7 @@ type installModel struct {
 	progress     progress.Model
 	spinner      spinner.Model
 	stage        InstallStage
-	config       types.UserConfig
+	config       config.UserConfig
 	stageCount   int
 	currentItem  string
 	totalItems   int
@@ -71,7 +70,7 @@ func (m installModel) Init() tea.Cmd {
 type errMsg struct{ err error }
 func (e errMsg) Error() string { return e.err.Error() }
 
-type configLoadedMsg struct{ config types.UserConfig }
+type configLoadedMsg struct{ config config.UserConfig }
 type installItemMsg struct{ itemName string }
 type stageCompleteMsg struct{ stage InstallStage }
 

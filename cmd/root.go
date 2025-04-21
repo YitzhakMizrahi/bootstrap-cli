@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/pkg/ui"
 	"github.com/spf13/cobra"
 )
 
 var cfgFile string
 var verbose bool
+var noColor bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -36,15 +38,28 @@ For more details on each command, run: bootstrap-cli [command] --help`,
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		if !noColor {
+			ui.DisplayError(err.Error())
+		} else {
+			fmt.Fprintln(os.Stderr, err)
+		}
 		os.Exit(1)
 	}
 }
 
 func init() {
+	// Set PersistentPreRun
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		// Show welcome screen only for main commands
+		if cmd.Parent() == rootCmd && !noColor {
+			ui.DisplayWelcome(rootCmd.Version)
+		}
+	}
+
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/bootstrap/config.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "enable verbose output")
+	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable color output")
 	rootCmd.PersistentFlags().Bool("dry-run", false, "show what would be done without making changes")
 	
 	// Set custom version template
@@ -61,4 +76,9 @@ func GetVerbose() bool {
 // GetConfigPath returns the config file path
 func GetConfigPath() string {
 	return cfgFile
+}
+
+// GetNoColor returns whether color output is disabled
+func GetNoColor() bool {
+	return noColor
 }

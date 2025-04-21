@@ -11,11 +11,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/platform"
+	"github.com/YitzhakMizrahi/bootstrap-cli/pkg/platform"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/cobra"
+)
+
+var (
+	osFlag     string
+	packageFlag string
 )
 
 // Tool represents a CLI tool that can be installed
@@ -26,9 +32,6 @@ type Tool struct {
 	AptPackage     string
 	DnfPackage     string
 	PacmanPackage  string
-	ZypperPackage  string
-	ChocoPackage   string
-	SnapPackage    string
 	InstallScript  func() error // Custom installation function
 }
 
@@ -41,8 +44,6 @@ var ToolPackages = map[string]Tool{
 		AptPackage:     "lsd",
 		DnfPackage:     "lsd",
 		PacmanPackage:  "lsd",
-		ZypperPackage:  "lsd", 
-		ChocoPackage:   "lsd",
 		InstallScript:  installLsdFromBinary,
 	},
 	"bat": {
@@ -52,7 +53,6 @@ var ToolPackages = map[string]Tool{
 		AptPackage:   "bat",
 		DnfPackage:   "bat",
 		PacmanPackage: "bat",
-		ChocoPackage: "bat",
 	},
 	"fzf": {
 		Name:         "fzf",
@@ -61,7 +61,6 @@ var ToolPackages = map[string]Tool{
 		AptPackage:   "fzf",
 		DnfPackage:   "fzf",
 		PacmanPackage: "fzf",
-		ChocoPackage: "fzf",
 	},
 	"ripgrep": {
 		Name:         "ripgrep",
@@ -70,61 +69,6 @@ var ToolPackages = map[string]Tool{
 		AptPackage:   "ripgrep",
 		DnfPackage:   "ripgrep",
 		PacmanPackage: "ripgrep",
-		ChocoPackage: "ripgrep",
-	},
-	"fd": {
-		Name:         "fd",
-		Description:  "Simple, fast alternative to find",
-		BrewPackage:  "fd",
-		AptPackage:   "fd-find",
-		DnfPackage:   "fd-find",
-		PacmanPackage: "fd",
-		ChocoPackage: "fd",
-	},
-	"jq": {
-		Name:         "jq",
-		Description:  "Lightweight JSON processor",
-		BrewPackage:  "jq",
-		AptPackage:   "jq",
-		DnfPackage:   "jq",
-		PacmanPackage: "jq",
-		ChocoPackage: "jq",
-	},
-	"htop": {
-		Name:         "htop",
-		Description:  "Interactive process viewer",
-		BrewPackage:  "htop",
-		AptPackage:   "htop",
-		DnfPackage:   "htop",
-		PacmanPackage: "htop",
-		ChocoPackage: "htop",
-	},
-	"lazygit": {
-		Name:         "lazygit",
-		Description:  "Simple terminal UI for git",
-		BrewPackage:  "lazygit",
-		AptPackage:   "lazygit",
-		DnfPackage:   "lazygit",
-		PacmanPackage: "lazygit",
-		ChocoPackage: "lazygit",
-	},
-	"tmux": {
-		Name:         "tmux",
-		Description:  "Terminal multiplexer",
-		BrewPackage:  "tmux",
-		AptPackage:   "tmux",
-		DnfPackage:   "tmux",
-		PacmanPackage: "tmux",
-		ChocoPackage: "tmux",
-	},
-	"neofetch": {
-		Name:         "neofetch",
-		Description:  "System info written in bash",
-		BrewPackage:  "neofetch",
-		AptPackage:   "neofetch",
-		DnfPackage:   "neofetch",
-		PacmanPackage: "neofetch",
-		ChocoPackage: "neofetch",
 	},
 }
 
@@ -291,7 +235,7 @@ func (m ToolInstallModel) startToolInstalls() tea.Cmd {
 					} else {
 						installErr = fmt.Errorf("no apt package available")
 					}
-				case platform.Dnf:
+				case platform.Yum:
 					packageName = tool.DnfPackage
 					if packageName != "" {
 						cmd := exec.Command("sudo", "dnf", "install", "-y", packageName)
@@ -310,26 +254,6 @@ func (m ToolInstallModel) startToolInstalls() tea.Cmd {
 						installErr = cmd.Run()
 					} else {
 						installErr = fmt.Errorf("no pacman package available")
-					}
-				case platform.Zypper:
-					packageName = tool.ZypperPackage
-					if packageName != "" {
-						cmd := exec.Command("sudo", "zypper", "install", "-y", packageName)
-						cmd.Stdout = nil
-						cmd.Stderr = nil
-						installErr = cmd.Run()
-					} else {
-						installErr = fmt.Errorf("no zypper package available")
-					}
-				case platform.Chocolatey:
-					packageName = tool.ChocoPackage
-					if packageName != "" {
-						cmd := exec.Command("choco", "install", packageName, "-y")
-						cmd.Stdout = nil
-						cmd.Stderr = nil
-						installErr = cmd.Run()
-					} else {
-						installErr = fmt.Errorf("no chocolatey package available")
 					}
 				default:
 					installErr = fmt.Errorf("unsupported package manager: %s", m.packageMgr)
@@ -599,51 +523,22 @@ func InstallToolsWithUI(title string, tools []string, packageManager platform.Pa
 
 // InstallCLITools installs the selected CLI tools
 func InstallCLITools(tools []string) error {
-	platformInfo, err := platform.Detect()
+	detector := platform.NewDetector()
+	platformInfo, err := detector.Detect()
 	if err != nil {
 		return fmt.Errorf("failed to detect platform: %w", err)
 	}
-	
-	primaryPM, err := platform.GetPrimaryPackageManager(platformInfo)
+
+	pm, err := detector.GetPrimaryPackageManager(platformInfo)
 	if err != nil {
 		return fmt.Errorf("failed to get package manager: %w", err)
 	}
+
+	fmt.Printf("🛠️ Installing CLI tools using %s...\n", pm)
 	
-	fmt.Printf("🛠️ Installing CLI tools using %s...\n", primaryPM)
-	
-	// If we should use the UI-based installer
-	if usePackageManagerUI() {
-		switch primaryPM {
-		case platform.Homebrew:
-			// Get the actual package names for all tools
-			var packages []string
-			for _, toolName := range tools {
-				tool, exists := ToolPackages[toolName]
-				if !exists {
-					fmt.Printf("⚠️  Unknown tool: %s, skipping...\n", toolName)
-					continue
-				}
-				packages = append(packages, tool.BrewPackage)
-			}
-			return InstallPackagesWithUI("CLI Tools", packages, "brew")
-			
-		case platform.Apt:
-			// Get the actual package names for all tools
-			var packages []string
-			for _, toolName := range tools {
-				tool, exists := ToolPackages[toolName]
-				if !exists {
-					fmt.Printf("⚠️  Unknown tool: %s, skipping...\n", toolName)
-					continue
-				}
-				packages = append(packages, tool.AptPackage)
-			}
-			return InstallPackagesWithUI("CLI Tools", packages, "apt")
-			
-		default:
-			// Fall back to regular installation for other package managers
-			fmt.Printf("⚠️ UI-based installation not supported for %s, using standard installer\n", primaryPM)
-		}
+	// Use UI if terminal is interactive and UI is enabled
+	if usePackageManagerUI() && isTerminal() {
+		return InstallToolsWithUI("Installing CLI Tools", tools, pm)
 	}
 	
 	// Traditional (non-UI) installation process
@@ -664,26 +559,22 @@ func InstallCLITools(tools []string) error {
 		
 		// Try to install with the appropriate package manager
 		var installErr error
-		switch primaryPM {
+		switch pm {
 		case platform.Homebrew:
 			installErr = brewInstall(tool.BrewPackage)
 		case platform.Apt:
 			installErr = aptInstall(tool.AptPackage)
-		case platform.Dnf:
+		case platform.Yum:
 			installErr = dnfInstall(tool.DnfPackage)
 		case platform.Pacman:
 			installErr = pacmanInstall(tool.PacmanPackage)
-		case platform.Zypper:
-			installErr = zypperInstall(tool.ZypperPackage)
-		case platform.Chocolatey:
-			installErr = chocoInstall(tool.ChocoPackage)
 		default:
-			installErr = fmt.Errorf("unsupported package manager: %s", primaryPM)
+			installErr = fmt.Errorf("unsupported package manager: %s", pm)
 		}
 		
 		if installErr != nil {
 			fmt.Printf("⚠️  Failed to install %s: %v\n", tool.Name, installErr)
-			// Try alternative installation methods if available
+			// Try alternative installation method if available
 			if tool.InstallScript != nil {
 				fmt.Printf("🔄 Trying alternative installation method for %s...\n", tool.Name)
 				if err := tool.InstallScript(); err != nil {
@@ -737,15 +628,22 @@ func isTerminal() bool {
 
 // InstallLanguages installs the selected programming languages
 func InstallLanguages(languages []string, packageManagers map[string]string) error {
-	if len(languages) == 0 {
-		return nil
+	detector := platform.NewDetector()
+	platformInfo, err := detector.Detect()
+	if err != nil {
+		return fmt.Errorf("failed to detect platform: %w", err)
 	}
+
+	pm, err := detector.GetPrimaryPackageManager(platformInfo)
+	if err != nil {
+		return fmt.Errorf("failed to get package manager: %w", err)
+	}
+
+	fmt.Printf("🧪 Installing programming languages using %s...\n", pm)
 	
-	fmt.Printf("🧪 Installing programming languages...\n")
-	
-	// If we should use the UI-based installer
-	if usePackageManagerUI() {
-		return InstallLanguagesWithUI("Programming Languages", languages, packageManagers)
+	// Use UI if terminal is interactive and UI is enabled
+	if usePackageManagerUI() && isTerminal() {
+		return InstallLanguagesWithUI("Installing Languages", languages, packageManagers)
 	}
 	
 	// Traditional (non-UI) installation process
@@ -1286,7 +1184,8 @@ func installPython() error {
 		
 		// Install dependencies first
 		fmt.Println("🔄 Installing pyenv dependencies...")
-		platformInfo, err := platform.Detect()
+		detector := platform.NewDetector()
+		platformInfo, err := detector.Detect()
 		if err == nil && platformInfo.OS == platform.Linux {
 			// Install dependencies based on distribution
 			switch platformInfo.Distribution {
@@ -1391,12 +1290,13 @@ func installGo() error {
 		return nil
 	}
 	
-	platformInfo, err := platform.Detect()
+	detector := platform.NewDetector()
+	platformInfo, err := detector.Detect()
 	if err != nil {
 		return fmt.Errorf("failed to detect platform: %w", err)
 	}
 	
-	primaryPM, err := platform.GetPrimaryPackageManager(platformInfo)
+	pm, err := detector.GetPrimaryPackageManager(platformInfo)
 	if err != nil {
 		return fmt.Errorf("failed to get package manager: %w", err)
 	}
@@ -1421,7 +1321,7 @@ func installGo() error {
 	}
 	
 	// Install Go using package manager
-	switch primaryPM {
+	switch pm {
 	case platform.Homebrew:
 		cmd := exec.Command("brew", "install", "go")
 		return installWithPM(cmd)
@@ -1435,20 +1335,12 @@ func installGo() error {
 		cmd := exec.Command("sudo", "apt-get", "install", "-y", "golang-go")
 		return installWithPM(cmd)
 		
-	case platform.Dnf:
+	case platform.Yum:
 		cmd := exec.Command("sudo", "dnf", "install", "-y", "golang")
 		return installWithPM(cmd)
 		
 	case platform.Pacman:
 		cmd := exec.Command("sudo", "pacman", "-S", "--noconfirm", "go")
-		return installWithPM(cmd)
-		
-	case platform.Zypper:
-		cmd := exec.Command("sudo", "zypper", "install", "-y", "go")
-		return installWithPM(cmd)
-		
-	case platform.Chocolatey:
-		cmd := exec.Command("choco", "install", "golang", "-y")
 		return installWithPM(cmd)
 		
 	default:
@@ -1803,13 +1695,13 @@ func installPackageManager(language, manager string) error {
 
 // installLsdFromBinary installs lsd from GitHub releases when package manager doesn't have it
 func installLsdFromBinary() error {
-	// Determine OS and architecture
-	osInfo, err := platform.Detect()
+	detector := platform.NewDetector()
+	platformInfo, err := detector.Detect()
 	if err != nil {
 		return fmt.Errorf("failed to detect platform: %w", err)
 	}
 	
-	// Only proceed if we're on Linux or macOS or Windows
+	// Only proceed if we're on Linux or macOS
 	var archStr string
 	switch runtime.GOARCH {
 	case "amd64":
@@ -1831,120 +1723,134 @@ func installLsdFromBinary() error {
 	var binaryName string
 	
 	// Build the download URL based on the detected OS
-	switch osInfo.OS {
+	switch platformInfo.OS {
 	case platform.Linux:
 		downloadURL = fmt.Sprintf("https://github.com/lsd-rs/lsd/releases/download/v%s/lsd-v%s-%s-unknown-linux-gnu.tar.gz", version, version, archStr)
 		binaryName = "lsd"
-	case platform.MacOS:
+	case platform.Darwin:
 		downloadURL = fmt.Sprintf("https://github.com/lsd-rs/lsd/releases/download/v%s/lsd-v%s-%s-apple-darwin.tar.gz", version, version, archStr)
 		binaryName = "lsd"
-	case platform.Windows:
-		downloadURL = fmt.Sprintf("https://github.com/lsd-rs/lsd/releases/download/v%s/lsd-v%s-%s-pc-windows-msvc.zip", version, version, archStr)
-		binaryName = "lsd.exe"
 	default:
-		return fmt.Errorf("unsupported OS: %s", osInfo.OS)
+		return fmt.Errorf("unsupported OS: %s", platformInfo.OS)
 	}
 	
 	fmt.Printf("📥 Downloading lsd from %s\n", downloadURL)
 	
 	// Download the archive
 	archivePath := filepath.Join(tempDir, "lsd-archive")
-	var downloadCmd *exec.Cmd
 	
-	if osInfo.OS == platform.Windows {
-		// Use PowerShell on Windows
-		downloadCmd = exec.Command("powershell", "-Command", 
-			fmt.Sprintf("Invoke-WebRequest -Uri '%s' -OutFile '%s'", downloadURL, archivePath))
-	} else {
-		// Use curl on Unix systems
-		downloadCmd = exec.Command("curl", "-L", downloadURL, "-o", archivePath)
-	}
-	
-	downloadCmd.Stdout = os.Stdout
-	downloadCmd.Stderr = os.Stderr
+	// Use curl to download
+	downloadCmd := exec.Command("curl", "-L", downloadURL, "-o", archivePath)
 	if err := downloadCmd.Run(); err != nil {
 		return fmt.Errorf("failed to download lsd: %w", err)
 	}
 	
 	// Extract the archive
-	extractDir := filepath.Join(tempDir, "extracted")
-	if err := os.MkdirAll(extractDir, 0755); err != nil {
-		return fmt.Errorf("failed to create extraction directory: %w", err)
-	}
-	
-	var extractCmd *exec.Cmd
-	if strings.HasSuffix(downloadURL, ".tar.gz") {
-		extractCmd = exec.Command("tar", "-xzf", archivePath, "-C", extractDir)
-	} else if strings.HasSuffix(downloadURL, ".zip") {
-		extractCmd = exec.Command("unzip", archivePath, "-d", extractDir)
-	} else {
-		return fmt.Errorf("unsupported archive format")
-	}
-	
-	extractCmd.Stdout = os.Stdout
-	extractCmd.Stderr = os.Stderr
+	extractCmd := exec.Command("tar", "xzf", archivePath, "-C", tempDir)
 	if err := extractCmd.Run(); err != nil {
 		return fmt.Errorf("failed to extract lsd: %w", err)
 	}
 	
-	// Find the binary
-	var binaryPath string
-	err = filepath.Walk(extractDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.Name() == binaryName {
-			binaryPath = path
-			return filepath.SkipDir
-		}
-		return nil
-	})
+	// Move binary to a location in PATH
+	binaryPath := filepath.Join(tempDir, binaryName)
+	installPath := "/usr/local/bin"
 	
-	if binaryPath == "" {
-		return fmt.Errorf("could not find lsd binary in extracted files")
+	if err := os.MkdirAll(installPath, 0755); err != nil {
+		return fmt.Errorf("failed to create install directory: %w", err)
 	}
 	
-	// Install to /usr/local/bin or equivalent
-	var installPath string
-	if osInfo.OS == platform.Windows {
-		// On Windows, install to a directory in PATH
-		installPath = "C:\\Program Files\\lsd"
-		if err := os.MkdirAll(installPath, 0755); err != nil {
-			return fmt.Errorf("failed to create installation directory: %w", err)
-		}
-		installPath = filepath.Join(installPath, binaryName)
-	} else {
-		// On Unix systems, install to /usr/local/bin
-		installPath = "/usr/local/bin/lsd"
-	}
-	
-	// Copy the binary to the install location
-	fmt.Printf("📦 Installing lsd to %s\n", installPath)
-	
-	var installCmd *exec.Cmd
-	if osInfo.OS == platform.Windows {
-		installCmd = exec.Command("powershell", "-Command", 
-			fmt.Sprintf("Copy-Item -Path '%s' -Destination '%s'", binaryPath, installPath))
-	} else {
-		installCmd = exec.Command("sudo", "cp", binaryPath, installPath)
-	}
-	
-	installCmd.Stdout = os.Stdout
-	installCmd.Stderr = os.Stderr
-	if err := installCmd.Run(); err != nil {
+	moveCmd := exec.Command("sudo", "mv", binaryPath, filepath.Join(installPath, binaryName))
+	if err := moveCmd.Run(); err != nil {
 		return fmt.Errorf("failed to install lsd: %w", err)
 	}
 	
-	// Make it executable (Unix only)
-	if osInfo.OS != platform.Windows {
-		chmodCmd := exec.Command("sudo", "chmod", "+x", installPath)
-		chmodCmd.Stdout = os.Stdout
-		chmodCmd.Stderr = os.Stderr
-		if err := chmodCmd.Run(); err != nil {
-			return fmt.Errorf("failed to make lsd executable: %w", err)
+	return nil
+}
+
+func handleOSSelection() (platform.OS, error) {
+	if osFlag == "" {
+		// Auto-detect OS
+		detector := platform.NewDetector()
+		info, err := detector.Detect()
+		if err != nil {
+			return "", fmt.Errorf("failed to detect OS: %w", err)
 		}
+		return info.OS, nil
 	}
-	
-	fmt.Println("✅ Successfully installed lsd")
+
+	// Validate OS flag
+	switch osFlag {
+	case "linux":
+		return platform.Linux, nil
+	case "darwin":
+		return platform.Darwin, nil
+	default:
+		return "", fmt.Errorf("unsupported operating system: %s", osFlag)
+	}
+}
+
+func installPackage(os platform.OS, pkg string) error {
+	// Only proceed if OS is supported
+	if os != platform.Linux && os != platform.Darwin {
+		return fmt.Errorf("unsupported operating system: %s", os)
+	}
+
+	// Create package manager
+	detector := platform.NewDetector()
+	platformInfo, err := detector.Detect()
+	if err != nil {
+		return fmt.Errorf("failed to detect platform: %w", err)
+	}
+
+	pm, err := detector.GetPrimaryPackageManager(platformInfo)
+	if err != nil {
+		return fmt.Errorf("failed to get package manager: %w", err)
+	}
+
+	// Install package using the detected package manager
+	switch pm {
+	case platform.Apt:
+		cmd := exec.Command("sudo", "apt-get", "install", "-y", pkg)
+		return cmd.Run()
+	case platform.Yum:
+		cmd := exec.Command("sudo", "yum", "install", "-y", pkg)
+		return cmd.Run()
+	case platform.Pacman:
+		cmd := exec.Command("sudo", "pacman", "-S", "--noconfirm", pkg)
+		return cmd.Run()
+	case platform.Homebrew:
+		cmd := exec.Command("brew", "install", pkg)
+		return cmd.Run()
+	default:
+		return fmt.Errorf("unsupported package manager: %s", pm)
+	}
+}
+
+// NewCommand creates a new installer command
+func NewCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "install",
+		Short: "Install packages and configurations",
+		RunE:  run,
+	}
+
+	cmd.Flags().StringVarP(&osFlag, "os", "o", "", "Target operating system (linux, darwin)")
+	cmd.Flags().StringVarP(&packageFlag, "package", "p", "", "Package to install")
+
+	return cmd
+}
+
+func run(cmd *cobra.Command, args []string) error {
+	// Handle OS selection
+	os, err := handleOSSelection()
+	if err != nil {
+		return err
+	}
+
+	// Handle package installation
+	if packageFlag != "" {
+		return installPackage(os, packageFlag)
+	}
+
 	return nil
 }

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/types"
+	"github.com/YitzhakMizrahi/bootstrap-cli/config"
 )
 
 // DotfileMapping defines a mapping between a source file in the dotfiles repo
@@ -43,7 +43,7 @@ var commonDotfileMappings = map[string]string{
 
 // LinkDotfiles creates symbolic links from the dotfiles repository to the appropriate
 // locations in the user's home directory
-func LinkDotfiles(config types.UserConfig) error {
+func LinkDotfiles(config config.UserConfig) error {
 	// Expand the dotfiles path if it starts with ~
 	dotfilesPath := config.DotfilesPath
 	if strings.HasPrefix(dotfilesPath, "~/") {
@@ -116,7 +116,7 @@ func LinkDotfiles(config types.UserConfig) error {
 }
 
 // discoverDotfiles finds dotfiles in the repository and creates mappings
-func discoverDotfiles(dotfilesPath string, config types.UserConfig) ([]DotfileMapping, error) {
+func discoverDotfiles(dotfilesPath string, config config.UserConfig) ([]DotfileMapping, error) {
 	var mappings []DotfileMapping
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -226,7 +226,7 @@ func findTargetPath(relPath string, home string) (string, bool) {
 }
 
 // createSymlink creates a symbolic link from target to source
-func createSymlink(mapping DotfileMapping, config types.UserConfig) error {
+func createSymlink(mapping DotfileMapping, config config.UserConfig) error {
 	// If target exists and is not a symlink, back it up if configured to do so
 	if mapping.Exists && !mapping.IsSymlink && config.BackupExisting {
 		backupPath := mapping.TargetAbs + ".bak." + time.Now().Format("20060102150405")

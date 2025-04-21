@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/types"
+	"github.com/YitzhakMizrahi/bootstrap-cli/config"
 )
 
 // FinishInstallation handles final tasks after all installations are complete
-func FinishInstallation(config types.UserConfig) error {
+func FinishInstallation(config config.UserConfig) error {
 	fmt.Println("\n🎉 Successfully completed installation!")
 	
 	// Configure installed tools with appropriate shell integrations
@@ -77,7 +77,7 @@ func FinishInstallation(config types.UserConfig) error {
 }
 
 // configureInstalledTools adds configuration for tools that were installed
-func configureInstalledTools(config types.UserConfig) error {
+func configureInstalledTools(config config.UserConfig) error {
 	// Configure each installed CLI tool
 	for _, tool := range config.CLITools {
 		fmt.Printf("🔧 Configuring %s...\n", tool)
@@ -930,7 +930,7 @@ exec %s -l
 }
 
 // configureUserDotfiles integrates bootstrap configurations with user dotfiles
-func configureUserDotfiles(config types.UserConfig) error {
+func configureUserDotfiles(config config.UserConfig) error {
 	// Skip if no dotfiles path is provided
 	if config.DotfilesPath == "" {
 		return nil
@@ -1007,7 +1007,7 @@ func configureUserDotfiles(config types.UserConfig) error {
 }
 
 // analyzeAndMigrateShellConfig analyzes user shell config and migrates bootstrap settings if needed
-func analyzeAndMigrateShellConfig(systemPath, userPath string, config types.UserConfig) error {
+func analyzeAndMigrateShellConfig(systemPath, userPath string, config config.UserConfig) error {
 	systemContent, err := os.ReadFile(systemPath)
 	if err != nil {
 		return fmt.Errorf("failed to read system config: %w", err)

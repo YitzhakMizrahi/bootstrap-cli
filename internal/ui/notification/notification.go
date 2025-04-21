@@ -220,18 +220,35 @@ func (nm *NotificationManager) Display() string {
 	}
 
 	var sb strings.Builder
-	groups := nm.groupNotificationsByCategory()
-
-	// Sort categories alphabetically
-	categories := make([]string, 0, len(groups))
-	for category := range groups {
+	
+	// Get all parent categories and their child categories
+	nestedCategories := nm.getNestedCategories()
+	
+	// Get all top-level categories (those without a parent)
+	topLevelCategories := make(map[string]bool)
+	for _, notification := range nm.notifications {
+		if notification.ParentCategory == "" {
+			topLevelCategories[notification.Category] = true
+		}
+	}
+	
+	// Sort top-level categories alphabetically
+	categories := make([]string, 0, len(topLevelCategories))
+	for category := range topLevelCategories {
 		categories = append(categories, category)
 	}
 	sort.Strings(categories)
-
+	
+	// Display top-level categories and their notifications
 	for _, category := range categories {
-		notifications := groups[category]
-		sb.WriteString(fmt.Sprintf("\n%s:\n", category))
+		// Get style for this category
+		style := nm.GetCategoryStyle(category)
+		
+		// Display category header with style
+		sb.WriteString(fmt.Sprintf("\n%s%s%s:\n", style.Color, style.Icon, category))
+		
+		// Get notifications for this category
+		notifications := nm.GetNotificationsByCategory(category)
 		
 		// Sort notifications by priority and timestamp
 		sort.Slice(notifications, func(i, j int) bool {
@@ -240,14 +257,51 @@ func (nm *NotificationManager) Display() string {
 			}
 			return notifications[i].Timestamp.After(notifications[j].Timestamp)
 		})
-
+		
+		// Display notifications for this category
 		for _, notification := range notifications {
-			// Indent subcategories
-			if notification.ParentCategory != "" {
-				sb.WriteString("  ")
-			}
 			sb.WriteString(notification.String())
 			sb.WriteString("\n")
+		}
+		
+		// Display child categories if any
+		if childCategories, exists := nestedCategories[category]; exists {
+			// Sort child categories alphabetically
+			sort.Strings(childCategories)
+			
+			for _, childCategory := range childCategories {
+				// Get style for child category
+				childStyle := nm.GetCategoryStyle(childCategory)
+				
+				// Display child category header with style and indentation
+				sb.WriteString(fmt.Sprintf("  %s%s%s:\n", childStyle.Color, childStyle.Icon, childCategory))
+				
+				// Get notifications for this child category
+				childNotifications := nm.GetNotificationsByCategory(childCategory)
+				
+				// Filter to only those with this parent
+				var filteredChildNotifications []*Notification
+				for _, notification := range childNotifications {
+					if notification.ParentCategory == category {
+						filteredChildNotifications = append(filteredChildNotifications, notification)
+					}
+				}
+				
+				// Sort child notifications by priority and timestamp
+				sort.Slice(filteredChildNotifications, func(i, j int) bool {
+					if filteredChildNotifications[i].Priority != filteredChildNotifications[j].Priority {
+						return filteredChildNotifications[i].Priority > filteredChildNotifications[j].Priority
+					}
+					return filteredChildNotifications[i].Timestamp.After(filteredChildNotifications[j].Timestamp)
+				})
+				
+				// Display child notifications with indentation
+				for _, notification := range filteredChildNotifications {
+					sb.WriteString("    ")
+					sb.WriteString(notification.String())
+					sb.WriteString("\n")
+				}
+			}
 		}
 	}
 
@@ -573,15 +627,43 @@ func (m *NotificationManager) AddNotificationWithPriorityAndDuration(notificatio
 // groupNotificationsByCategory groups notifications by their category
 func (m *NotificationManager) groupNotificationsByCategory() map[string][]*Notification {
 	groups := make(map[string][]*Notification)
+	
+	// First, group by parent category if it exists
 	for _, notification := range m.notifications {
-		// If the notification has a parent category, use it as the key
 		if notification.ParentCategory != "" {
 			groups[notification.ParentCategory] = append(groups[notification.ParentCategory], notification)
 		} else {
 			groups[notification.Category] = append(groups[notification.Category], notification)
 		}
 	}
+	
 	return groups
+}
+
+// getNestedCategories returns a map of parent categories to their child categories
+func (m *NotificationManager) getNestedCategories() map[string][]string {
+	nestedCategories := make(map[string][]string)
+	
+	// Collect all parent-child relationships
+	for _, notification := range m.notifications {
+		if notification.ParentCategory != "" {
+			// Check if this child category is already in the list
+			childExists := false
+			for _, child := range nestedCategories[notification.ParentCategory] {
+				if child == notification.Category {
+					childExists = true
+					break
+				}
+			}
+			
+			// Add the child category if it's not already in the list
+			if !childExists {
+				nestedCategories[notification.ParentCategory] = append(nestedCategories[notification.ParentCategory], notification.Category)
+			}
+		}
+	}
+	
+	return nestedCategories
 }
 
 // GetNotificationsByCategory returns all notifications in a specific category
@@ -719,4 +801,52 @@ func (n *Notification) String() string {
 	}
 
 	return sb.String()
+}
+
+// AddNotificationWithNestedCategory adds a notification with a nested category structure
+func (m *NotificationManager) AddNotificationWithNestedCategory(notificationType NotificationType, message string, title string, category string, parentCategory string) {
+	m.AddNotification(&Notification{
+		Type:          notificationType,
+		Message:       message,
+		Title:         title,
+		Category:      category,
+		ParentCategory: parentCategory,
+	})
+}
+
+// AddNotificationWithNestedCategoryAndPriority adds a notification with a nested category and priority
+func (m *NotificationManager) AddNotificationWithNestedCategoryAndPriority(notificationType NotificationType, priority NotificationPriority, message string, title string, category string, parentCategory string) {
+	m.AddNotification(&Notification{
+		Type:          notificationType,
+		Priority:      priority,
+		Message:       message,
+		Title:         title,
+		Category:      category,
+		ParentCategory: parentCategory,
+	})
+}
+
+// AddNotificationWithNestedCategoryAndDuration adds a notification with a nested category and duration
+func (m *NotificationManager) AddNotificationWithNestedCategoryAndDuration(notificationType NotificationType, message string, title string, category string, parentCategory string, duration time.Duration) {
+	m.AddNotification(&Notification{
+		Type:          notificationType,
+		Message:       message,
+		Title:         title,
+		Category:      category,
+		ParentCategory: parentCategory,
+		Duration:      duration,
+	})
+}
+
+// AddNotificationWithNestedCategoryPriorityAndDuration adds a notification with a nested category, priority, and duration
+func (m *NotificationManager) AddNotificationWithNestedCategoryPriorityAndDuration(notificationType NotificationType, priority NotificationPriority, message string, title string, category string, parentCategory string, duration time.Duration) {
+	m.AddNotification(&Notification{
+		Type:          notificationType,
+		Priority:      priority,
+		Message:       message,
+		Title:         title,
+		Category:      category,
+		ParentCategory: parentCategory,
+		Duration:      duration,
+	})
 } 

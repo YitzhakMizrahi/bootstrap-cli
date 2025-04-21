@@ -937,4 +937,122 @@ func TestDisplayWithCategoryStyles(t *testing.T) {
 	if !strings.Contains(outputStr, "\033[31m") {
 		t.Error("Output does not contain Security category with correct color")
 	}
+}
+
+// TestNestedCategories tests that notifications with nested categories are displayed correctly
+func TestNestedCategories(t *testing.T) {
+	// Create a new notification manager
+	manager := NewNotificationManager()
+	
+	// Add notifications with nested categories
+	manager.AddNotificationWithNestedCategory(InfoNotification, "Child notification 1", "Child 1", "ChildCategory1", "ParentCategory")
+	manager.AddNotificationWithNestedCategory(SuccessNotification, "Child notification 2", "Child 2", "ChildCategory2", "ParentCategory")
+	manager.AddNotificationWithNestedCategory(WarningNotification, "Child notification 3", "Child 3", "ChildCategory1", "ParentCategory")
+	manager.AddNotificationWithCategory(InfoNotification, "Parent notification", "Parent", "ParentCategory")
+	
+	// Get the display output
+	output := manager.Display()
+	
+	// Check that the output contains the parent category
+	if !strings.Contains(output, "ParentCategory") {
+		t.Error("Output does not contain parent category")
+	}
+	
+	// Check that the output contains the child categories
+	if !strings.Contains(output, "ChildCategory1") {
+		t.Error("Output does not contain child category 1")
+	}
+	if !strings.Contains(output, "ChildCategory2") {
+		t.Error("Output does not contain child category 2")
+	}
+	
+	// Check that the output contains the notifications
+	if !strings.Contains(output, "Child notification 1") {
+		t.Error("Output does not contain child notification 1")
+	}
+	if !strings.Contains(output, "Child notification 2") {
+		t.Error("Output does not contain child notification 2")
+	}
+	if !strings.Contains(output, "Child notification 3") {
+		t.Error("Output does not contain child notification 3")
+	}
+	if !strings.Contains(output, "Parent notification") {
+		t.Error("Output does not contain parent notification")
+	}
+	
+	// Check that child notifications are indented
+	lines := strings.Split(output, "\n")
+	childIndentationFound := false
+	for _, line := range lines {
+		if strings.Contains(line, "Child notification") && strings.HasPrefix(line, "    ") {
+			childIndentationFound = true
+			break
+		}
+	}
+	if !childIndentationFound {
+		t.Error("Child notifications are not properly indented")
+	}
+}
+
+// TestNestedCategoriesWithPriority tests that notifications with nested categories and priorities are displayed correctly
+func TestNestedCategoriesWithPriority(t *testing.T) {
+	// Create a new notification manager
+	manager := NewNotificationManager()
+	
+	// Add notifications with nested categories and priorities
+	manager.AddNotificationWithNestedCategoryAndPriority(InfoNotification, LowPriority, "Low priority child", "Low Priority", "LowPriorityChild", "PriorityParent")
+	manager.AddNotificationWithNestedCategoryAndPriority(ErrorNotification, CriticalPriority, "Critical priority child", "Critical Priority", "CriticalPriorityChild", "PriorityParent")
+	manager.AddNotificationWithNestedCategoryAndPriority(WarningNotification, HighPriority, "High priority child", "High Priority", "HighPriorityChild", "PriorityParent")
+	
+	// Get the display output
+	output := manager.Display()
+	
+	// Check that the output contains the parent category
+	if !strings.Contains(output, "PriorityParent") {
+		t.Error("Output does not contain parent category")
+	}
+	
+	// Check that the output contains the child categories
+	if !strings.Contains(output, "LowPriorityChild") {
+		t.Error("Output does not contain low priority child category")
+	}
+	if !strings.Contains(output, "CriticalPriorityChild") {
+		t.Error("Output does not contain critical priority child category")
+	}
+	if !strings.Contains(output, "HighPriorityChild") {
+		t.Error("Output does not contain high priority child category")
+	}
+	
+	// Check that the output contains the notifications
+	if !strings.Contains(output, "Low priority child") {
+		t.Error("Output does not contain low priority child notification")
+	}
+	if !strings.Contains(output, "Critical priority child") {
+		t.Error("Output does not contain critical priority child notification")
+	}
+	if !strings.Contains(output, "High priority child") {
+		t.Error("Output does not contain high priority child notification")
+	}
+	
+	// Check that notifications are sorted by priority
+	lines := strings.Split(output, "\n")
+	var notificationLines []string
+	for _, line := range lines {
+		if strings.Contains(line, "priority child") {
+			notificationLines = append(notificationLines, line)
+		}
+	}
+	
+	// Check that critical priority comes first, then high, then low
+	if len(notificationLines) >= 3 {
+		if !strings.Contains(notificationLines[0], "Critical priority child") {
+			t.Error("Critical priority notification is not first")
+		}
+		if !strings.Contains(notificationLines[1], "High priority child") {
+			t.Error("High priority notification is not second")
+		}
+		if !strings.Contains(notificationLines[2], "Low priority child") {
+			t.Error("Low priority notification is not third")
+		}
+	}
 } 

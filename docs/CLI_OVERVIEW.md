@@ -290,10 +290,10 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │                                         │
 │  Choose your package manager:           │
 │                                         │
-│  ○ apt (Ubuntu/Debian)                 │
-│  ○ dnf (Fedora)                        │
-│  ○ pacman (Arch)                       │
-│  ○ brew (macOS)                        │
+│  ○ apt (Ubuntu/Debian)                  │
+│  ○ dnf (Fedora)                         │
+│  ○ pacman (Arch)                        │
+│  ○ brew (macOS)                         │
 │                                         │
 │  [Continue]                             │
 └─────────────────────────────────────────┘
@@ -305,23 +305,23 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │      Core Development Tools             │
 │                                         │
 │  Essential Tools:                       │
-│  ☑ git                                 │
-│  ☑ curl                                │
-│  ☑ wget                                │
-│  ☑ build-essential                     │
+│  ☑ git                                  │
+│  ☑ curl                                 │
+│  ☑ wget                                 │
+│  ☑ build-essential                      │
 │                                         │
 │  Modern CLI Tools:                      │
-│  ☑ bat (better cat)                    │
-│  ☑ lsd (better ls)                     │
-│  ☑ ripgrep (better grep)               │
-│  ☑ fd (better find)                    │
-│  ☑ fzf (fuzzy finder)                  │
+│  ☑ bat (better cat)                     │
+│  ☑ lsd (better ls)                      │
+│  ☑ ripgrep (better grep)                │
+│  ☑ fd (better find)                     │
+│  ☑ fzf (fuzzy finder)                   │
 │                                         │
 │  System Tools:                          │
-│  ☑ htop/btop                          │
-│  ☑ tree                               │
-│  ☑ tldr                               │
-│  ☑ neofetch                           │
+│  ☑ htop/btop                            │
+│  ☑ tree                                 │
+│  ☑ tldr                                 │
+│  ☑ neofetch                             │
 │                                         │
 │  [Install Selected]                     │
 └─────────────────────────────────────────┘
@@ -334,19 +334,19 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │                                         │
 │  Choose Shell:                          │
 │  ○ Zsh (Recommended)                    │
-│  ○ Bash                                │
-│  ○ Fish                                │
+│  ○ Bash                                 │
+│  ○ Fish                                 │
 │                                         │
 │  Terminal Enhancements:                 │
-│  ☑ starship (modern prompt)            │
-│  ☑ zoxide (smart cd)                   │
-│  ☑ direnv (env management)             │
-│  ☑ navi (interactive cheatsheets)      │
+│  ☑ starship (modern prompt)             │
+│  ☑ zoxide (smart cd)                    │
+│  ☑ direnv (env management)              │
+│  ☑ navi (interactive cheatsheets)       │
 │                                         │
 │  Fonts:                                 │
-│  ☑ Nerd Fonts Complete                 │
-│  ☑ JetBrains Mono Nerd                 │
-│  ☑ Fira Code Nerd                      │
+│  ☑ Nerd Fonts Complete                  │
+│  ☑ JetBrains Mono Nerd                  │
+│  ☑ Fira Code Nerd                       │
 │                                         │
 │  [Continue]                             │
 └─────────────────────────────────────────┘
@@ -360,13 +360,13 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │  Choose languages to install:           │
 │                                         │
 │  Node.js:                               │
-│  ○ Latest LTS                          │
+│  ○ Latest LTS                           │
 │  ○ Latest Current                       │
 │  ○ Custom Version                       │
 │                                         │
 │  Python:                                │
 │  ○ System Python                        │
-│  ○ pyenv (multiple versions)           │
+│  ○ pyenv (multiple versions)            │
 │                                         │
 │  Go:                                    │
 │  ○ Latest Stable                        │
@@ -383,20 +383,20 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 ### 6. Dotfiles Management
 ```
 ┌─────────────────────────────────────────┐
-│      Dotfiles Management               │
+│      Dotfiles Management                │
 │                                         │
 │  Choose dotfiles setup:                 │
 │                                         │
-│  ○ Start fresh                         │
-│  ○ Clone from GitHub                   │
+│  ○ Start fresh                          │
+│  ○ Clone from GitHub                    │
 │    Repository URL: [________________]   │
 │                                         │
 │  Dotfiles to manage:                    │
-│  ☑ .zshrc/.bashrc/.fishrc             │
-│  ☑ .gitconfig                         │
-│  ☑ .vimrc/.nvim                       │
-│  ☑ .tmux.conf                         │
-│  ☑ SSH config                          │
+│  ☑ .zshrc/.bashrc/.fishrc               │
+│  ☑ .gitconfig                           │
+│  ☑ .vimrc/.nvim                         │
+│  ☑ .tmux.conf                           │
+│  ☑ SSH config                           │
 │                                         │
 │  [Continue]                             │
 └─────────────────────────────────────────┘
@@ -408,22 +408,22 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │      Tool Configurations                │
 │                                         │
 │  Shell Configurations:                  │
-│  ☑ .zshrc/.bashrc/.fishrc             │
-│  ☑ .zshenv/.bashenv/.fish_env         │
-│  ☑ .zprofile/.bash_profile            │
-│  ☑ .zlogin/.bash_login                │
+│  ☑ .zshrc/.bashrc/.fishrc               │
+│  ☑ .zshenv/.bashenv/.fish_env           │
+│  ☑ .zprofile/.bash_profile              │
+│  ☑ .zlogin/.bash_login                  │
 │                                         │
-│  Starship Configuration:               │
-│  ☑ starship.toml                       │
-│    • Prompt customization              │
-│    • Module configuration              │
-│    • Transient prompt                  │
+│  Starship Configuration:                │
+│  ☑ starship.toml                        │
+│    • Prompt customization               │
+│    • Module configuration               │
+│    • Transient prompt                   │
 │                                         │
 │  Git Configuration:                     │
-│  ☑ .gitconfig                         │
-│  ☑ .gitignore_global                  │
-│  ☑ .gitattributes                     │
-│  ☑ SSH config (~/.ssh/config)         │
+│  ☑ .gitconfig                           │
+│  ☑ .gitignore_global                    │
+│  ☑ .gitattributes                       │
+│  ☑ SSH config (~/.ssh/config)           │
 │                                         │
 │  [Configure]                            │
 └─────────────────────────────────────────┘
@@ -437,15 +437,15 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │  Choose template style:                 │
 │                                         │
 │  Shell Templates:                       │
-│  ○ Minimal                             │
-│  ○ Developer                           │
-│  ○ System Administrator                │
-│  ○ Data Scientist                      │
+│  ○ Minimal                              │
+│  ○ Developer                            │
+│  ○ System Administrator                 │
+│  ○ Data Scientist                       │
 │                                         │
 │  Editor Templates:                      │
-│  ○ Basic                               │
-│  ○ IDE-like                            │
-│  ○ Minimalist                          │
+│  ○ Basic                                │
+│  ○ IDE-like                             │
+│  ○ Minimalist                           │
 │                                         │
 │  [Apply Template]                       │
 └─────────────────────────────────────────┘
@@ -457,33 +457,33 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │      Installation Progress              │
 │                                         │
 │  Core Tools:                            │
-│  • git                                 │
-│  • curl                                │
-│  • wget                                │
-│  • build-essential                     │
+│  • git                                  │
+│  • curl                                 │ 
+│  • wget                                 │
+│  • build-essential                      │
 │                                         │
-│  [███████████████████████] 100%        │
+│  [███████████████████████] 100%         │
 │                                         │
 │  Shell & Terminal:                      │
-│  • zsh                                 │
-│  • starship                            │
-│  • zoxide                              │
+│  • zsh                                  │
+│  • starship                             │
+│  • zoxide                               │
 │                                         │
-│  [███████████████████████] 100%        │
+│  [███████████████████████] 100%         │
 │                                         │
 │  Programming Languages:                 │
-│  • Node.js 18.17.0                     │
-│  • Python 3.10.12                      │
-│  • Go 1.21.0                           │
+│  • Node.js 18.17.0                      │
+│  • Python 3.10.12                       │
+│  • Go 1.21.0                            │
 │                                         │
-│  [███████████████████████] 100%        │
+│  [███████████████████████] 100%         │
 │                                         │
 │  Configuration:                         │
-│  • .zshrc                              │
-│  • starship.toml                       │
-│  • .gitconfig                          │
+│  • .zshrc                               │
+│  • starship.toml                        │
+│  • .gitconfig                           │
 │                                         │
-│  [███████████████████████] 100%        │
+│  [███████████████████████] 100%         │
 │                                         │
 │  🔵 [Continue]                          │
 │  ⚪ [View Log]                          │
@@ -498,14 +498,14 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │  Validating configurations...           │
 │                                         │
 │  Shell Configs:                         │
-│  ✓ .zshrc syntax valid                 │
-│  ✓ .zshenv syntax valid                │
-│  ✓ .zprofile syntax valid              │
+│  ✓ .zshrc syntax valid                  │
+│  ✓ .zshenv syntax valid                 │
+│  ✓ .zprofile syntax valid               │
 │                                         │
 │  Tool Configs:                          │
-│  ✓ starship.toml valid                 │
-│  ✓ .gitconfig valid                    │
-│  ✓ .editorconfig valid                 │
+│  ✓ starship.toml valid                  │
+│  ✓ .gitconfig valid                     │
+│  ✓ .editorconfig valid                  │
 │                                         │
 │  [Fix Issues] [Continue]                │
 └─────────────────────────────────────────┘
@@ -539,7 +539,7 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 ### Color Coding Legend
 ```
 ┌─────────────────────────────────────────┐
-│           Color Coding Legend            │
+│           Color Coding Legend           │
 │                                         │
 │  🔵 Blue: Primary actions               │
 │  🟢 Green: Success/Completion           │
@@ -583,21 +583,21 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │                                         │
 │  Choose your package manager:           │
 │                                         │
-│  ○ apt (Ubuntu/Debian)                 │
-│    • Default for Ubuntu/Debian         │
-│    • Stable and well-tested            │
+│  ○ apt (Ubuntu/Debian)                  │
+│    • Default for Ubuntu/Debian          │
+│    • Stable and well-tested             │
 │                                         │
-│  ○ dnf (Fedora)                        │
-│    • Default for Fedora                │
-│    • Modern package manager            │
+│  ○ dnf (Fedora)                         │
+│    • Default for Fedora                 │
+│    • Modern package manager             │
 │                                         │
-│  ○ pacman (Arch)                       │
-│    • Default for Arch Linux            │
-│    • Fast and efficient                │
+│  ○ pacman (Arch)                        │
+│    • Default for Arch Linux             │
+│    • Fast and efficient                 │
 │                                         │
-│  ○ brew (macOS)                        │
-│    • Default for macOS                 │
-│    • Extensive package repository      │
+│  ○ brew (macOS)                         │
+│    • Default for macOS                  │
+│    • Extensive package repository       │
 │                                         │
 │  🔵 [Continue]                          │
 │  ⚪ [Back]                              │
@@ -610,23 +610,23 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │      Core Development Tools             │
 │                                         │
 │  Essential Tools:                       │
-│  ☑ git                                 │
-│  ☑ curl                                │
-│  ☑ wget                                │
-│  ☑ build-essential                     │
+│  ☑ git                                  │
+│  ☑ curl                                 │
+│  ☑ wget                                 │
+│  ☑ build-essential                      │
 │                                         │
 │  Modern CLI Tools:                      │
-│  ☑ bat (better cat)                    │
-│  ☑ lsd (better ls)                     │
-│  ☑ ripgrep (better grep)               │
-│  ☑ fd (better find)                    │
-│  ☑ fzf (fuzzy finder)                  │
+│  ☑ bat (better cat)                     │
+│  ☑ lsd (better ls)                      │
+│  ☑ ripgrep (better grep)                │
+│  ☑ fd (better find)                     │
+│  ☑ fzf (fuzzy finder)                   │
 │                                         │
 │  System Tools:                          │
-│  ☑ htop/btop                          │
-│  ☑ tree                               │
-│  ☑ tldr                               │
-│  ☑ neofetch                           │
+│  ☑ htop/btop                            │
+│  ☑ tree                                 │
+│  ☑ tldr                                 │
+│  ☑ neofetch                             │
 │                                         │
 │  🔵 [Install Selected]                  │
 │  ⚪ [Select All] [Deselect All]         │
@@ -645,26 +645,26 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │    • Extensive plugin ecosystem         │
 │    • Better completion                  │
 │                                         │
-│  ○ Bash                                │
+│  ○ Bash                                 │
 │    • Default on most systems            │
 │    • Widely compatible                  │
 │    • Simpler learning curve             │
 │                                         │
-│  ○ Fish                                │
-│    • User-friendly                     │
+│  ○ Fish                                 │
+│    • User-friendly                      │
 │    • Smart suggestions                  │
-│    • Web-based configuration           │
+│    • Web-based configuration            │
 │                                         │
 │  Terminal Enhancements:                 │
-│  ☑ starship (modern prompt)            │
-│  ☑ zoxide (smart cd)                   │
-│  ☑ direnv (env management)             │
-│  ☑ navi (interactive cheatsheets)      │
+│  ☑ starship (modern prompt)             │
+│  ☑ zoxide (smart cd)                    │
+│  ☑ direnv (env management)              │
+│  ☑ navi (interactive cheatsheets)       │
 │                                         │
 │  Fonts:                                 │
-│  ☑ Nerd Fonts Complete                 │
-│  ☑ JetBrains Mono Nerd                 │
-│  ☑ Fira Code Nerd                      │
+│  ☑ Nerd Fonts Complete                  │
+│  ☑ JetBrains Mono Nerd                  │
+│  ☑ Fira Code Nerd                       │
 │                                         │
 │  🔵 [Continue]                          │
 │  ⚪ [Back]                              │
@@ -679,11 +679,11 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │  Choose languages to install:           │
 │                                         │
 │  Node.js:                               │
-│  ○ Latest LTS (18.17.0)                │
+│  ○ Latest LTS (18.17.0)                 │
 │    • Recommended for most users         │
 │    • Stable and well-supported          │
 │                                         │
-│  ○ Latest Current (20.5.0)             │
+│  ○ Latest Current (20.5.0)              │
 │    • Latest features                    │
 │    • May have breaking changes          │
 │                                         │
@@ -691,23 +691,23 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │    Version: [________________]          │
 │                                         │
 │  Python:                                │
-│  ○ System Python (3.10.12)             │
+│  ○ System Python (3.10.12)              │
 │    • Already installed                  │
 │    • Managed by system                  │
 │                                         │
-│  ○ pyenv (multiple versions)           │
-│    • Versions: 3.8, 3.9, 3.10, 3.11    │
+│  ○ pyenv (multiple versions)            │
+│    • Versions: 3.8, 3.9, 3.10, 3.11     │
 │    • Isolated environments              │
 │                                         │
 │  Go:                                    │
-│  ○ Latest Stable (1.21.0)              │
+│  ○ Latest Stable (1.21.0)               │
 │    • Recommended for most users         │
 │                                         │
 │  ○ Custom Version                       │
 │    Version: [________________]          │
 │                                         │
 │  Rust:                                  │
-│  ○ Latest Stable (1.71.0)              │
+│  ○ Latest Stable (1.71.0)               │
 │    • Recommended for most users         │
 │                                         │
 │  ○ Custom Version                       │
@@ -721,28 +721,28 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 ### 6. Dotfiles Management (Enhanced)
 ```
 ┌─────────────────────────────────────────┐
-│      Dotfiles Management               │
+│      Dotfiles Management                │
 │                                         │
 │  Choose dotfiles setup:                 │
 │                                         │
-│  ○ Start fresh                         │
-│    • Create new dotfiles               │
-│    • Based on templates                │
+│  ○ Start fresh                          │
+│    • Create new dotfiles                │
+│    • Based on templates                 │
 │                                         │
-│  ○ Clone from GitHub                   │
+│  ○ Clone from GitHub                    │
 │    Repository URL: [________________]   │
 │    Branch: [main]                       │
-│    ☑ Include submodules                │
+│    ☑ Include submodules                 │
 │                                         │
 │  ○ Import from local                    │
 │    Path: [________________]             │
 │                                         │
 │  Dotfiles to manage:                    │
-│  ☑ .zshrc/.bashrc/.fishrc             │
-│  ☑ .gitconfig                         │
-│  ☑ .vimrc/.nvim                       │
-│  ☑ .tmux.conf                         │
-│  ☑ SSH config                          │
+│  ☑ .zshrc/.bashrc/.fishrc               │
+│  ☑ .gitconfig                           │
+│  ☑ .vimrc/.nvim                         │
+│  ☑ .tmux.conf                           │
+│  ☑ SSH config                           │
 │                                         │
 │  🔵 [Continue]                          │
 │  ⚪ [Back]                              │
@@ -755,22 +755,22 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │      Tool Configurations                │
 │                                         │
 │  Shell Configurations:                  │
-│  ☑ .zshrc/.bashrc/.fishrc             │
-│  ☑ .zshenv/.bashenv/.fish_env         │
-│  ☑ .zprofile/.bash_profile            │
-│  ☑ .zlogin/.bash_login                │
+│  ☑ .zshrc/.bashrc/.fishrc               │
+│  ☑ .zshenv/.bashenv/.fish_env           │
+│  ☑ .zprofile/.bash_profile              │
+│  ☑ .zlogin/.bash_login                  │
 │                                         │
-│  Starship Configuration:               │
-│  ☑ starship.toml                       │
-│    • Prompt customization              │
-│    • Module configuration              │
-│    • Transient prompt                  │
+│  Starship Configuration:                │
+│  ☑ starship.toml                        │
+│    • Prompt customization               │
+│    • Module configuration               │
+│    • Transient prompt                   │
 │                                         │
 │  Git Configuration:                     │
-│  ☑ .gitconfig                         │
-│  ☑ .gitignore_global                  │
-│  ☑ .gitattributes                     │
-│  ☑ SSH config (~/.ssh/config)         │
+│  ☑ .gitconfig                           │
+│  ☑ .gitignore_global                    │
+│  ☑ .gitattributes                       │
+│  ☑ SSH config (~/.ssh/config)           │
 │                                         │
 │  🔵 [Configure]                         │
 │  ⚪ [Back]                              │
@@ -785,38 +785,38 @@ Bootstrap CLI is a comprehensive development environment setup tool that automat
 │  Choose template style:                 │
 │                                         │
 │  Shell Templates:                       │
-│  ○ Minimal                             │
-│    • Basic functionality               │
-│    • Clean and simple                  │
+│  ○ Minimal                              │
+│    • Basic functionality                │
+│    • Clean and simple                   │
 │                                         │
-│  ○ Developer                           │
-│    • Git integration                   │
-│    • Language support                  │
-│    • Common aliases                    │
+│  ○ Developer                            │
+│    • Git integration                    │
+│    • Language support                   │
+│    • Common aliases                     │
 │                                         │
-│  ○ System Administrator                │
-│    • System monitoring                 │
-│    • Network tools                     │
-│    • Security features                 │
+│  ○ System Administrator                 │
+│    • System monitoring                  │
+│    • Network tools                      │
+│    • Security features                  │
 │                                         │
-│  ○ Data Scientist                      │
-│    • Python/R focus                    │
-│    • Jupyter integration               │
-│    • Data visualization                │
+│  ○ Data Scientist                       │
+│    • Python/R focus                     │
+│    • Jupyter integration                │
+│    • Data visualization                 │
 │                                         │
 │  Editor Templates:                      │
-│  ○ Basic                               │
-│    • Essential features                │
-│    • Simple setup                      │
+│  ○ Basic                                │
+│    • Essential features                 │
+│    • Simple setup                       │
 │                                         │
-│  ○ IDE-like                            │
-│    • Advanced features                 │
-│    • Multiple panes                    │
-│    • LSP integration                   │
+│  ○ IDE-like                             │
+│    • Advanced features                  │
+│    • Multiple panes                     │
+│    • LSP integration                    │
 │                                         │
-│  ○ Minimalist                          │
-│    • Distraction-free                  │
-│    • Focus on content                  │
+│  ○ Minimalist                           │
+│    • Distraction-free                   │
+│    • Focus on content                   │
 │                                         │
 │  🔵 [Apply Template]                    │
 │  ⚪ [Preview] [Back]                    │

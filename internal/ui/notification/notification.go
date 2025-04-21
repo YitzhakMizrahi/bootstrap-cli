@@ -40,14 +40,15 @@ const (
 
 // Notification represents a notification message
 type Notification struct {
-	Type      NotificationType
-	Priority  NotificationPriority
-	Message   string
-	Title     string
-	Duration  time.Duration
-	Timestamp time.Time
-	ExpiresAt time.Time
-	Category  string // Category of the notification
+	Type          NotificationType
+	Priority      NotificationPriority
+	Message       string
+	Title         string
+	Duration      time.Duration
+	Timestamp     time.Time
+	ExpiresAt     time.Time
+	Category      string // Category of the notification
+	ParentCategory string // Parent category for nested categories
 }
 
 // CategoryStyle defines the style for a category
@@ -212,48 +213,45 @@ func (m *NotificationManager) AddNotification(notification *Notification) {
 	m.displayNotification(notification)
 }
 
-// Display displays all notifications
-func (m *NotificationManager) Display() {
-	// Clear the screen
-	fmt.Print("\033[H\033[2J")
-	
-	// Get filtered notifications
-	filteredNotifications := m.GetFilteredNotifications()
-	
-	// If no notifications to display, show a message
-	if len(filteredNotifications) == 0 {
-		if m.filterCategory != "" {
-			fmt.Printf("No notifications in category '%s'\n", m.filterCategory)
-		} else {
-			fmt.Println("No notifications")
-		}
-		return
+// Display shows all notifications in a hierarchical view
+func (nm *NotificationManager) Display() string {
+	if len(nm.notifications) == 0 {
+		return ""
 	}
-	
-	// Group notifications by category
-	notificationsByCategory := m.groupNotificationsByCategory()
-	
-	// Display notifications by category
-	for category, notifications := range notificationsByCategory {
-		// Skip categories that don't match the filter
-		if m.filterCategory != "" && category != m.filterCategory {
-			continue
-		}
+
+	var sb strings.Builder
+	groups := nm.groupNotificationsByCategory()
+
+	// Sort categories alphabetically
+	categories := make([]string, 0, len(groups))
+	for category := range groups {
+		categories = append(categories, category)
+	}
+	sort.Strings(categories)
+
+	for _, category := range categories {
+		notifications := groups[category]
+		sb.WriteString(fmt.Sprintf("\n%s:\n", category))
 		
-		// Get category style
-		style := m.GetCategoryStyle(category)
-		
-		// Display category header with style
-		fmt.Printf("%s%s %s\033[0m\n", style.Color, style.Icon, category)
-		
-		// Display each notification in the category
+		// Sort notifications by priority and timestamp
+		sort.Slice(notifications, func(i, j int) bool {
+			if notifications[i].Priority != notifications[j].Priority {
+				return notifications[i].Priority > notifications[j].Priority
+			}
+			return notifications[i].Timestamp.After(notifications[j].Timestamp)
+		})
+
 		for _, notification := range notifications {
-			m.displayNotification(notification)
+			// Indent subcategories
+			if notification.ParentCategory != "" {
+				sb.WriteString("  ")
+			}
+			sb.WriteString(notification.String())
+			sb.WriteString("\n")
 		}
-		
-		// Add a separator between categories
-		fmt.Println()
 	}
+
+	return sb.String()
 }
 
 // displayNotification displays a single notification
@@ -574,15 +572,16 @@ func (m *NotificationManager) AddNotificationWithPriorityAndDuration(notificatio
 
 // groupNotificationsByCategory groups notifications by their category
 func (m *NotificationManager) groupNotificationsByCategory() map[string][]*Notification {
-	// Create a map to store notifications by category
-	notificationsByCategory := make(map[string][]*Notification)
-	
-	// Group notifications by category
+	groups := make(map[string][]*Notification)
 	for _, notification := range m.notifications {
-		notificationsByCategory[notification.Category] = append(notificationsByCategory[notification.Category], notification)
+		// If the notification has a parent category, use it as the key
+		if notification.ParentCategory != "" {
+			groups[notification.ParentCategory] = append(groups[notification.ParentCategory], notification)
+		} else {
+			groups[notification.Category] = append(groups[notification.Category], notification)
+		}
 	}
-	
-	return notificationsByCategory
+	return groups
 }
 
 // GetNotificationsByCategory returns all notifications in a specific category
@@ -681,4 +680,43 @@ func (m *NotificationManager) GetCategoryStyle(category string) CategoryStyle {
 		}
 	}
 	return style
+}
+
+// String returns a formatted string representation of the notification
+func (n *Notification) String() string {
+	var sb strings.Builder
+	
+	// Add priority indicator
+	switch n.Priority {
+	case CriticalPriority:
+		sb.WriteString("🔴 ")
+	case HighPriority:
+		sb.WriteString("🟡 ")
+	case NormalPriority:
+		sb.WriteString("🟢 ")
+	case LowPriority:
+		sb.WriteString("⚪ ")
+	}
+
+	// Add type indicator
+	switch n.Type {
+	case InfoNotification:
+		sb.WriteString("ℹ️  ")
+	case SuccessNotification:
+		sb.WriteString("✅ ")
+	case WarningNotification:
+		sb.WriteString("⚠️  ")
+	case ErrorNotification:
+		sb.WriteString("❌ ")
+	}
+
+	// Add message
+	sb.WriteString(n.Message)
+
+	// Add timestamp if available
+	if !n.Timestamp.IsZero() {
+		sb.WriteString(fmt.Sprintf(" (%s)", n.Timestamp.Format("15:04:05")))
+	}
+
+	return sb.String()
 } 

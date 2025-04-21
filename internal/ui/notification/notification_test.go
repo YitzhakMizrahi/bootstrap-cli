@@ -891,9 +891,9 @@ func TestDisplayWithCategoryStyles(t *testing.T) {
 	manager := NewNotificationManager()
 	
 	// Add notifications with different categories
-	manager.AddNotificationWithCategory("System notification", "System", Info)
-	manager.AddNotificationWithCategory("Installation notification", "Installation", Success)
-	manager.AddNotificationWithCategory("Security notification", "Security", Warning)
+	manager.AddNotificationWithCategory(InfoNotification, "System notification", "System", "System")
+	manager.AddNotificationWithCategory(SuccessNotification, "Installation notification", "Installation", "Installation")
+	manager.AddNotificationWithCategory(WarningNotification, "Security notification", "Security", "Security")
 	
 	// Capture output
 	var output strings.Builder

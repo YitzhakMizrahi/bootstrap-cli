@@ -91,4 +91,45 @@ func (c *Config) Save(path string) error {
 	}
 
 	return nil
+}
+
+// Validate checks if the configuration is valid
+func (c *Config) Validate() error {
+	// Validate log level
+	validLogLevels := map[string]bool{
+		"debug": true,
+		"info":  true,
+		"warn":  true,
+		"error": true,
+	}
+	if !validLogLevels[c.LogLevel] {
+		return fmt.Errorf("invalid log level: %s", c.LogLevel)
+	}
+
+	// Validate max plugins
+	if c.MaxPlugins < 0 {
+		return fmt.Errorf("max plugins cannot be negative")
+	}
+
+	// Validate default shell
+	validShells := map[string]bool{
+		"bash": true,
+		"zsh":  true,
+		"fish": true,
+	}
+	if !validShells[c.DefaultShell] {
+		return fmt.Errorf("invalid default shell: %s", c.DefaultShell)
+	}
+
+	// Validate tools list
+	if len(c.Tools) == 0 {
+		return fmt.Errorf("tools list cannot be empty")
+	}
+
+	// Validate languages list
+	if len(c.Languages) == 0 {
+		return fmt.Errorf("languages list cannot be empty")
+	}
+
+	return nil
 } 

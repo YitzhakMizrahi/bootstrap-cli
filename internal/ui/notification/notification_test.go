@@ -1055,4 +1055,108 @@ func TestNestedCategoriesWithPriority(t *testing.T) {
 			t.Error("Low priority notification is not third")
 		}
 	}
+}
+
+func TestNotificationActions(t *testing.T) {
+	manager := NewNotificationManager()
+	
+	// Create a notification with actions
+	notification := &Notification{
+		Type:    InfoNotification,
+		Message: "Test notification with actions",
+	}
+	
+	// Add actions with different styles
+	actionExecuted := false
+	notification.AddAction("Default Action", func() error {
+		actionExecuted = true
+		return nil
+	})
+	
+	notification.AddActionWithStyle("Primary Action", func() error {
+		actionExecuted = true
+		return nil
+	}, PrimaryActionStyle())
+	
+	notification.AddActionWithData("Action with Data", func() error {
+		actionExecuted = true
+		return nil
+	}, map[string]interface{}{
+		"key": "value",
+	})
+	
+	// Add the notification to the manager
+	manager.AddNotification(notification)
+	
+	// Check if actions are displayed correctly
+	output := manager.Display()
+	
+	// Verify action labels are present
+	if !strings.Contains(output, "Default Action") {
+		t.Error("Default action label not found in output")
+	}
+	if !strings.Contains(output, "Primary Action") {
+		t.Error("Primary action label not found in output")
+	}
+	if !strings.Contains(output, "Action with Data") {
+		t.Error("Action with data label not found in output")
+	}
+	
+	// Execute actions and verify callbacks
+	err := notification.ExecuteAction(0)
+	if err != nil {
+		t.Errorf("Failed to execute action: %v", err)
+	}
+	if !actionExecuted {
+		t.Error("Action callback was not executed")
+	}
+	
+	// Test invalid action index
+	err = notification.ExecuteAction(999)
+	if err == nil {
+		t.Error("Expected error for invalid action index, got nil")
+	}
+	if !strings.Contains(err.Error(), "action index out of range") {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
+func TestNotificationActionStyles(t *testing.T) {
+	manager := NewNotificationManager()
+	
+	// Create a notification with styled actions
+	notification := &Notification{
+		Type:    WarningNotification,
+		Message: "Test notification with styled actions",
+	}
+	
+	// Add actions with different styles
+	notification.AddActionWithStyle("Primary", func() error { return nil }, PrimaryActionStyle())
+	notification.AddActionWithStyle("Secondary", func() error { return nil }, SecondaryActionStyle())
+	notification.AddActionWithStyle("Danger", func() error { return nil }, DangerActionStyle())
+	
+	// Add the notification to the manager
+	manager.AddNotification(notification)
+	
+	// Check if actions are displayed with correct styles
+	output := manager.Display()
+	
+	// Verify style-specific elements are present
+	if !strings.Contains(output, "Primary") {
+		t.Error("Primary action not found in output")
+	}
+	if !strings.Contains(output, "Secondary") {
+		t.Error("Secondary action not found in output")
+	}
+	if !strings.Contains(output, "Danger") {
+		t.Error("Danger action not found in output")
+	}
+	
+	// Verify ANSI color codes are present
+	if !strings.Contains(output, "\033[1m") {
+		t.Error("Bold style not found in output")
+	}
+	if !strings.Contains(output, "\033[4m") {
+		t.Error("Underline style not found in output")
+	}
 } 

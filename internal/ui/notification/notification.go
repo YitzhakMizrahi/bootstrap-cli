@@ -49,6 +49,68 @@ type Notification struct {
 	ExpiresAt     time.Time
 	Category      string // Category of the notification
 	ParentCategory string // Parent category for nested categories
+	Actions       []Action // Actions associated with this notification
+}
+
+// Action represents an action that can be performed on a notification
+type Action struct {
+	Label    string                 // Label to display for the action
+	Callback func() error           // Function to call when the action is triggered
+	Style    ActionStyle            // Style for the action button
+	Data     map[string]interface{} // Additional data for the action
+}
+
+// ActionStyle defines the style for an action button
+type ActionStyle struct {
+	Color     string // Text color
+	BgColor   string // Background color
+	Icon      string // Icon to display
+	Bold      bool   // Whether to display the text in bold
+	Underline bool   // Whether to underline the text
+}
+
+// DefaultActionStyle returns the default style for action buttons
+func DefaultActionStyle() ActionStyle {
+	return ActionStyle{
+		Color:     "\033[37m", // White
+		BgColor:   "\033[44m", // Blue background
+		Icon:      "🔘",
+		Bold:      true,
+		Underline: false,
+	}
+}
+
+// PrimaryActionStyle returns the style for primary action buttons
+func PrimaryActionStyle() ActionStyle {
+	return ActionStyle{
+		Color:     "\033[37m", // White
+		BgColor:   "\033[42m", // Green background
+		Icon:      "✅",
+		Bold:      true,
+		Underline: false,
+	}
+}
+
+// SecondaryActionStyle returns the style for secondary action buttons
+func SecondaryActionStyle() ActionStyle {
+	return ActionStyle{
+		Color:     "\033[37m", // White
+		BgColor:   "\033[43m", // Yellow background
+		Icon:      "ℹ️",
+		Bold:      false,
+		Underline: false,
+	}
+}
+
+// DangerActionStyle returns the style for danger action buttons
+func DangerActionStyle() ActionStyle {
+	return ActionStyle{
+		Color:     "\033[37m", // White
+		BgColor:   "\033[41m", // Red background
+		Icon:      "⚠️",
+		Bold:      true,
+		Underline: false,
+	}
 }
 
 // CategoryStyle defines the style for a category
@@ -764,7 +826,7 @@ func (m *NotificationManager) GetCategoryStyle(category string) CategoryStyle {
 	return style
 }
 
-// String returns a formatted string representation of the notification
+// String returns a string representation of the notification
 func (n *Notification) String() string {
 	var sb strings.Builder
 	
@@ -798,6 +860,40 @@ func (n *Notification) String() string {
 	// Add timestamp if available
 	if !n.Timestamp.IsZero() {
 		sb.WriteString(fmt.Sprintf(" (%s)", n.Timestamp.Format("15:04:05")))
+	}
+	
+	// Add actions if available
+	if len(n.Actions) > 0 {
+		sb.WriteString("\n    Actions: ")
+		for i, action := range n.Actions {
+			if i > 0 {
+				sb.WriteString(" | ")
+			}
+			
+			// Apply action style
+			style := action.Style
+			if style.Color == "" {
+				style = DefaultActionStyle()
+			}
+			
+			// Add icon
+			if style.Icon != "" {
+				sb.WriteString(style.Icon)
+				sb.WriteString(" ")
+			}
+			
+			// Add label with styling
+			sb.WriteString(style.BgColor)
+			sb.WriteString(style.Color)
+			if style.Bold {
+				sb.WriteString("\033[1m")
+			}
+			if style.Underline {
+				sb.WriteString("\033[4m")
+			}
+			sb.WriteString(action.Label)
+			sb.WriteString("\033[0m") // Reset all styles
+		}
 	}
 
 	return sb.String()
@@ -849,4 +945,53 @@ func (m *NotificationManager) AddNotificationWithNestedCategoryPriorityAndDurati
 		ParentCategory: parentCategory,
 		Duration:      duration,
 	})
+}
+
+// AddAction adds an action to a notification
+func (n *Notification) AddAction(label string, callback func() error) {
+	n.Actions = append(n.Actions, Action{
+		Label:    label,
+		Callback: callback,
+		Style:    DefaultActionStyle(),
+		Data:     make(map[string]interface{}),
+	})
+}
+
+// AddActionWithStyle adds an action with a specific style to a notification
+func (n *Notification) AddActionWithStyle(label string, callback func() error, style ActionStyle) {
+	n.Actions = append(n.Actions, Action{
+		Label:    label,
+		Callback: callback,
+		Style:    style,
+		Data:     make(map[string]interface{}),
+	})
+}
+
+// AddActionWithData adds an action with additional data to a notification
+func (n *Notification) AddActionWithData(label string, callback func() error, data map[string]interface{}) {
+	n.Actions = append(n.Actions, Action{
+		Label:    label,
+		Callback: callback,
+		Style:    DefaultActionStyle(),
+		Data:     data,
+	})
+}
+
+// AddActionWithStyleAndData adds an action with a specific style and additional data to a notification
+func (n *Notification) AddActionWithStyleAndData(label string, callback func() error, style ActionStyle, data map[string]interface{}) {
+	n.Actions = append(n.Actions, Action{
+		Label:    label,
+		Callback: callback,
+		Style:    style,
+		Data:     data,
+	})
+}
+
+// ExecuteAction executes the action at the specified index
+func (n *Notification) ExecuteAction(index int) error {
+	if index < 0 || index >= len(n.Actions) {
+		return fmt.Errorf("action index out of range: %d", index)
+	}
+	
+	return n.Actions[index].Callback()
 } 

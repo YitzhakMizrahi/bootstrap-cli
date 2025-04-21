@@ -105,7 +105,7 @@
   - [x] Add notification grouping/categorization
     - [x] Implement category-based filtering
     - [x] Add category colors and icons
-    - [ ] Support nested categories
+    - [x] Support nested categories
   - [ ] Add notification actions/buttons
     - [ ] Implement action callbacks
     - [ ] Add support for multiple actions per notification

@@ -99,13 +99,25 @@
 - [x] Implement interactive selection component
 - [x] Implement form input component
 - [ ] Implement notification system
-  - [ ] Add notification persistence (save to file)
-  - [ ] Add notification expiration/auto-cleanup
-  - [ ] Add notification priority levels
+  - [x] Add notification persistence (save to file)
+  - [x] Add notification expiration/auto-cleanup
+  - [x] Add notification priority levels
   - [ ] Add notification grouping/categorization
+    - [ ] Implement category-based filtering
+    - [ ] Add category colors and icons
+    - [ ] Support nested categories
   - [ ] Add notification actions/buttons
+    - [ ] Implement action callbacks
+    - [ ] Add support for multiple actions per notification
+    - [ ] Add action button styling
   - [ ] Add notification sound support
+    - [ ] Implement sound selection
+    - [ ] Add volume control
+    - [ ] Support platform-specific sound APIs
   - [ ] Add notification history
+    - [ ] Implement history storage
+    - [ ] Add history browsing interface
+    - [ ] Add history search functionality
 - [ ] Implement help system
 - [ ] Add unit tests for advanced UI components
 

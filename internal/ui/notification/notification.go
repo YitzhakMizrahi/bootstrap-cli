@@ -47,6 +47,7 @@ type Notification struct {
 	Duration  time.Duration
 	Timestamp time.Time
 	ExpiresAt time.Time
+	Category  string // Category of the notification
 }
 
 // NotificationManager manages notifications
@@ -124,6 +125,11 @@ func (m *NotificationManager) AddNotification(notification *Notification) {
 		}
 	}
 	
+	// Set default category if not set
+	if notification.Category == "" {
+		notification.Category = "General"
+	}
+	
 	// Add notification to the list
 	m.notifications = append(m.notifications, notification)
 	
@@ -147,9 +153,21 @@ func (m *NotificationManager) Display() {
 	// Clear the screen
 	fmt.Print("\033[H\033[2J")
 	
-	// Display each notification
-	for _, notification := range m.notifications {
-		m.displayNotification(notification)
+	// Group notifications by category
+	notificationsByCategory := m.groupNotificationsByCategory()
+	
+	// Display notifications by category
+	for category, notifications := range notificationsByCategory {
+		// Display category header
+		fmt.Printf("\033[1m%s\033[0m\n", category)
+		
+		// Display each notification in the category
+		for _, notification := range notifications {
+			m.displayNotification(notification)
+		}
+		
+		// Add a separator between categories
+		fmt.Println()
 	}
 }
 
@@ -243,6 +261,7 @@ func (m *NotificationManager) Info(message string, title string) {
 		Priority: NormalPriority,
 		Message:  message,
 		Title:    title,
+		Category: "General",
 	})
 }
 
@@ -253,6 +272,7 @@ func (m *NotificationManager) Success(message string, title string) {
 		Priority: NormalPriority,
 		Message:  message,
 		Title:    title,
+		Category: "General",
 	})
 }
 
@@ -263,6 +283,7 @@ func (m *NotificationManager) Warning(message string, title string) {
 		Priority: HighPriority,
 		Message:  message,
 		Title:    title,
+		Category: "General",
 	})
 }
 
@@ -273,6 +294,7 @@ func (m *NotificationManager) Error(message string, title string) {
 		Priority: CriticalPriority,
 		Message:  message,
 		Title:    title,
+		Category: "General",
 	})
 }
 
@@ -461,6 +483,96 @@ func (m *NotificationManager) AddNotificationWithPriorityAndDuration(notificatio
 		Priority: priority,
 		Message:  message,
 		Title:    title,
+		Duration: duration,
+	})
+}
+
+// groupNotificationsByCategory groups notifications by their category
+func (m *NotificationManager) groupNotificationsByCategory() map[string][]*Notification {
+	// Create a map to store notifications by category
+	notificationsByCategory := make(map[string][]*Notification)
+	
+	// Group notifications by category
+	for _, notification := range m.notifications {
+		notificationsByCategory[notification.Category] = append(notificationsByCategory[notification.Category], notification)
+	}
+	
+	return notificationsByCategory
+}
+
+// GetNotificationsByCategory returns all notifications in a specific category
+func (m *NotificationManager) GetNotificationsByCategory(category string) []*Notification {
+	var filteredNotifications []*Notification
+	
+	for _, notification := range m.notifications {
+		if notification.Category == category {
+			filteredNotifications = append(filteredNotifications, notification)
+		}
+	}
+	
+	return filteredNotifications
+}
+
+// GetCategories returns all unique categories
+func (m *NotificationManager) GetCategories() []string {
+	categories := make(map[string]bool)
+	
+	for _, notification := range m.notifications {
+		categories[notification.Category] = true
+	}
+	
+	// Convert map keys to slice
+	var result []string
+	for category := range categories {
+		result = append(result, category)
+	}
+	
+	// Sort categories alphabetically
+	sort.Strings(result)
+	
+	return result
+}
+
+// AddNotificationWithCategory adds a notification with a specific category
+func (m *NotificationManager) AddNotificationWithCategory(notificationType NotificationType, message string, title string, category string) {
+	m.AddNotification(&Notification{
+		Type:     notificationType,
+		Message:  message,
+		Title:    title,
+		Category: category,
+	})
+}
+
+// AddNotificationWithCategoryAndPriority adds a notification with a specific category and priority
+func (m *NotificationManager) AddNotificationWithCategoryAndPriority(notificationType NotificationType, priority NotificationPriority, message string, title string, category string) {
+	m.AddNotification(&Notification{
+		Type:     notificationType,
+		Priority: priority,
+		Message:  message,
+		Title:    title,
+		Category: category,
+	})
+}
+
+// AddNotificationWithCategoryAndDuration adds a notification with a specific category and duration
+func (m *NotificationManager) AddNotificationWithCategoryAndDuration(notificationType NotificationType, message string, title string, category string, duration time.Duration) {
+	m.AddNotification(&Notification{
+		Type:     notificationType,
+		Message:  message,
+		Title:    title,
+		Category: category,
+		Duration: duration,
+	})
+}
+
+// AddNotificationWithCategoryPriorityAndDuration adds a notification with a specific category, priority, and duration
+func (m *NotificationManager) AddNotificationWithCategoryPriorityAndDuration(notificationType NotificationType, priority NotificationPriority, message string, title string, category string, duration time.Duration) {
+	m.AddNotification(&Notification{
+		Type:     notificationType,
+		Priority: priority,
+		Message:  message,
+		Title:    title,
+		Category: category,
 		Duration: duration,
 	})
 } 

@@ -555,4 +555,160 @@ func TestPriorityWithDuration(t *testing.T) {
 	if !manager.notifications[1].ExpiresAt.Equal(expectedExpiration) {
 		t.Errorf("Expected second notification to expire at %v, got %v", expectedExpiration, manager.notifications[1].ExpiresAt)
 	}
+}
+
+// TestNotificationCategories tests that notifications are properly categorized
+func TestNotificationCategories(t *testing.T) {
+	// Create a new notification manager
+	manager := NewNotificationManager()
+	
+	// Add notifications with different categories
+	manager.AddNotificationWithCategory(InfoNotification, "Info message", "Info title", "System")
+	manager.AddNotificationWithCategory(SuccessNotification, "Success message", "Success title", "Installation")
+	manager.AddNotificationWithCategory(WarningNotification, "Warning message", "Warning title", "System")
+	manager.AddNotificationWithCategory(ErrorNotification, "Error message", "Error title", "Installation")
+	
+	// Get all categories
+	categories := manager.GetCategories()
+	
+	// Check that we have the expected categories
+	if len(categories) != 2 {
+		t.Errorf("Expected 2 categories, got %d", len(categories))
+	}
+	
+	// Check that the categories are as expected
+	expectedCategories := []string{"Installation", "System"}
+	for i, category := range categories {
+		if category != expectedCategories[i] {
+			t.Errorf("Expected category %s, got %s", expectedCategories[i], category)
+		}
+	}
+	
+	// Get notifications by category
+	systemNotifications := manager.GetNotificationsByCategory("System")
+	installationNotifications := manager.GetNotificationsByCategory("Installation")
+	
+	// Check that we have the expected number of notifications in each category
+	if len(systemNotifications) != 2 {
+		t.Errorf("Expected 2 notifications in System category, got %d", len(systemNotifications))
+	}
+	
+	if len(installationNotifications) != 2 {
+		t.Errorf("Expected 2 notifications in Installation category, got %d", len(installationNotifications))
+	}
+	
+	// Check that the notifications in each category have the expected types
+	systemTypes := make(map[NotificationType]bool)
+	for _, notification := range systemNotifications {
+		systemTypes[notification.Type] = true
+	}
+	
+	installationTypes := make(map[NotificationType]bool)
+	for _, notification := range installationNotifications {
+		installationTypes[notification.Type] = true
+	}
+	
+	// Check System category
+	if !systemTypes[InfoNotification] {
+		t.Error("Expected InfoNotification in System category")
+	}
+	if !systemTypes[WarningNotification] {
+		t.Error("Expected WarningNotification in System category")
+	}
+	
+	// Check Installation category
+	if !installationTypes[SuccessNotification] {
+		t.Error("Expected SuccessNotification in Installation category")
+	}
+	if !installationTypes[ErrorNotification] {
+		t.Error("Expected ErrorNotification in Installation category")
+	}
+}
+
+// TestDefaultCategory tests that notifications get the default category if none is specified
+func TestDefaultCategory(t *testing.T) {
+	// Create a new notification manager
+	manager := NewNotificationManager()
+	
+	// Add notifications without specifying a category
+	manager.Info("Info message", "Info title")
+	manager.Success("Success message", "Success title")
+	manager.Warning("Warning message", "Warning title")
+	manager.Error("Error message", "Error title")
+	
+	// Get all categories
+	categories := manager.GetCategories()
+	
+	// Check that we have only the default category
+	if len(categories) != 1 {
+		t.Errorf("Expected 1 category, got %d", len(categories))
+	}
+	
+	if categories[0] != "General" {
+		t.Errorf("Expected category General, got %s", categories[0])
+	}
+	
+	// Get notifications by category
+	generalNotifications := manager.GetNotificationsByCategory("General")
+	
+	// Check that we have the expected number of notifications
+	if len(generalNotifications) != 4 {
+		t.Errorf("Expected 4 notifications in General category, got %d", len(generalNotifications))
+	}
+}
+
+// TestNotificationGrouping tests that notifications are properly grouped by category
+func TestNotificationGrouping(t *testing.T) {
+	// Create a new notification manager
+	manager := NewNotificationManager()
+	
+	// Add notifications with different categories
+	manager.AddNotificationWithCategory(InfoNotification, "Info message", "Info title", "System")
+	manager.AddNotificationWithCategory(SuccessNotification, "Success message", "Success title", "Installation")
+	manager.AddNotificationWithCategory(WarningNotification, "Warning message", "Warning title", "System")
+	manager.AddNotificationWithCategory(ErrorNotification, "Error message", "Error title", "Installation")
+	
+	// Get notifications grouped by category
+	groupedNotifications := manager.groupNotificationsByCategory()
+	
+	// Check that we have the expected number of categories
+	if len(groupedNotifications) != 2 {
+		t.Errorf("Expected 2 categories, got %d", len(groupedNotifications))
+	}
+	
+	// Check that each category has the expected number of notifications
+	if len(groupedNotifications["System"]) != 2 {
+		t.Errorf("Expected 2 notifications in System category, got %d", len(groupedNotifications["System"]))
+	}
+	
+	if len(groupedNotifications["Installation"]) != 2 {
+		t.Errorf("Expected 2 notifications in Installation category, got %d", len(groupedNotifications["Installation"]))
+	}
+	
+	// Check that the notifications in each category have the expected types
+	systemTypes := make(map[NotificationType]bool)
+	for _, notification := range groupedNotifications["System"] {
+		systemTypes[notification.Type] = true
+	}
+	
+	installationTypes := make(map[NotificationType]bool)
+	for _, notification := range groupedNotifications["Installation"] {
+		installationTypes[notification.Type] = true
+	}
+	
+	// Check System category
+	if !systemTypes[InfoNotification] {
+		t.Error("Expected InfoNotification in System category")
+	}
+	if !systemTypes[WarningNotification] {
+		t.Error("Expected WarningNotification in System category")
+	}
+	
+	// Check Installation category
+	if !installationTypes[SuccessNotification] {
+		t.Error("Expected SuccessNotification in Installation category")
+	}
+	if !installationTypes[ErrorNotification] {
+		t.Error("Expected ErrorNotification in Installation category")
+	}
 } 

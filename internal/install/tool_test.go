@@ -84,7 +84,7 @@ func TestInstaller(t *testing.T) {
 				Dependencies: []string{"dep1"},
 			},
 			maxRetries: 3,
-			maxFail:    3, // Will fail all attempts
+			maxFail:    4, // Will fail all attempts (3 retries + 1 initial attempt)
 			wantErr:    true,
 		},
 	}

@@ -67,17 +67,6 @@ func NewInstaller(pm packages.PackageManager) *Installer {
 func (i *Installer) Install(tool *Tool) error {
 	i.Logger.Info("Starting installation of %s", tool.Name)
 
-	// Validate the tool configuration
-	if err := validateTool(tool); err != nil {
-		i.Logger.Error("Validation failed for %s: %v", tool.Name, err)
-		return &InstallError{
-			Tool:    tool.Name,
-			Phase:   "validation",
-			Message: "invalid tool configuration",
-			Err:     err,
-		}
-	}
-
 	// Install dependencies first
 	for _, dep := range tool.Dependencies {
 		if !i.PackageManager.IsInstalled(dep) {

@@ -68,6 +68,13 @@ func (l *Logger) Error(format string, args ...interface{}) {
 	}
 }
 
+// Success logs a success message
+func (l *Logger) Success(format string, args ...interface{}) {
+	if l.level <= InfoLevel {
+		fmt.Fprintf(l.output, "✓ "+format+"\n", args...)
+	}
+}
+
 // log formats and writes a log message
 func (l *Logger) log(level, format string, args ...interface{}) {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")

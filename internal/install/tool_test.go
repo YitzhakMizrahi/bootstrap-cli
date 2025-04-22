@@ -1,12 +1,20 @@
 package install
 
 import (
+	"bytes"
+	"errors"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 )
 
 // MockPackageManager implements PackageManager for testing
 type MockPackageManager struct {
 	installedPackages map[string]bool
+	failCount        map[string]int
+	maxFailures      int
 }
 
 func (m *MockPackageManager) Name() string {
@@ -19,6 +27,10 @@ func (m *MockPackageManager) IsAvailable() bool {
 
 func (m *MockPackageManager) Install(packages ...string) error {
 	for _, pkg := range packages {
+		if m.failCount[pkg] < m.maxFailures {
+			m.failCount[pkg]++
+			return errors.New("simulated failure")
+		}
 		m.installedPackages[pkg] = true
 	}
 	return nil
@@ -33,39 +45,102 @@ func (m *MockPackageManager) IsInstalled(pkg string) bool {
 }
 
 func TestInstaller(t *testing.T) {
-	// Create a mock package manager
-	mockPM := &MockPackageManager{
-		installedPackages: make(map[string]bool),
+	tests := []struct {
+		name       string
+		tool       *Tool
+		maxRetries int
+		maxFail    int
+		wantErr    bool
+	}{
+		{
+			name: "successful install",
+			tool: &Tool{
+				Name:         "test-tool",
+				PackageName:  "test-package",
+				Version:      "1.0.0",
+				Dependencies: []string{"dep1", "dep2"},
+				PostInstall:  []string{"echo 'test'"},
+			},
+			maxRetries: 3,
+			maxFail:    0,
+			wantErr:    false,
+		},
+		{
+			name: "retry success",
+			tool: &Tool{
+				Name:         "retry-tool",
+				PackageName:  "retry-package",
+				Dependencies: []string{"dep1"},
+			},
+			maxRetries: 3,
+			maxFail:    2, // Will succeed on third try
+			wantErr:    false,
+		},
+		{
+			name: "retry failure",
+			tool: &Tool{
+				Name:         "fail-tool",
+				PackageName:  "fail-package",
+				Dependencies: []string{"dep1"},
+			},
+			maxRetries: 3,
+			maxFail:    3, // Will fail all attempts
+			wantErr:    true,
+		},
 	}
 
-	// Create an installer
-	installer := NewInstaller(mockPM)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a mock package manager
+			mockPM := &MockPackageManager{
+				installedPackages: make(map[string]bool),
+				failCount:        make(map[string]int),
+				maxFailures:      tt.maxFail,
+			}
 
-	// Create a test tool
-	tool := &Tool{
-		Name:         "test-tool",
-		PackageName:  "test-package",
-		Version:      "1.0.0",
-		Dependencies: []string{"dep1", "dep2"},
-		PostInstall:  []string{"echo 'test'"},
-		// Don't set VerifyCommand for testing
-	}
+			// Create a buffer for logging output
+			var logBuf bytes.Buffer
+			logger := log.New(log.DebugLevel)
+			logger.SetOutput(&logBuf)
 
-	// Install the tool
-	err := installer.Install(tool)
-	if err != nil {
-		t.Errorf("Install() error = %v", err)
-	}
+			// Create an installer with custom settings
+			installer := &Installer{
+				PackageManager: mockPM,
+				Logger:        logger,
+				MaxRetries:    tt.maxRetries,
+				RetryDelay:    time.Millisecond, // Use short delay for tests
+			}
 
-	// Check if dependencies were installed
-	for _, dep := range tool.Dependencies {
-		if !mockPM.IsInstalled(dep) {
-			t.Errorf("Dependency %s was not installed", dep)
-		}
-	}
+			// Install the tool
+			err := installer.Install(tt.tool)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Install() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 
-	// Check if the tool was installed
-	if !mockPM.IsInstalled(tool.PackageName) {
-		t.Errorf("Tool %s was not installed", tool.PackageName)
+			// Check log output
+			logOutput := logBuf.String()
+			if tt.wantErr {
+				if !strings.Contains(logOutput, "ERROR") {
+					t.Error("Expected error log message not found")
+				}
+			} else {
+				if !strings.Contains(logOutput, "Successfully installed") {
+					t.Error("Expected success log message not found")
+				}
+			}
+
+			// Check if dependencies and package were installed
+			if !tt.wantErr {
+				for _, dep := range tt.tool.Dependencies {
+					if !mockPM.IsInstalled(dep) {
+						t.Errorf("Dependency %s was not installed", dep)
+					}
+				}
+				if !mockPM.IsInstalled(tt.tool.PackageName) {
+					t.Errorf("Tool %s was not installed", tt.tool.PackageName)
+				}
+			}
+		})
 	}
 } 

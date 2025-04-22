@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"time"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
 )
 
@@ -43,19 +45,31 @@ func (e *InstallError) Error() string {
 type Installer struct {
 	// PackageManager is the package manager to use
 	PackageManager packages.PackageManager
+	// Logger is the logger to use
+	Logger *log.Logger
+	// MaxRetries is the maximum number of retries for failed operations
+	MaxRetries int
+	// RetryDelay is the delay between retries
+	RetryDelay time.Duration
 }
 
 // NewInstaller creates a new installer with the given package manager
 func NewInstaller(pm packages.PackageManager) *Installer {
 	return &Installer{
 		PackageManager: pm,
+		Logger:        log.New(log.InfoLevel),
+		MaxRetries:    3,
+		RetryDelay:    time.Second * 2,
 	}
 }
 
 // Install installs a tool and its dependencies
 func (i *Installer) Install(tool *Tool) error {
+	i.Logger.Info("Starting installation of %s", tool.Name)
+
 	// Validate the tool configuration
 	if err := validateTool(tool); err != nil {
+		i.Logger.Error("Validation failed for %s: %v", tool.Name, err)
 		return &InstallError{
 			Tool:    tool.Name,
 			Phase:   "validation",
@@ -67,7 +81,9 @@ func (i *Installer) Install(tool *Tool) error {
 	// Install dependencies first
 	for _, dep := range tool.Dependencies {
 		if !i.PackageManager.IsInstalled(dep) {
-			if err := i.PackageManager.Install(dep); err != nil {
+			i.Logger.Info("Installing dependency %s for %s", dep, tool.Name)
+			if err := i.installWithRetry(dep); err != nil {
+				i.Logger.Error("Failed to install dependency %s: %v", dep, err)
 				return &InstallError{
 					Tool:    tool.Name,
 					Phase:   "dependencies",
@@ -75,12 +91,16 @@ func (i *Installer) Install(tool *Tool) error {
 					Err:     err,
 				}
 			}
+		} else {
+			i.Logger.Debug("Dependency %s is already installed", dep)
 		}
 	}
 
 	// Install the tool
 	if !i.PackageManager.IsInstalled(tool.PackageName) {
-		if err := i.PackageManager.Install(tool.PackageName); err != nil {
+		i.Logger.Info("Installing %s", tool.Name)
+		if err := i.installWithRetry(tool.PackageName); err != nil {
+			i.Logger.Error("Failed to install %s: %v", tool.Name, err)
 			return &InstallError{
 				Tool:    tool.Name,
 				Phase:   "installation",
@@ -88,42 +108,107 @@ func (i *Installer) Install(tool *Tool) error {
 				Err:     err,
 			}
 		}
+	} else {
+		i.Logger.Info("%s is already installed", tool.Name)
 	}
 
 	// Run post-install commands
-	for _, cmd := range tool.PostInstall {
-		if err := i.runCommand(cmd); err != nil {
-			return &InstallError{
-				Tool:    tool.Name,
-				Phase:   "post-install",
-				Message: fmt.Sprintf("command failed: %s", cmd),
-				Err:     err,
-			}
+	if err := i.runPostInstall(tool); err != nil {
+		i.Logger.Error("Failed to run post-install commands for %s: %v", tool.Name, err)
+		return &InstallError{
+			Tool:    tool.Name,
+			Phase:   "post-install",
+			Message: "failed to run post-install commands",
+			Err:     err,
 		}
 	}
 
 	// Verify installation
 	if tool.VerifyCommand != "" {
-		if err := i.runCommand(tool.VerifyCommand); err != nil {
+		i.Logger.Info("Verifying installation of %s", tool.Name)
+		if err := i.verifyInstallation(tool); err != nil {
+			i.Logger.Error("Installation verification failed for %s: %v", tool.Name, err)
 			return &InstallError{
 				Tool:    tool.Name,
 				Phase:   "verification",
-				Message: "verification command failed",
+				Message: "verification failed",
 				Err:     err,
 			}
 		}
 	}
 
+	i.Logger.Info("Successfully installed %s", tool.Name)
 	return nil
+}
+
+// installWithRetry attempts to install a package with retries
+func (i *Installer) installWithRetry(pkg string) error {
+	var lastErr error
+	for attempt := 0; attempt <= i.MaxRetries; attempt++ {
+		if attempt > 0 {
+			i.Logger.Debug("Retrying installation of %s (attempt %d/%d)", pkg, attempt, i.MaxRetries)
+			time.Sleep(i.RetryDelay)
+		}
+
+		if err := i.PackageManager.Install(pkg); err != nil {
+			lastErr = err
+			i.Logger.Debug("Installation attempt failed: %v", err)
+			continue
+		}
+		return nil
+	}
+	return fmt.Errorf("failed to install after %d attempts: %w", i.MaxRetries, lastErr)
+}
+
+// runPostInstall executes post-installation commands
+func (i *Installer) runPostInstall(tool *Tool) error {
+	for _, cmd := range tool.PostInstall {
+		i.Logger.Debug("Running post-install command: %s", cmd)
+		command := exec.Command("sh", "-c", cmd)
+		if output, err := command.CombinedOutput(); err != nil {
+			return fmt.Errorf("post-install command failed: %w\nOutput: %s", err, string(output))
+		}
+	}
+	return nil
+}
+
+// verifyInstallation checks if the tool was installed correctly
+func (i *Installer) verifyInstallation(tool *Tool) error {
+	i.Logger.Debug("Verifying installation of %s", tool.Name)
+	cmd := exec.Command("sh", "-c", tool.VerifyCommand)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("verification failed: %w\nOutput: %s", err, string(output))
+	}
+	return nil
+}
+
+// retryOperation retries an operation with exponential backoff
+func (i *Installer) retryOperation(op func() error) error {
+	var lastErr error
+	for attempt := 0; attempt < i.MaxRetries; attempt++ {
+		if attempt > 0 {
+			i.Logger.Debug("Retrying operation (attempt %d/%d)", attempt+1, i.MaxRetries)
+			time.Sleep(i.RetryDelay * time.Duration(attempt))
+		}
+
+		if err := op(); err != nil {
+			lastErr = err
+			i.Logger.Warn("Operation failed (attempt %d/%d): %v", attempt+1, i.MaxRetries, err)
+			continue
+		}
+
+		return nil
+	}
+
+	return lastErr
 }
 
 // runCommand executes a shell command
 func (i *Installer) runCommand(cmd string) error {
-	// Create a shell command
+	i.Logger.Debug("Running command: %s", cmd)
 	shell := exec.Command("sh", "-c", cmd)
 	shell.Stdout = os.Stdout
 	shell.Stderr = os.Stderr
 
-	// Run the command
 	return shell.Run()
 } 

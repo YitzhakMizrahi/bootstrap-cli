@@ -54,7 +54,17 @@ func DetectPackageManager() (PackageManager, error) {
 			return apt, nil
 		}
 
-		// TODO: Add other Linux package managers (DNF, Pacman)
+		// Try DNF (Fedora)
+		dnf := &DNFManager{}
+		if dnf.IsAvailable() {
+			return dnf, nil
+		}
+
+		// Try Pacman (Arch)
+		pacman := &PacmanManager{}
+		if pacman.IsAvailable() {
+			return pacman, nil
+		}
 	}
 
 	return nil, ErrPackageManagerNotFound

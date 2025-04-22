@@ -64,4 +64,13 @@ func (d *DNFManager) IsInstalled(pkg string) bool {
 	}
 
 	return false
+}
+
+// Remove removes a package using dnf
+func (d *DNFManager) Remove(pkg string) error {
+	cmd := exec.Command("dnf", "remove", "-y", pkg)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 } 

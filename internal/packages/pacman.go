@@ -56,4 +56,13 @@ func (p *PacmanManager) IsInstalled(pkg string) bool {
 	}
 
 	return strings.Contains(string(output), pkg)
+}
+
+// Remove removes a package using pacman
+func (p *PacmanManager) Remove(pkg string) error {
+	cmd := exec.Command("pacman", "-R", "--noconfirm", pkg)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 } 

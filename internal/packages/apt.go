@@ -64,4 +64,13 @@ func (a *APTManager) IsInstalled(pkg string) bool {
 	}
 
 	return false
+}
+
+// Remove removes a package using apt
+func (a *APTManager) Remove(pkg string) error {
+	cmd := exec.Command("apt", "remove", "-y", pkg)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 } 

@@ -17,6 +17,8 @@ type PackageManager interface {
 	Update() error
 	// IsInstalled checks if a package is installed
 	IsInstalled(pkg string) bool
+	// Remove removes a package
+	Remove(pkg string) error
 }
 
 // Type represents the type of package manager

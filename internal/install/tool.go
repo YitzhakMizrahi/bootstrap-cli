@@ -125,26 +125,41 @@ func (i *Installer) getSystemPackageName(tool *Tool) string {
 	return tool.PackageName
 }
 
+// InstallResult represents the result of an installation attempt
+type InstallResult struct {
+	Success      bool
+	InstalledPkg string
+	Error        error
+}
+
 // Install installs a tool and its dependencies
 func (i *Installer) Install(tool *Tool) error {
 	i.Logger.Info("Starting installation of %s", tool.Name)
+
+	// Track installed packages for cleanup
+	var installedPackages []string
 
 	// Install dependencies first
 	for _, dep := range tool.Dependencies {
 		if !i.PackageManager.IsInstalled(dep) {
 			i.Logger.Info("Installing dependency %s for %s", dep, tool.Name)
 			// Dependencies are always installed with latest version
-			if err := i.installWithRetry(dep); err != nil {
-				i.Logger.Error("Failed to install dependency %s: %v", dep, err)
+			result := i.installWithRetry(dep)
+			if result.Error != nil {
+				i.Logger.Error("Failed to install dependency %s: %v", dep, result.Error)
+				// Cleanup any installed packages
+				i.cleanup(installedPackages)
 				return &InstallError{
 					Tool:    tool.Name,
 					Phase:   "dependencies",
 					Message: fmt.Sprintf("failed to install dependency %s", dep),
-					Err:     err,
+					Err:     result.Error,
 				}
 			}
+			installedPackages = append(installedPackages, dep)
 		} else {
 			i.Logger.Debug("Dependency %s is already installed", dep)
+			installedPackages = append(installedPackages, dep)
 		}
 	}
 
@@ -155,22 +170,29 @@ func (i *Installer) Install(tool *Tool) error {
 	// Install the tool
 	if !i.PackageManager.IsInstalled(pkgName) {
 		i.Logger.Info("Installing %s version %s", tool.Name, tool.Version)
-		if err := i.installWithRetry(pkgWithVersion); err != nil {
-			i.Logger.Error("Failed to install %s: %v", tool.Name, err)
+		result := i.installWithRetry(pkgWithVersion)
+		if result.Error != nil {
+			i.Logger.Error("Failed to install %s: %v", tool.Name, result.Error)
+			// Cleanup any installed packages
+			i.cleanup(installedPackages)
 			return &InstallError{
 				Tool:    tool.Name,
 				Phase:   "installation",
 				Message: "failed to install package",
-				Err:     err,
+				Err:     result.Error,
 			}
 		}
+		installedPackages = append(installedPackages, pkgName)
 	} else {
 		i.Logger.Info("%s is already installed", tool.Name)
+		installedPackages = append(installedPackages, pkgName)
 	}
 
 	// Run post-install commands
 	if err := i.runPostInstall(tool); err != nil {
 		i.Logger.Error("Failed to run post-install commands for %s: %v", tool.Name, err)
+		// Cleanup any installed packages
+		i.cleanup(installedPackages)
 		return &InstallError{
 			Tool:    tool.Name,
 			Phase:   "post-install",
@@ -184,6 +206,8 @@ func (i *Installer) Install(tool *Tool) error {
 		i.Logger.Info("Verifying installation of %s", tool.Name)
 		if err := i.verifyInstallation(tool); err != nil {
 			i.Logger.Error("Installation verification failed for %s: %v", tool.Name, err)
+			// Cleanup any installed packages
+			i.cleanup(installedPackages)
 			return &InstallError{
 				Tool:    tool.Name,
 				Phase:   "verification",
@@ -198,16 +222,14 @@ func (i *Installer) Install(tool *Tool) error {
 }
 
 // installWithRetry attempts to install a package with retries
-func (i *Installer) installWithRetry(pkg string) error {
+func (i *Installer) installWithRetry(pkg string) InstallResult {
 	var lastErr error
 	for attempt := 0; attempt <= i.MaxRetries; attempt++ {
 		if attempt > 0 {
 			i.Logger.Debug("Retrying installation of %s (attempt %d/%d)", pkg, attempt, i.MaxRetries)
 			time.Sleep(i.RetryDelay)
-		}
 
-		// Update package lists before retry
-		if attempt > 0 {
+			// Update package lists before retry
 			if err := i.PackageManager.Update(); err != nil {
 				i.Logger.Debug("Failed to update package lists: %v", err)
 			}
@@ -218,9 +240,32 @@ func (i *Installer) installWithRetry(pkg string) error {
 			i.Logger.Debug("Installation attempt failed: %v", err)
 			continue
 		}
-		return nil
+		return InstallResult{
+			Success:      true,
+			InstalledPkg: pkg,
+			Error:        nil,
+		}
 	}
-	return fmt.Errorf("failed to install after %d attempts: %w", i.MaxRetries, lastErr)
+	return InstallResult{
+		Success:      false,
+		InstalledPkg: pkg,
+		Error:        fmt.Errorf("failed to install after %d attempts: %w", i.MaxRetries, lastErr),
+	}
+}
+
+// cleanup removes installed packages in case of failure
+func (i *Installer) cleanup(packages []string) {
+	if len(packages) == 0 {
+		return
+	}
+
+	i.Logger.Info("Cleaning up installed packages: %v", packages)
+	for _, pkg := range packages {
+		i.Logger.Debug("Removing package: %s", pkg)
+		if err := i.PackageManager.Remove(pkg); err != nil {
+			i.Logger.Error("Failed to remove package %s: %v", pkg, err)
+		}
+	}
 }
 
 // runPostInstall executes post-installation commands

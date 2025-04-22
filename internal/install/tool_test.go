@@ -15,7 +15,8 @@ type MockPackageManager struct {
 	installedPackages map[string]bool
 	failCount        map[string]int
 	maxFailures      int
-	name            string
+	name             string
+	removedPackages  []string
 }
 
 func (m *MockPackageManager) Name() string {
@@ -45,15 +46,25 @@ func (m *MockPackageManager) IsInstalled(pkg string) bool {
 	return m.installedPackages[pkg]
 }
 
+func (m *MockPackageManager) Remove(pkg string) error {
+	if _, exists := m.installedPackages[pkg]; exists {
+		delete(m.installedPackages, pkg)
+		m.removedPackages = append(m.removedPackages, pkg)
+	}
+	return nil
+}
+
 func TestInstaller(t *testing.T) {
 	tests := []struct {
-		name           string
-		tool           *Tool
-		maxRetries     int
-		maxFail        int
-		pmName         string
-		wantErr        bool
+		name            string
+		tool            *Tool
+		maxRetries      int
+		maxFail         int
+		pmName          string
+		wantErr         bool
 		expectedPkgName string
+		expectCleanup   bool
+		cleanupPackages []string
 	}{
 		{
 			name: "successful install",
@@ -64,11 +75,12 @@ func TestInstaller(t *testing.T) {
 				Dependencies: []string{"dep1", "dep2"},
 				PostInstall:  []string{"echo 'test'"},
 			},
-			maxRetries:     3,
-			maxFail:        0,
-			pmName:         "apt",
-			wantErr:        false,
+			maxRetries:      3,
+			maxFail:         0,
+			pmName:          "apt",
+			wantErr:         false,
 			expectedPkgName: "test-package=1.0.0",
+			expectCleanup:   false,
 		},
 		{
 			name: "retry success",
@@ -77,10 +89,11 @@ func TestInstaller(t *testing.T) {
 				PackageName:  "retry-package",
 				Dependencies: []string{"dep1"},
 			},
-			maxRetries: 3,
-			maxFail:    2,
-			pmName:     "apt",
-			wantErr:    false,
+			maxRetries:     3,
+			maxFail:        2,
+			pmName:         "apt",
+			wantErr:        false,
+			expectCleanup:  false,
 		},
 		{
 			name: "retry failure",
@@ -89,10 +102,12 @@ func TestInstaller(t *testing.T) {
 				PackageName:  "fail-package",
 				Dependencies: []string{"dep1"},
 			},
-			maxRetries: 3,
-			maxFail:    4,
-			pmName:     "apt",
-			wantErr:    true,
+			maxRetries:      3,
+			maxFail:        4,
+			pmName:         "apt",
+			wantErr:        true,
+			expectCleanup:  true,
+			cleanupPackages: []string{"dep1"},
 		},
 		{
 			name: "system specific package name",
@@ -108,11 +123,12 @@ func TestInstaller(t *testing.T) {
 				},
 				Version: "2.0.0",
 			},
-			maxRetries:     3,
-			maxFail:        0,
-			pmName:         "apt",
-			wantErr:        false,
+			maxRetries:      3,
+			maxFail:         0,
+			pmName:          "apt",
+			wantErr:         false,
 			expectedPkgName: "apt-package=2.0.0",
+			expectCleanup:   false,
 		},
 		{
 			name: "homebrew version format",
@@ -121,11 +137,27 @@ func TestInstaller(t *testing.T) {
 				PackageName: "brew-package",
 				Version:     "3.0.0",
 			},
-			maxRetries:     3,
-			maxFail:        0,
-			pmName:         "brew",
-			wantErr:        false,
+			maxRetries:      3,
+			maxFail:         0,
+			pmName:          "brew",
+			wantErr:         false,
 			expectedPkgName: "brew-package@3.0.0",
+			expectCleanup:   false,
+		},
+		{
+			name: "post-install failure cleanup",
+			tool: &Tool{
+				Name:         "post-fail-tool",
+				PackageName:  "post-fail-package",
+				Dependencies: []string{"dep1"},
+				PostInstall:  []string{"exit 1"}, // This command will fail
+			},
+			maxRetries:      3,
+			maxFail:         0,
+			pmName:         "apt",
+			wantErr:        true,
+			expectCleanup:  true,
+			cleanupPackages: []string{"dep1", "post-fail-package"},
 		},
 	}
 
@@ -137,6 +169,14 @@ func TestInstaller(t *testing.T) {
 				failCount:        make(map[string]int),
 				maxFailures:      tt.maxFail,
 				name:            tt.pmName,
+				removedPackages:  make([]string, 0),
+			}
+
+			// Pre-install some packages for cleanup test
+			if tt.cleanupPackages != nil {
+				for _, pkg := range tt.cleanupPackages {
+					mockPM.installedPackages[pkg] = true
+				}
 			}
 
 			// Create a buffer for logging output
@@ -165,6 +205,26 @@ func TestInstaller(t *testing.T) {
 				if !strings.Contains(logOutput, "ERROR") {
 					t.Error("Expected error log message not found")
 				}
+				if tt.expectCleanup {
+					if !strings.Contains(logOutput, "Cleaning up installed packages") {
+						t.Error("Expected cleanup log message not found")
+					}
+					// Check if all packages that should be cleaned up were removed
+					if tt.cleanupPackages != nil {
+						for _, pkg := range tt.cleanupPackages {
+							found := false
+							for _, removed := range mockPM.removedPackages {
+								if removed == pkg {
+									found = true
+									break
+								}
+							}
+							if !found {
+								t.Errorf("Expected package %s to be removed during cleanup", pkg)
+							}
+						}
+					}
+				}
 			} else {
 				if !strings.Contains(logOutput, "Successfully installed") {
 					t.Error("Expected success log message not found")
@@ -182,6 +242,17 @@ func TestInstaller(t *testing.T) {
 					if !mockPM.IsInstalled(dep) {
 						t.Errorf("Dependency %s was not installed", dep)
 					}
+				}
+			}
+
+			// Check cleanup
+			if tt.expectCleanup {
+				if len(mockPM.removedPackages) == 0 {
+					t.Error("Expected packages to be removed during cleanup")
+				}
+			} else {
+				if len(mockPM.removedPackages) > 0 {
+					t.Error("Unexpected package removal during successful installation")
 				}
 			}
 		})

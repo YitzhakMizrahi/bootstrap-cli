@@ -59,4 +59,13 @@ func (h *HomebrewManager) IsInstalled(pkg string) bool {
 	}
 
 	return strings.Contains(string(output), pkg)
+}
+
+// Remove removes a package using homebrew
+func (h *HomebrewManager) Remove(pkg string) error {
+	cmd := exec.Command("brew", "uninstall", pkg)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 } 

@@ -28,7 +28,11 @@ func InstallCoreTools(opts *InstallOptions) error {
 	}
 
 	if opts.Tools == nil {
-		opts.Tools = CoreTools()
+		coreTools := CoreTools()
+		opts.Tools = make([]*install.Tool, len(coreTools))
+		for i := range coreTools {
+			opts.Tools[i] = &coreTools[i]
+		}
 	}
 
 	installer := install.NewInstaller(opts.PackageManager)
@@ -55,7 +59,11 @@ func VerifyCoreTools(opts *InstallOptions) error {
 	}
 
 	if opts.Tools == nil {
-		opts.Tools = CoreTools()
+		coreTools := CoreTools()
+		opts.Tools = make([]*install.Tool, len(coreTools))
+		for i := range coreTools {
+			opts.Tools[i] = &coreTools[i]
+		}
 	}
 
 	opts.Logger.Info("Verifying core tools installation...")

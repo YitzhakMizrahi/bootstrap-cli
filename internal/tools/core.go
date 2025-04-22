@@ -2,128 +2,120 @@ package tools
 
 import "github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
 
-// CoreTools returns a list of essential development tools
-func CoreTools() []*install.Tool {
-	return []*install.Tool{
+// ToolCategory represents a category of tools
+type ToolCategory struct {
+	Name        string
+	Description string
+	Tools       []install.Tool
+}
+
+// GetToolCategories returns all available tool categories
+func GetToolCategories() []ToolCategory {
+	return []ToolCategory{
 		{
-			Name:        "Git",
+			Name:        "Essential Tools",
+			Description: "Core development tools required for most workflows",
+			Tools:       essentialTools(),
+		},
+		{
+			Name:        "Modern CLI Tools",
+			Description: "Modern alternatives to traditional command-line tools",
+			Tools:       modernCliTools(),
+		},
+		{
+			Name:        "System Tools",
+			Description: "System monitoring and management utilities",
+			Tools:       systemTools(),
+		},
+	}
+}
+
+func essentialTools() []install.Tool {
+	return []install.Tool{
+		{
+			Name:        "git",
 			PackageName: "git",
-			PackageNames: &install.PackageMapping{
-				Default: "git",
-				APT:     "git",
-				DNF:     "git",
-				Pacman:  "git",
-				Brew:    "git",
-			},
+			Description: "Distributed version control system",
 			VerifyCommand: "git --version",
 		},
 		{
-			Name:        "cURL",
+			Name:        "curl",
 			PackageName: "curl",
-			PackageNames: &install.PackageMapping{
-				Default: "curl",
-				APT:     "curl",
-				DNF:     "curl",
-				Pacman:  "curl",
-				Brew:    "curl",
-			},
+			Description: "Command line tool for transferring data with URLs",
 			VerifyCommand: "curl --version",
 		},
 		{
-			Name:        "Wget",
+			Name:        "wget",
 			PackageName: "wget",
-			PackageNames: &install.PackageMapping{
-				Default: "wget",
-				APT:     "wget",
-				DNF:     "wget",
-				Pacman:  "wget",
-				Brew:    "wget",
-			},
+			Description: "Non-interactive network downloader",
 			VerifyCommand: "wget --version",
 		},
 		{
-			Name:        "Build Essential",
-			PackageName: "build-essential",
-			PackageNames: &install.PackageMapping{
-				Default: "build-essential",
-				APT:     "build-essential",
-				DNF:     "gcc gcc-c++ make",
-				Pacman:  "base-devel",
-				Brew:    "gcc make",
-			},
-			VerifyCommand: "gcc --version && make --version",
+			Name:        "tmux",
+			PackageName: "tmux",
+			Description: "Terminal multiplexer",
+			VerifyCommand: "tmux -V",
 		},
+	}
+}
+
+func modernCliTools() []install.Tool {
+	return []install.Tool{
 		{
-			Name:        "Ripgrep",
+			Name:        "ripgrep",
 			PackageName: "ripgrep",
-			PackageNames: &install.PackageMapping{
-				Default: "ripgrep",
-				APT:     "ripgrep",
-				DNF:     "ripgrep",
-				Pacman:  "ripgrep",
-				Brew:    "ripgrep",
-			},
+			Description: "Modern grep alternative written in Rust",
 			VerifyCommand: "rg --version",
 		},
 		{
-			Name:        "Bat",
+			Name:        "bat",
 			PackageName: "bat",
-			PackageNames: &install.PackageMapping{
-				Default: "bat",
-				APT:     "bat",
-				DNF:     "bat",
-				Pacman:  "bat",
-				Brew:    "bat",
-			},
+			Description: "Cat clone with syntax highlighting and Git integration",
 			VerifyCommand: "bat --version",
-		},
-		{
-			Name:        "lsd",
-			PackageName: "lsd",
-			PackageNames: &install.PackageMapping{
-				Default: "lsd",
-				APT:     "lsd",
-				DNF:     "lsd",
-				Pacman:  "lsd",
-				Brew:    "lsd",
-			},
-			VerifyCommand: "lsd --version",
 		},
 		{
 			Name:        "fzf",
 			PackageName: "fzf",
-			PackageNames: &install.PackageMapping{
-				Default: "fzf",
-				APT:     "fzf",
-				DNF:     "fzf",
-				Pacman:  "fzf",
-				Brew:    "fzf",
-			},
+			Description: "Command-line fuzzy finder",
 			VerifyCommand: "fzf --version",
 		},
 		{
+			Name:        "exa",
+			PackageName: "exa",
+			Description: "Modern replacement for ls",
+			VerifyCommand: "exa --version",
+		},
+	}
+}
+
+func systemTools() []install.Tool {
+	return []install.Tool{
+		{
 			Name:        "htop",
 			PackageName: "htop",
-			PackageNames: &install.PackageMapping{
-				Default: "htop",
-				APT:     "htop",
-				DNF:     "htop",
-				Pacman:  "htop",
-				Brew:    "htop",
-			},
+			Description: "Interactive process viewer",
 			VerifyCommand: "htop --version",
 		},
 		{
-			Name:        "tree",
-			PackageName: "tree",
-			PackageNames: &install.PackageMapping{
-				Default: "tree",
-				APT:     "tree",
-				DNF:     "tree",
-				Pacman:  "tree",
-				Brew:    "tree",
-			},
-			VerifyCommand: "tree --version",
+			Name:        "btop",
+			PackageName: "btop",
+			Description: "Resource monitor with additional features",
+			VerifyCommand: "btop --version",
+		},
+		{
+			Name:        "neofetch",
+			PackageName: "neofetch",
+			Description: "System information tool",
+			VerifyCommand: "neofetch --version",
 		},
 	}
+}
+
+// CoreTools returns all available tools (for backward compatibility)
+func CoreTools() []install.Tool {
+	var allTools []install.Tool
+	for _, category := range GetToolCategories() {
+		allTools = append(allTools, category.Tools...)
+	}
+	return allTools
 } 

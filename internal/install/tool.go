@@ -35,6 +35,8 @@ type Tool struct {
 	PostInstall []string
 	// VerifyCommand is the command to verify the installation
 	VerifyCommand string
+	// Description is a brief description of the tool
+	Description string
 }
 
 // InstallError represents an installation error

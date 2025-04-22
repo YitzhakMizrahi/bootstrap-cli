@@ -40,23 +40,7 @@
 └─────────────────────────────────────────┘
 ```
 
-### 2. System Package Manager Setup
-```
-┌─────────────────────────────────────────┐
-│      Package Manager Setup              │
-│                                         │
-│  Choose your package manager:           │
-│                                         │
-│  ○ apt (Ubuntu/Debian)                  │
-│  ○ dnf (Fedora)                         │
-│  ○ pacman (Arch)                        │
-│  ○ brew (macOS)                         │
-│                                         │
-│  [Continue]                             │
-└─────────────────────────────────────────┘
-```
-
-### 3. Core Development Tools
+### 2. Core Development Tools
 ```
 ┌─────────────────────────────────────────┐
 │      Core Development Tools             │
@@ -84,7 +68,7 @@
 └─────────────────────────────────────────┘
 ```
 
-### 4. Shell & Terminal Setup
+### 3. Shell & Terminal Setup
 ```
 ┌─────────────────────────────────────────┐
 │      Shell & Terminal Setup             │
@@ -109,7 +93,7 @@
 └─────────────────────────────────────────┘
 ```
 
-### 5. Programming Languages
+### 4. Programming Languages
 ```
 ┌─────────────────────────────────────────┐
 │      Programming Languages              │
@@ -137,7 +121,7 @@
 └─────────────────────────────────────────┘
 ```
 
-### 6. Dotfiles Management
+### 5. Dotfiles Management
 ```
 ┌─────────────────────────────────────────┐
 │      Dotfiles Management                │
@@ -159,7 +143,7 @@
 └─────────────────────────────────────────┘
 ```
 
-### 7. Tool Configurations
+### 6. Tool Configurations
 ```
 ┌─────────────────────────────────────────┐
 │      Tool Configurations                │
@@ -186,7 +170,7 @@
 └─────────────────────────────────────────┘
 ```
 
-### 8. Configuration Templates
+### 7. Configuration Templates
 ```
 ┌─────────────────────────────────────────┐
 │      Configuration Templates            │
@@ -208,7 +192,7 @@
 └─────────────────────────────────────────┘
 ```
 
-### 9. Installation Progress (Enhanced)
+### 8. Installation Progress (Enhanced)
 ```
 ┌─────────────────────────────────────────┐
 │      Installation Progress              │
@@ -247,7 +231,7 @@
 └─────────────────────────────────────────┘
 ```
 
-### 10. Configuration Validation
+### 9. Configuration Validation
 ```
 ┌─────────────────────────────────────────┐
 │      Configuration Validation           │
@@ -268,7 +252,7 @@
 └─────────────────────────────────────────┘
 ```
 
-### 11. Completion & Next Steps
+### 10. Completion & Next Steps
 ```
 ┌─────────────────────────────────────────┐
 │      Setup Complete!                    │
@@ -290,3 +274,56 @@
 │  [Finish]                               │
 └─────────────────────────────────────────┘
 ```
+
+### 11. Flowchart with Decision Points
+
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Initial Launch │────▶│ System Detection│────▶│ Package Manager │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                                                         │
+                                                         ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Completion     │◀────│  Configuration  │◀────│  Core Tools     │
+│  & Next Steps   │     │  Validation     │     │  Installation   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        ▲                       ▲                        │
+        │                       │                        ▼
+        │                       │              ┌─────────────────┐
+        │                       │              │  Shell &        │
+        │                       │              │  Terminal Setup │
+        │                       │              └─────────────────┘
+        │                       │                        │
+        │                       │                        ▼
+        │                       │              ┌─────────────────┐
+        │                       │              │  Programming    │
+        │                       │              │  Languages      │
+        │                       │              └─────────────────┘
+        │                       │                        │
+        │                       │                        ▼
+        │                       │              ┌─────────────────┐
+        │                       │              │  Dotfiles       │
+        │                       │              │  Management     │
+        │                       │              └─────────────────┘
+        │                       │                        │
+        │                       │                        ▼
+        │                       │              ┌─────────────────┐
+        │                       │              │  Tool           │
+        │                       │              │  Configurations │
+        │                       │              └─────────────────┘
+        │                       │                        │
+        │                       │                        ▼
+        │                       │              ┌─────────────────┐
+        │                       │              │  Configuration  │
+        │                       │              │  Templates      │
+        │                       │              └─────────────────┘
+        │                       │                        │
+        │                       │                        ▼
+        │                       │              ┌─────────────────┐
+        │                       │              │  Installation   │
+        │                       │              │  Progress       │
+        │                       │              └─────────────────┘
+        │                       │                        │
+        │                       └────────────────────────┘
+        │
+        └────────────────────────────────────────────────┘
+                                                         

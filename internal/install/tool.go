@@ -24,6 +24,21 @@ type Tool struct {
 	VerifyCommand string
 }
 
+// InstallError represents an installation error
+type InstallError struct {
+	Tool    string
+	Phase   string
+	Message string
+	Err     error
+}
+
+func (e *InstallError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%s: %s failed: %s (%v)", e.Tool, e.Phase, e.Message, e.Err)
+	}
+	return fmt.Sprintf("%s: %s failed: %s", e.Tool, e.Phase, e.Message)
+}
+
 // Installer handles tool installation
 type Installer struct {
 	// PackageManager is the package manager to use
@@ -39,11 +54,26 @@ func NewInstaller(pm packages.PackageManager) *Installer {
 
 // Install installs a tool and its dependencies
 func (i *Installer) Install(tool *Tool) error {
+	// Validate the tool configuration
+	if err := validateTool(tool); err != nil {
+		return &InstallError{
+			Tool:    tool.Name,
+			Phase:   "validation",
+			Message: "invalid tool configuration",
+			Err:     err,
+		}
+	}
+
 	// Install dependencies first
 	for _, dep := range tool.Dependencies {
 		if !i.PackageManager.IsInstalled(dep) {
 			if err := i.PackageManager.Install(dep); err != nil {
-				return fmt.Errorf("failed to install dependency %s: %w", dep, err)
+				return &InstallError{
+					Tool:    tool.Name,
+					Phase:   "dependencies",
+					Message: fmt.Sprintf("failed to install dependency %s", dep),
+					Err:     err,
+				}
 			}
 		}
 	}
@@ -51,21 +81,36 @@ func (i *Installer) Install(tool *Tool) error {
 	// Install the tool
 	if !i.PackageManager.IsInstalled(tool.PackageName) {
 		if err := i.PackageManager.Install(tool.PackageName); err != nil {
-			return fmt.Errorf("failed to install %s: %w", tool.Name, err)
+			return &InstallError{
+				Tool:    tool.Name,
+				Phase:   "installation",
+				Message: "failed to install package",
+				Err:     err,
+			}
 		}
 	}
 
 	// Run post-install commands
 	for _, cmd := range tool.PostInstall {
 		if err := i.runCommand(cmd); err != nil {
-			return fmt.Errorf("failed to run post-install command for %s: %w", tool.Name, err)
+			return &InstallError{
+				Tool:    tool.Name,
+				Phase:   "post-install",
+				Message: fmt.Sprintf("command failed: %s", cmd),
+				Err:     err,
+			}
 		}
 	}
 
 	// Verify installation
 	if tool.VerifyCommand != "" {
 		if err := i.runCommand(tool.VerifyCommand); err != nil {
-			return fmt.Errorf("failed to verify installation of %s: %w", tool.Name, err)
+			return &InstallError{
+				Tool:    tool.Name,
+				Phase:   "verification",
+				Message: "verification command failed",
+				Err:     err,
+			}
 		}
 	}
 

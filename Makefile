@@ -1,12 +1,12 @@
-.PHONY: build test clean lint run
+.PHONY: build test clean release
 
 # Build the application
 build:
-	go build -o build/bin/bootstrap-cli cmd/bootstrap/main.go
+	go build -o build/bin/bootstrap-cli
 
 # Run tests
 test:
-	go test -v ./...
+	go test ./...
 
 # Clean build artifacts
 clean:
@@ -30,4 +30,8 @@ build-lxc: build
 	GOOS=linux GOARCH=amd64 go build -o build/bin/bootstrap-cli-linux-amd64 cmd/bootstrap/main.go
 
 # Default target
-all: lint test build 
+all: lint test build
+
+# Create a release
+release:
+	./scripts/release/create-release.sh 

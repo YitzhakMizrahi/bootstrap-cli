@@ -1,130 +1,126 @@
-# 🚀 Bootstrap CLI
+# 🛍️ Bootstrap CLI
 
-A modern, interactive command-line tool for setting up and managing development environments across different platforms.
+**Bootstrap CLI** is a modular, interactive command-line tool for setting up a fully personalized development environment across platforms (Linux, macOS, WSL).
 
-## 🎯 Features
-
-- 🖥️ **System Detection & Setup**
-  - Automatic OS detection and configuration
-  - Package manager integration
-  - System-specific optimizations
-
-- 🛠️ **Development Tools**
-  - Modern CLI tools installation
-  - Programming language setup
-  - Shell configuration
-  - Font management
-
-- ⚙️ **Configuration Management**
-  - Dotfiles handling
-  - Shell customization
-  - Tool-specific configs
-  - Backup and restore
-
-- 🔌 **Plugin System**
-  - Shell plugin management
-  - Custom plugin support
-  - Version management
-
-## 🏗️ Project Structure
-
-```
-bootstrap-cli/
-├── cmd/          # Command-line entry points
-├── internal/     # Private application code
-├── pkg/          # Public libraries
-├── scripts/      # Build and maintenance scripts
-├── test/         # Test files
-└── docs/         # Documentation
-```
-
-## 🚦 Getting Started
-
-### Prerequisites
-
-- Go 1.21 or higher
-- Git
-- Linux (Ubuntu/Debian) or macOS
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/YitzhakMizrahi/bootstrap-cli.git
-cd bootstrap-cli
-
-# Install dependencies
-go mod download
-
-# Build the project
-make build
-```
-
-### Development Setup
-
-```bash
-# Run tests
-make test
-
-# Run specific tests
-go test ./internal/core/...
-
-# Build for development
-make build
-```
-
-## 🧪 Testing
-
-We use LXC containers for testing to ensure isolation and reproducibility:
-
-```bash
-# Create test container
-lxc launch ubuntu:22.04 bootstrap-test
-
-# Create snapshot
-lxc snapshot bootstrap-test bootstrap-test-snapshot
-
-# Run tests in container
-lxc file push build/bin/bootstrap-cli bootstrap-test/usr/local/bin/
-lxc exec bootstrap-test -- bootstrap-cli test
-```
-
-## 📚 Documentation
-
-- [CLI Overview](docs/CLI_OVERVIEW.md) - Comprehensive feature documentation
-- [Project Structure](docs/PROJECT_STRUCTURE.md) - Detailed project architecture
-- [Implementation Guide](docs/IMPLEMENTATION.md) - Technical implementation details
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](docs/guides/CONTRIBUTING.md) for details.
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🔄 Development Status
-
-Current Version: 0.1.0 (In Development)
-
-Status: Active Development - Core Features Implementation
-
-## 📞 Contact
-
-- Issue Tracker: [GitHub Issues](https://github.com/YitzhakMizrahi/bootstrap-cli/issues)
-- Source Code: [GitHub Repository](https://github.com/YitzhakMizrahi/bootstrap-cli)
+Built for developers who value speed, reproducibility, and elegance — without fluff.
 
 ---
 
-## ✅ 3. Optional Nice-to-Haves
+## ✨ Features (Phase 1 & 2)
 
-| File | Purpose |
-|------|---------|
-| `LICENSE` | Use MIT if unsure — simple, permissive |
-| `Makefile` | Optional shortcut for common tasks (build, run, fmt) |
-| `docs/` | Placeholder for later usage or architecture notes |
-| `CONTRIBUTING.md` | If you plan to open it up later |
-| `starship.toml`, `.zshrc` samples | As optional templates for dotfiles repo setup |
+- 🔍 **System Detection**  
+  Detect OS, architecture, distro, and system resources  
+- 📦 **Package Manager Abstraction**  
+  Unified logic for `apt`, `dnf`, `pacman`, `brew`, etc.  
+- 🛠️ **Core Tool Installer**  
+  Modern CLI tools (e.g. `bat`, `fzf`, `ripgrep`, `starship`)  
+- 👋 **Shell & Config Setup**  
+  Zsh, Bash, Fish, dotfiles sync, and config templates  
+- 🐍 **Language Version Managers**  
+  `nvm`, `pyenv`, `goenv`, `rustup` with custom version support  
+- 🔧 **Dotfiles Management**  
+  Local import, GitHub sync, backup & restore  
+
+_Plugin system, remote config sync, i18n, and accessibility coming in later phases._
+
+---
+
+## 📁 Project Structure
+
+```bash
+bootstrap-cli/
+├── cmd/                # CLI entrypoints (Cobra commands)
+├── internal/           # Business logic: system, packages, install, etc.
+├── pkg/                # (Future) public plugins or modules
+├── test/               # Integration tests, fixtures
+├── docs/               # Specs, plans, architecture
+├── scripts/            # Build/test helpers
+├── main.go             # Entrypoint
+└── cursor-prompt.md    # Prompt used for Cursor AI guidance
+```
+
+---
+
+## ⚙️ Getting Started
+
+### Prerequisites
+- Go 1.21+
+- Git
+- Linux/macOS/WSL (tested on Ubuntu 22.04+)
+
+### Install & Build
+
+```bash
+git clone https://github.com/YitzhakMizrahi/bootstrap-cli.git
+cd bootstrap-cli
+go mod tidy
+make build
+```
+
+### Run
+
+```bash
+./bootstrap-cli init
+```
+
+---
+
+## 🧪 Testing (LXC Method)
+
+```bash
+lxc launch ubuntu:22.04 bootstrap-test
+lxc snapshot bootstrap-test clean
+
+# Push binary to test container
+lxc file push build/bin/bootstrap-cli bootstrap-test/usr/local/bin/
+lxc exec bootstrap-test -- bootstrap-cli init
+```
+
+---
+
+## 📚 Documentation
+
+| Topic | Link |
+|-------|------|
+| 💡 Specification | [`docs/SPEC.md`](docs/SPEC.md) |
+| 🧱 Implementation Plan | [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md) |
+| 🦮 Project Structure | [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) |
+| 🎨 Wireframes | [`docs/WIREFRAMES.md`](docs/WIREFRAMES.md) |
+| 📓 Decisions | [`docs/DECISIONS.md`](docs/DECISIONS.md) |
+
+---
+
+## 🛠 Dev Workflow
+
+```bash
+make build        # Compile CLI binary
+make test         # Run all unit tests
+go run main.go    # Run directly
+```
+
+To build for release, check `scripts/release/` and `Makefile` targets.
+
+---
+
+## 🚧 Development Status
+
+| Status | Version |
+|--------|---------|
+| Core Implementation | In Progress |
+| Latest Version | `v0.1.0-alpha` |
+
+---
+
+## 🤝 Contributing
+
+We're currently focusing on internal use, but feel free to open issues or forks.  
+A formal CONTRIBUTING guide will be added in Phase 3.
+
+---
+
+## 📝 License
+
+MIT License – see [`LICENSE`](LICENSE) file.
 
 ---
 

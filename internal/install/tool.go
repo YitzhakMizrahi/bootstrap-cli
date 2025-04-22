@@ -10,12 +10,23 @@ import (
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
 )
 
+// PackageMapping defines package names for different package managers
+type PackageMapping struct {
+	Default string
+	APT     string
+	DNF     string
+	Pacman  string
+	Brew    string
+}
+
 // Tool represents a development tool that can be installed
 type Tool struct {
 	// Name is the name of the tool
 	Name string
 	// PackageName is the name of the package in the package manager
 	PackageName string
+	// PackageNames contains system-specific package names
+	PackageNames *PackageMapping
 	// Version is the desired version of the tool
 	Version string
 	// Dependencies is a list of package names that this tool depends on
@@ -63,6 +74,57 @@ func NewInstaller(pm packages.PackageManager) *Installer {
 	}
 }
 
+// getPackageWithVersion returns the package name with version if specified
+func (i *Installer) getPackageWithVersion(pkg, version string) string {
+	if version == "" || version == "latest" || version == "stable" {
+		return pkg
+	}
+	
+	switch i.PackageManager.Name() {
+	case "apt":
+		return fmt.Sprintf("%s=%s", pkg, version)
+	case "dnf":
+		return fmt.Sprintf("%s-%s", pkg, version)
+	case "pacman":
+		return fmt.Sprintf("%s=%s", pkg, version)
+	case "brew":
+		return fmt.Sprintf("%s@%s", pkg, version)
+	default:
+		return pkg
+	}
+}
+
+// getSystemPackageName returns the appropriate package name for the current system
+func (i *Installer) getSystemPackageName(tool *Tool) string {
+	if tool.PackageNames == nil {
+		return tool.PackageName
+	}
+
+	switch i.PackageManager.Name() {
+	case "apt":
+		if tool.PackageNames.APT != "" {
+			return tool.PackageNames.APT
+		}
+	case "dnf":
+		if tool.PackageNames.DNF != "" {
+			return tool.PackageNames.DNF
+		}
+	case "pacman":
+		if tool.PackageNames.Pacman != "" {
+			return tool.PackageNames.Pacman
+		}
+	case "brew":
+		if tool.PackageNames.Brew != "" {
+			return tool.PackageNames.Brew
+		}
+	}
+
+	if tool.PackageNames.Default != "" {
+		return tool.PackageNames.Default
+	}
+	return tool.PackageName
+}
+
 // Install installs a tool and its dependencies
 func (i *Installer) Install(tool *Tool) error {
 	i.Logger.Info("Starting installation of %s", tool.Name)
@@ -71,6 +133,7 @@ func (i *Installer) Install(tool *Tool) error {
 	for _, dep := range tool.Dependencies {
 		if !i.PackageManager.IsInstalled(dep) {
 			i.Logger.Info("Installing dependency %s for %s", dep, tool.Name)
+			// Dependencies are always installed with latest version
 			if err := i.installWithRetry(dep); err != nil {
 				i.Logger.Error("Failed to install dependency %s: %v", dep, err)
 				return &InstallError{
@@ -85,10 +148,14 @@ func (i *Installer) Install(tool *Tool) error {
 		}
 	}
 
+	// Get system-specific package name and version
+	pkgName := i.getSystemPackageName(tool)
+	pkgWithVersion := i.getPackageWithVersion(pkgName, tool.Version)
+
 	// Install the tool
-	if !i.PackageManager.IsInstalled(tool.PackageName) {
-		i.Logger.Info("Installing %s", tool.Name)
-		if err := i.installWithRetry(tool.PackageName); err != nil {
+	if !i.PackageManager.IsInstalled(pkgName) {
+		i.Logger.Info("Installing %s version %s", tool.Name, tool.Version)
+		if err := i.installWithRetry(pkgWithVersion); err != nil {
 			i.Logger.Error("Failed to install %s: %v", tool.Name, err)
 			return &InstallError{
 				Tool:    tool.Name,
@@ -137,6 +204,13 @@ func (i *Installer) installWithRetry(pkg string) error {
 		if attempt > 0 {
 			i.Logger.Debug("Retrying installation of %s (attempt %d/%d)", pkg, attempt, i.MaxRetries)
 			time.Sleep(i.RetryDelay)
+		}
+
+		// Update package lists before retry
+		if attempt > 0 {
+			if err := i.PackageManager.Update(); err != nil {
+				i.Logger.Debug("Failed to update package lists: %v", err)
+			}
 		}
 
 		if err := i.PackageManager.Install(pkg); err != nil {

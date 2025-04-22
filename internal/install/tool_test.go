@@ -15,10 +15,11 @@ type MockPackageManager struct {
 	installedPackages map[string]bool
 	failCount        map[string]int
 	maxFailures      int
+	name            string
 }
 
 func (m *MockPackageManager) Name() string {
-	return "mock"
+	return m.name
 }
 
 func (m *MockPackageManager) IsAvailable() bool {
@@ -46,11 +47,13 @@ func (m *MockPackageManager) IsInstalled(pkg string) bool {
 
 func TestInstaller(t *testing.T) {
 	tests := []struct {
-		name       string
-		tool       *Tool
-		maxRetries int
-		maxFail    int
-		wantErr    bool
+		name           string
+		tool           *Tool
+		maxRetries     int
+		maxFail        int
+		pmName         string
+		wantErr        bool
+		expectedPkgName string
 	}{
 		{
 			name: "successful install",
@@ -61,9 +64,11 @@ func TestInstaller(t *testing.T) {
 				Dependencies: []string{"dep1", "dep2"},
 				PostInstall:  []string{"echo 'test'"},
 			},
-			maxRetries: 3,
-			maxFail:    0,
-			wantErr:    false,
+			maxRetries:     3,
+			maxFail:        0,
+			pmName:         "apt",
+			wantErr:        false,
+			expectedPkgName: "test-package=1.0.0",
 		},
 		{
 			name: "retry success",
@@ -73,7 +78,8 @@ func TestInstaller(t *testing.T) {
 				Dependencies: []string{"dep1"},
 			},
 			maxRetries: 3,
-			maxFail:    2, // Will succeed on third try
+			maxFail:    2,
+			pmName:     "apt",
 			wantErr:    false,
 		},
 		{
@@ -84,8 +90,42 @@ func TestInstaller(t *testing.T) {
 				Dependencies: []string{"dep1"},
 			},
 			maxRetries: 3,
-			maxFail:    4, // Will fail all attempts (3 retries + 1 initial attempt)
+			maxFail:    4,
+			pmName:     "apt",
 			wantErr:    true,
+		},
+		{
+			name: "system specific package name",
+			tool: &Tool{
+				Name:        "system-tool",
+				PackageName: "default-package",
+				PackageNames: &PackageMapping{
+					Default: "default-package",
+					APT:     "apt-package",
+					DNF:     "dnf-package",
+					Pacman:  "pacman-package",
+					Brew:    "brew-package",
+				},
+				Version: "2.0.0",
+			},
+			maxRetries:     3,
+			maxFail:        0,
+			pmName:         "apt",
+			wantErr:        false,
+			expectedPkgName: "apt-package=2.0.0",
+		},
+		{
+			name: "homebrew version format",
+			tool: &Tool{
+				Name:        "brew-tool",
+				PackageName: "brew-package",
+				Version:     "3.0.0",
+			},
+			maxRetries:     3,
+			maxFail:        0,
+			pmName:         "brew",
+			wantErr:        false,
+			expectedPkgName: "brew-package@3.0.0",
 		},
 	}
 
@@ -96,6 +136,7 @@ func TestInstaller(t *testing.T) {
 				installedPackages: make(map[string]bool),
 				failCount:        make(map[string]int),
 				maxFailures:      tt.maxFail,
+				name:            tt.pmName,
 			}
 
 			// Create a buffer for logging output
@@ -128,17 +169,19 @@ func TestInstaller(t *testing.T) {
 				if !strings.Contains(logOutput, "Successfully installed") {
 					t.Error("Expected success log message not found")
 				}
+
+				// Verify correct package name was used
+				if tt.expectedPkgName != "" && !mockPM.IsInstalled(tt.expectedPkgName) {
+					t.Errorf("Expected package %s was not installed", tt.expectedPkgName)
+				}
 			}
 
-			// Check if dependencies and package were installed
+			// Check if dependencies were installed
 			if !tt.wantErr {
 				for _, dep := range tt.tool.Dependencies {
 					if !mockPM.IsInstalled(dep) {
 						t.Errorf("Dependency %s was not installed", dep)
 					}
-				}
-				if !mockPM.IsInstalled(tt.tool.PackageName) {
-					t.Errorf("Tool %s was not installed", tt.tool.PackageName)
 				}
 			}
 		})

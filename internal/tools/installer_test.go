@@ -5,34 +5,55 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
 )
 
-// mockPackagesManager implements packages.Manager for testing
+// mockPackagesManager implements interfaces.PackageManager for testing
 type mockPackagesManager struct {
 	installedPackages map[string]bool
 }
 
-func (m *mockPackagesManager) Install(packageName string) error {
-	if m.installedPackages == nil {
-		m.installedPackages = make(map[string]bool)
+func newMockPackagesManager() *mockPackagesManager {
+	return &mockPackagesManager{
+		installedPackages: make(map[string]bool),
 	}
-	m.installedPackages[packageName] = true
+}
+
+func (m *mockPackagesManager) Name() string {
+	return "mock"
+}
+
+func (m *mockPackagesManager) IsAvailable() bool {
+	return true
+}
+
+func (m *mockPackagesManager) Install(packages ...string) error {
+	for _, pkg := range packages {
+		m.installedPackages[pkg] = true
+	}
 	return nil
 }
 
-func (m *mockPackagesManager) Uninstall(packageName string) error {
-	delete(m.installedPackages, packageName)
+func (m *mockPackagesManager) Update() error {
 	return nil
 }
 
-func (m *mockPackagesManager) Update(packageName string) error {
+func (m *mockPackagesManager) IsInstalled(pkg string) bool {
+	installed := m.installedPackages[pkg]
+	return installed
+}
+
+func (m *mockPackagesManager) Remove(pkg string) error {
+	delete(m.installedPackages, pkg)
 	return nil
 }
 
-func (m *mockPackagesManager) IsInstalled(packageName string) (bool, error) { 
-	return m.installedPackages[packageName], nil 
+func (m *mockPackagesManager) GetVersion(packageName string) (string, error) {
+	if m.installedPackages[packageName] {
+		return "1.0.0", nil
+	}
+	return "", nil
 }
 
 func (m *mockPackagesManager) ListInstalled() ([]string, error) {
@@ -43,12 +64,8 @@ func (m *mockPackagesManager) ListInstalled() ([]string, error) {
 	return packages, nil
 }
 
-func (m *mockPackagesManager) GetVersion(packageName string) (string, error) { 
-	return "1.0.0", nil 
-}
-
 // testInstallEssentialTools is a helper function for testing InstallEssentialTools
-func testInstallEssentialTools(t *testing.T, pm packages.Manager, logger *log.Logger) error {
+func testInstallEssentialTools(t *testing.T, pm interfaces.PackageManager, logger *log.Logger) error {
 	// Create a logger that captures output
 	var logOutput strings.Builder
 	logger.SetOutput(&logOutput)
@@ -63,11 +80,7 @@ func testInstallEssentialTools(t *testing.T, pm packages.Manager, logger *log.Lo
 	// Verify that the tools were installed
 	expectedTools := []string{"git", "curl", "wget"}
 	for _, tool := range expectedTools {
-		installed, err := pm.IsInstalled(tool)
-		if err != nil {
-			t.Errorf("Error checking if %s is installed: %v", tool, err)
-			continue
-		}
+		installed := pm.IsInstalled(tool)
 		if !installed {
 			t.Errorf("Expected %s to be installed", tool)
 		}
@@ -84,9 +97,7 @@ func testInstallEssentialTools(t *testing.T, pm packages.Manager, logger *log.Lo
 
 func TestInstallEssentialTools(t *testing.T) {
 	// Create a mock package manager
-	mockPM := &mockPackagesManager{
-		installedPackages: make(map[string]bool),
-	}
+	mockPM := newMockPackagesManager()
 
 	// Create a logger
 	logger := log.New(log.DebugLevel)

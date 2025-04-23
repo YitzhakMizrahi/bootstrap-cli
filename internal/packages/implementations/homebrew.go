@@ -1,0 +1,127 @@
+package implementations
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+)
+
+// HomebrewPackageManager implements package management for macOS
+type HomebrewPackageManager struct {
+	brewPath string
+}
+
+// NewHomebrewPackageManager creates a new Homebrew package manager instance
+func NewHomebrewPackageManager() (interfaces.PackageManager, error) {
+	// Find brew executable
+	brewPath, err := exec.LookPath("brew")
+	if err != nil {
+		return nil, fmt.Errorf("brew is required but not found: %w", err)
+	}
+
+	return &HomebrewPackageManager{
+		brewPath: brewPath,
+	}, nil
+}
+
+// Name returns the name of the package manager
+func (h *HomebrewPackageManager) Name() string {
+	return string(interfaces.Homebrew)
+}
+
+// IsAvailable checks if the package manager is available on the system
+func (h *HomebrewPackageManager) IsAvailable() bool {
+	_, err := exec.LookPath("brew")
+	return err == nil
+}
+
+// Install installs packages using Homebrew
+func (h *HomebrewPackageManager) Install(packages ...string) error {
+	// Update package list first
+	updateCmd := exec.Command(h.brewPath, "update")
+	updateCmd.Stdout = os.Stdout
+	updateCmd.Stderr = os.Stderr
+	if err := updateCmd.Run(); err != nil {
+		return fmt.Errorf("failed to update package list: %w", err)
+	}
+
+	// Install packages
+	args := append([]string{"install"}, packages...)
+	cmd := exec.Command(h.brewPath, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install packages: %w", err)
+	}
+	return nil
+}
+
+// Update updates the package list
+func (h *HomebrewPackageManager) Update() error {
+	cmd := exec.Command(h.brewPath, "update")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// IsInstalled checks if a package is installed
+func (h *HomebrewPackageManager) IsInstalled(pkg string) bool {
+	cmd := exec.Command(h.brewPath, "list", "--formula", pkg)
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(output), pkg)
+}
+
+// Remove removes a package
+func (h *HomebrewPackageManager) Remove(pkg string) error {
+	cmd := exec.Command(h.brewPath, "uninstall", "--ignore-dependencies", pkg)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to remove package %s: %w", pkg, err)
+	}
+	return nil
+}
+
+// GetVersion returns the version of a package
+func (h *HomebrewPackageManager) GetVersion(packageName string) (string, error) {
+	cmd := exec.Command(h.brewPath, "info", "--json", packageName)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get version for package %s: %w", packageName, err)
+	}
+	// Parse version from output
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "\"version\":") {
+			parts := strings.Split(line, "\"version\":")
+			if len(parts) > 1 {
+				version := strings.Trim(strings.TrimSpace(parts[1]), "\",")
+				return version, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no version information found for package %s", packageName)
+}
+
+// ListInstalled returns a list of installed packages
+func (h *HomebrewPackageManager) ListInstalled() ([]string, error) {
+	cmd := exec.Command(h.brewPath, "list", "--formula")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list installed packages: %w", err)
+	}
+	lines := strings.Split(string(output), "\n")
+	var packages []string
+	for _, line := range lines {
+		if line != "" {
+			packages = append(packages, strings.TrimSpace(line))
+		}
+	}
+	return packages, nil
+} 

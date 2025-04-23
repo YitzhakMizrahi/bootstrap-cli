@@ -6,21 +6,24 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 )
 
-// mockPackageManager implements packages.Manager for testing
+// mockPackageManager implements interfaces.PackageManager for testing
 type mockPackageManager struct{}
 
-func (m *mockPackageManager) Install(packageName string) error                { return nil }
-func (m *mockPackageManager) Uninstall(packageName string) error             { return nil }
-func (m *mockPackageManager) Update(packageName string) error                { return nil }
-func (m *mockPackageManager) IsInstalled(packageName string) (bool, error)   { return true, nil }
-func (m *mockPackageManager) ListInstalled() ([]string, error)              { return nil, nil }
-func (m *mockPackageManager) GetVersion(packageName string) (string, error)  { return "", nil }
+func (m *mockPackageManager) Name() string                                   { return "mock" }
+func (m *mockPackageManager) IsAvailable() bool                             { return true }
+func (m *mockPackageManager) Install(packages ...string) error              { return nil }
+func (m *mockPackageManager) Update() error                                 { return nil }
+func (m *mockPackageManager) IsInstalled(pkg string) bool                   { return true }
+func (m *mockPackageManager) Remove(pkg string) error                       { return nil }
+func (m *mockPackageManager) GetVersion(packageName string) (string, error) { return "", nil }
+func (m *mockPackageManager) ListInstalled() ([]string, error)             { return nil, nil }
 
 // testConfigWriter creates a DefaultConfigWriter for testing
-func testConfigWriter(t *testing.T, shell Shell) (*DefaultConfigWriter, string, func()) {
+func testConfigWriter(t *testing.T, shell interfaces.Shell) (*DefaultConfigWriter, string, func()) {
 	// Create a temporary directory for test config files
 	tmpDir, err := os.MkdirTemp("", "shell-config-test-*")
 	if err != nil {
@@ -49,49 +52,49 @@ func testConfigWriter(t *testing.T, shell Shell) (*DefaultConfigWriter, string, 
 func TestWriteConfig(t *testing.T) {
 	tests := []struct {
 		name     string
-		shell    Shell
+		shell    interfaces.Shell
 		configs  []string
-		strategy DotfilesStrategy
+		strategy interfaces.DotfilesStrategy
 		existing string // existing content in config file
 		want     string // expected content after write
 		wantErr  bool
 	}{
 		{
 			name:     "write to empty file",
-			shell:    Bash,
+			shell:    interfaces.Bash,
 			configs:  []string{"export PATH=/usr/local/bin:$PATH"},
-			strategy: MergeWithExisting,
+			strategy: interfaces.MergeWithExisting,
 			want:     "export PATH=/usr/local/bin:$PATH\n",
 		},
 		{
 			name:     "merge with existing",
-			shell:    Zsh,
+			shell:    interfaces.Zsh,
 			configs:  []string{"export GOPATH=$HOME/go"},
-			strategy: MergeWithExisting,
+			strategy: interfaces.MergeWithExisting,
 			existing: "export PATH=/usr/local/bin:$PATH\n",
 			want:     "export PATH=/usr/local/bin:$PATH\nexport GOPATH=$HOME/go\n",
 		},
 		{
 			name:     "skip if exists",
-			shell:    Bash,
+			shell:    interfaces.Bash,
 			configs:  []string{"export PATH=/usr/local/bin:$PATH"},
-			strategy: SkipIfExists,
+			strategy: interfaces.SkipIfExists,
 			existing: "export PATH=/usr/local/bin:$PATH\n",
 			want:     "export PATH=/usr/local/bin:$PATH\n",
 		},
 		{
 			name:     "replace existing",
-			shell:    Fish,
+			shell:    interfaces.Fish,
 			configs:  []string{"set -gx PATH /usr/local/bin $PATH"},
-			strategy: ReplaceExisting,
+			strategy: interfaces.ReplaceExisting,
 			existing: "set -gx PATH /bin $PATH\n",
 			want:     "set -gx PATH /usr/local/bin $PATH\n",
 		},
 		{
 			name:     "multiple configs",
-			shell:    Bash,
+			shell:    interfaces.Bash,
 			configs:  []string{"export A=1", "export B=2"},
-			strategy: MergeWithExisting,
+			strategy: interfaces.MergeWithExisting,
 			want:     "export A=1\nexport B=2\n",
 		},
 	}
@@ -134,7 +137,7 @@ func TestWriteConfig(t *testing.T) {
 }
 
 func TestAddToPath(t *testing.T) {
-	writer, _, cleanup := testConfigWriter(t, Bash)
+	writer, _, cleanup := testConfigWriter(t, interfaces.Bash)
 	defer cleanup()
 
 	err := writer.AddToPath("/test/bin")
@@ -156,7 +159,7 @@ func TestAddToPath(t *testing.T) {
 }
 
 func TestSetEnvVar(t *testing.T) {
-	writer, _, cleanup := testConfigWriter(t, Bash)
+	writer, _, cleanup := testConfigWriter(t, interfaces.Bash)
 	defer cleanup()
 
 	err := writer.SetEnvVar("TESTVAR", "value")
@@ -178,7 +181,7 @@ func TestSetEnvVar(t *testing.T) {
 }
 
 func TestAddAlias(t *testing.T) {
-	writer, _, cleanup := testConfigWriter(t, Bash)
+	writer, _, cleanup := testConfigWriter(t, interfaces.Bash)
 	defer cleanup()
 
 	err := writer.AddAlias("ll", "ls -la")
@@ -202,28 +205,28 @@ func TestAddAlias(t *testing.T) {
 func TestHasConfig(t *testing.T) {
 	tests := []struct {
 		name     string
-		shell    Shell
+		shell    interfaces.Shell
 		existing string
 		config   string
 		want     bool
 	}{
 		{
 			name:     "config exists",
-			shell:    Bash,
+			shell:    interfaces.Bash,
 			existing: "export PATH=/usr/local/bin:$PATH\n",
 			config:   "export PATH=/usr/local/bin:$PATH",
 			want:     true,
 		},
 		{
 			name:     "config does not exist",
-			shell:    Zsh,
+			shell:    interfaces.Zsh,
 			existing: "export PATH=/usr/local/bin:$PATH\n",
 			config:   "export GOPATH=$HOME/go",
 			want:     false,
 		},
 		{
 			name:     "empty file",
-			shell:    Fish,
+			shell:    interfaces.Fish,
 			config:   "set -gx PATH /usr/local/bin $PATH",
 			want:     false,
 		},
@@ -256,22 +259,22 @@ func TestHasConfig(t *testing.T) {
 func TestGetConfigFile(t *testing.T) {
 	tests := []struct {
 		name     string
-		shell    Shell
+		shell    interfaces.Shell
 		wantPath string
 	}{
 		{
 			name:     "bash config",
-			shell:    Bash,
+			shell:    interfaces.Bash,
 			wantPath: ".bashrc",
 		},
 		{
 			name:     "zsh config",
-			shell:    Zsh,
+			shell:    interfaces.Zsh,
 			wantPath: ".zshrc",
 		},
 		{
 			name:     "fish config",
-			shell:    Fish,
+			shell:    interfaces.Fish,
 			wantPath: filepath.Join(".config", "fish", "config.fish"),
 		},
 		{

@@ -5,7 +5,7 @@ import (
 	"os/user"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/tools"
 	"github.com/spf13/cobra"
@@ -81,8 +81,9 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to detect system info: %w", err)
 	}
 
-	// Detect package manager
-	pm, err := packages.DetectPackageManager()
+	// Use the factory to get the package manager
+	f := factory.NewPackageManagerFactory()
+	pm, err := f.GetPackageManager()
 	if err != nil {
 		return fmt.Errorf("failed to detect package manager: %w", err)
 	}
@@ -132,8 +133,9 @@ func runVerify(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to detect system info: %w", err)
 	}
 
-	// Detect package manager
-	pm, err := packages.DetectPackageManager()
+	// Use the factory to get the package manager
+	f := factory.NewPackageManagerFactory()
+	pm, err := f.GetPackageManager()
 	if err != nil {
 		return fmt.Errorf("failed to detect package manager: %w", err)
 	}

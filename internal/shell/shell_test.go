@@ -5,28 +5,30 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 )
 
 func TestGetShellTypeFromPath(t *testing.T) {
 	tests := []struct {
 		name     string
 		path     string
-		expected Shell
+		expected interfaces.Shell
 	}{
 		{
 			name:     "bash shell",
 			path:     "/bin/bash",
-			expected: Bash,
+			expected: interfaces.Bash,
 		},
 		{
 			name:     "zsh shell",
 			path:     "/usr/bin/zsh",
-			expected: Zsh,
+			expected: interfaces.Zsh,
 		},
 		{
 			name:     "fish shell",
 			path:     "/usr/local/bin/fish",
-			expected: Fish,
+			expected: interfaces.Fish,
 		},
 		{
 			name:     "unknown shell",
@@ -56,12 +58,12 @@ func TestGetShellConfigFiles(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		shell    Shell
+		shell    interfaces.Shell
 		expected []string
 	}{
 		{
 			name:  "bash config files",
-			shell: Bash,
+			shell: interfaces.Bash,
 			expected: []string{
 				filepath.Join(tmpHome, ".bashrc"),
 				filepath.Join(tmpHome, ".bash_profile"),
@@ -70,7 +72,7 @@ func TestGetShellConfigFiles(t *testing.T) {
 		},
 		{
 			name:  "zsh config files",
-			shell: Zsh,
+			shell: interfaces.Zsh,
 			expected: []string{
 				filepath.Join(tmpHome, ".zshrc"),
 				filepath.Join(tmpHome, ".zprofile"),
@@ -79,7 +81,7 @@ func TestGetShellConfigFiles(t *testing.T) {
 		},
 		{
 			name:  "fish config files",
-			shell: Fish,
+			shell: interfaces.Fish,
 			expected: []string{
 				filepath.Join(tmpHome, ".config/fish/config.fish"),
 			},
@@ -126,21 +128,21 @@ func TestDetectCurrent(t *testing.T) {
 		name        string
 		shellEnv    string
 		wantErr     bool
-		wantShell   Shell
+		wantShell   interfaces.Shell
 		wantDefault bool
 	}{
 		{
 			name:        "bash shell",
 			shellEnv:    bashPath,
 			wantErr:     false,
-			wantShell:   Bash,
+			wantShell:   interfaces.Bash,
 			wantDefault: true,
 		},
 		{
 			name:        "zsh shell",
 			shellEnv:    zshPath,
 			wantErr:     false,
-			wantShell:   Zsh,
+			wantShell:   interfaces.Zsh,
 			wantDefault: true,
 		},
 		{

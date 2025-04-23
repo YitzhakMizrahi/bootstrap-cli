@@ -6,58 +6,30 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
 )
 
-// DotfilesStrategy defines how to handle existing dotfiles
-type DotfilesStrategy int
-
-const (
-	// MergeWithExisting merges new configurations with existing ones
-	MergeWithExisting DotfilesStrategy = iota
-	// SkipIfExists skips adding configurations if they already exist
-	SkipIfExists
-	// ReplaceExisting replaces existing configurations with new ones
-	ReplaceExisting
-)
-
-// ConfigWriter handles shell configuration file management
-type ConfigWriter interface {
-	// WriteConfig writes shell configurations to the appropriate file
-	WriteConfig(configs []string, strategy DotfilesStrategy) error
-	// AddToPath adds a directory to the PATH environment variable
-	AddToPath(path string) error
-	// SetEnvVar sets an environment variable
-	SetEnvVar(name, value string) error
-	// AddAlias adds a shell alias
-	AddAlias(name, command string) error
-	// HasConfig checks if a configuration exists
-	HasConfig(config string) bool
-}
-
-// DefaultConfigWriter implements ConfigWriter
+// DefaultConfigWriter implements interfaces.ShellConfigWriter
 type DefaultConfigWriter struct {
 	logger *log.Logger
-	shell  Shell
-	pm     packages.Manager
+	shell  interfaces.Shell
+	pm     interfaces.PackageManager
 }
 
-// NewConfigWriter creates a new DefaultConfigWriter
-func NewConfigWriter() (*DefaultConfigWriter, error) {
-	sysInfo, err := system.Detect()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get system info: %w", err)
-	}
-
+// NewConfigWriter creates a new shell config writer
+func NewConfigWriter() (interfaces.ShellConfigWriter, error) {
 	shellInfo, err := NewManager().DetectCurrent()
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect shell: %w", err)
 	}
 
 	logger := log.New(log.InfoLevel)
-	pm, err := packages.NewPackageManager(sysInfo.OS)
+	
+	// Use the factory to get the package manager
+	f := factory.NewPackageManagerFactory()
+	pm, err := f.GetPackageManager()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create package manager: %w", err)
 	}
@@ -70,7 +42,7 @@ func NewConfigWriter() (*DefaultConfigWriter, error) {
 }
 
 // WriteConfig writes shell configurations to the appropriate file
-func (w *DefaultConfigWriter) WriteConfig(configs []string, strategy DotfilesStrategy) error {
+func (w *DefaultConfigWriter) WriteConfig(configs []string, strategy interfaces.DotfilesStrategy) error {
 	// Get shell config file path
 	configFile := w.getConfigFile()
 	if configFile == "" {
@@ -90,8 +62,8 @@ func (w *DefaultConfigWriter) WriteConfig(configs []string, strategy DotfilesStr
 	// Process each config
 	var newConfigs []string
 	for _, config := range configs {
-		if strategy != ReplaceExisting && w.HasConfig(config) {
-			if strategy == SkipIfExists {
+		if strategy != interfaces.ReplaceExisting && w.HasConfig(config) {
+			if strategy == interfaces.SkipIfExists {
 				continue
 			}
 			// For MergeWithExisting, we'll keep both
@@ -101,7 +73,7 @@ func (w *DefaultConfigWriter) WriteConfig(configs []string, strategy DotfilesStr
 
 	// Write the new config
 	var content string
-	if strategy == ReplaceExisting {
+	if strategy == interfaces.ReplaceExisting {
 		content = strings.Join(newConfigs, "\n")
 		if len(newConfigs) > 0 {
 			content += "\n"
@@ -133,19 +105,19 @@ func (w *DefaultConfigWriter) WriteConfig(configs []string, strategy DotfilesStr
 // AddToPath adds a directory to the PATH environment variable
 func (w *DefaultConfigWriter) AddToPath(path string) error {
 	config := fmt.Sprintf("export PATH=%s:$PATH", path)
-	return w.WriteConfig([]string{config}, MergeWithExisting)
+	return w.WriteConfig([]string{config}, interfaces.MergeWithExisting)
 }
 
 // SetEnvVar sets an environment variable
 func (w *DefaultConfigWriter) SetEnvVar(name, value string) error {
 	config := fmt.Sprintf("export %s=%s", name, value)
-	return w.WriteConfig([]string{config}, MergeWithExisting)
+	return w.WriteConfig([]string{config}, interfaces.MergeWithExisting)
 }
 
 // AddAlias adds a shell alias
 func (w *DefaultConfigWriter) AddAlias(name, command string) error {
 	config := fmt.Sprintf("alias %s='%s'", name, command)
-	return w.WriteConfig([]string{config}, MergeWithExisting)
+	return w.WriteConfig([]string{config}, interfaces.MergeWithExisting)
 }
 
 // HasConfig checks if a configuration exists
@@ -172,11 +144,11 @@ func (w *DefaultConfigWriter) getConfigFile() string {
 	}
 
 	switch w.shell {
-	case Bash:
+	case interfaces.Bash:
 		return filepath.Join(home, ".bashrc")
-	case Zsh:
+	case interfaces.Zsh:
 		return filepath.Join(home, ".zshrc")
-	case Fish:
+	case interfaces.Fish:
 		return filepath.Join(home, ".config", "fish", "config.fish")
 	default:
 		return ""

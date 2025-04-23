@@ -3,7 +3,7 @@ package packagecmd
 import (
 	"fmt"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
 	"github.com/spf13/cobra"
 )
 
@@ -44,7 +44,8 @@ func newInstallCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			packageName = args[0]
-			pm, err := packages.NewPackageManager(system)
+			f := factory.NewPackageManagerFactory()
+			pm, err := f.GetPackageManager()
 			if err != nil {
 				return fmt.Errorf("failed to create package manager: %w", err)
 			}
@@ -62,11 +63,12 @@ func newUninstallCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			packageName = args[0]
-			pm, err := packages.NewPackageManager(system)
+			f := factory.NewPackageManagerFactory()
+			pm, err := f.GetPackageManager()
 			if err != nil {
 				return fmt.Errorf("failed to create package manager: %w", err)
 			}
-			return pm.Uninstall(packageName)
+			return pm.Remove(packageName)
 		},
 	}
 }
@@ -80,11 +82,12 @@ func newUpdateCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			packageName = args[0]
-			pm, err := packages.NewPackageManager(system)
+			f := factory.NewPackageManagerFactory()
+			pm, err := f.GetPackageManager()
 			if err != nil {
 				return fmt.Errorf("failed to create package manager: %w", err)
 			}
-			return pm.Update(packageName)
+			return pm.Update()
 		},
 	}
 }
@@ -96,7 +99,8 @@ func newListCmd() *cobra.Command {
 		Short: "List installed packages",
 		Long:  `List all installed packages using the system's package manager.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			pm, err := packages.NewPackageManager(system)
+			f := factory.NewPackageManagerFactory()
+			pm, err := f.GetPackageManager()
 			if err != nil {
 				return fmt.Errorf("failed to create package manager: %w", err)
 			}
@@ -121,7 +125,8 @@ func newVersionCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			packageName = args[0]
-			pm, err := packages.NewPackageManager(system)
+			f := factory.NewPackageManagerFactory()
+			pm, err := f.GetPackageManager()
 			if err != nil {
 				return fmt.Errorf("failed to create package manager: %w", err)
 			}

@@ -2,120 +2,20 @@ package packages
 
 import (
 	"fmt"
-	"os/exec"
-	"runtime"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
-)
-
-// Manager defines the interface for package management operations
-type Manager interface {
-	// Install installs a package
-	Install(packageName string) error
-	
-	// Uninstall removes a package
-	Uninstall(packageName string) error
-	
-	// Update updates a package to its latest version
-	Update(packageName string) error
-	
-	// IsInstalled checks if a package is installed
-	IsInstalled(packageName string) (bool, error)
-	
-	// ListInstalled returns a list of installed packages
-	ListInstalled() ([]string, error)
-	
-	// GetVersion returns the version of a package
-	GetVersion(packageName string) (string, error)
-}
-
-// PackageManager defines the interface for different package managers
-type PackageManager interface {
-	// Name returns the name of the package manager
-	Name() string
-	// IsAvailable checks if the package manager is available on the system
-	IsAvailable() bool
-	// Install installs the given packages
-	Install(packages ...string) error
-	// Update updates the package list
-	Update() error
-	// IsInstalled checks if a package is installed
-	IsInstalled(pkg string) bool
-	// Remove removes a package
-	Remove(pkg string) error
-}
-
-// Type represents the type of package manager
-type Type string
-
-const (
-	// APT package manager (Debian/Ubuntu)
-	APT Type = "apt"
-	// DNF package manager (Fedora)
-	DNF Type = "dnf"
-	// Pacman package manager (Arch)
-	Pacman Type = "pacman"
-	// Homebrew package manager (macOS)
-	Homebrew Type = "brew"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
 )
 
 // ErrPackageManagerNotFound is returned when no suitable package manager is found
 var ErrPackageManagerNotFound = fmt.Errorf("no suitable package manager found")
 
-// DetectPackageManager returns the appropriate package manager for the current system
-func DetectPackageManager() (PackageManager, error) {
-	// Check for macOS first
-	if runtime.GOOS == "darwin" {
-		brew := &HomebrewManager{}
-		if brew.IsAvailable() {
-			return brew, nil
-		}
+// GetPackageManager returns the appropriate package manager for the current system
+func GetPackageManager() (interfaces.PackageManager, error) {
+	f := factory.NewPackageManagerFactory()
+	pm, err := f.GetPackageManager()
+	if err != nil {
+		return nil, err
 	}
-
-	// Check for Linux package managers
-	if runtime.GOOS == "linux" {
-		// Try APT first (Debian/Ubuntu)
-		apt := &APTManager{}
-		if apt.IsAvailable() {
-			return apt, nil
-		}
-
-		// Try DNF (Fedora)
-		dnf := &DNFManager{}
-		if dnf.IsAvailable() {
-			return dnf, nil
-		}
-
-		// Try Pacman (Arch)
-		pacman := &PacmanManager{}
-		if pacman.IsAvailable() {
-			return pacman, nil
-		}
-	}
-
-	return nil, ErrPackageManagerNotFound
-}
-
-// NewManager creates a new package manager for the given system
-func NewManager(system string) (Manager, error) {
-	var cmd string
-	switch Type(system) {
-	case APT:
-		cmd = "apt-get"
-	case DNF:
-		cmd = "dnf"
-	case Pacman:
-		cmd = "pacman"
-	case Homebrew:
-		cmd = "brew"
-	default:
-		return nil, fmt.Errorf("unsupported package manager type: %s", system)
-	}
-
-	return &packageManager{
-		system:  system,
-		cmd:     cmd,
-		logger:  log.New(log.InfoLevel),
-		execCmd: exec.Command,
-	}, nil
+	return pm, nil
 } 

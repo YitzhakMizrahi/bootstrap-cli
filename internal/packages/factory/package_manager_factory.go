@@ -1,18 +1,12 @@
-package system
+package factory
 
 import (
 	"fmt"
 	"time"
-)
 
-// PackageManagerType represents the type of package manager
-type PackageManagerType string
-
-const (
-	PackageManagerApt      PackageManagerType = "apt"
-	PackageManagerDnf      PackageManagerType = "dnf"
-	PackageManagerPacman   PackageManagerType = "pacman"
-	PackageManagerHomebrew PackageManagerType = "homebrew"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/detector"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/implementations"
 )
 
 // PackageManagerFactory creates package managers based on system type
@@ -36,26 +30,26 @@ func (f *PackageManagerFactory) SetRetryConfig(maxRetries int, retryDelay time.D
 }
 
 // GetPackageManager returns the appropriate package manager for the current system
-func (f *PackageManagerFactory) GetPackageManager() (PackageManager, error) {
-	info, err := Detect()
+func (f *PackageManagerFactory) GetPackageManager() (interfaces.PackageManager, error) {
+	pmType, err := detector.DetectPackageManager()
 	if err != nil {
-		return nil, fmt.Errorf("failed to detect system: %w", err)
+		return nil, fmt.Errorf("failed to detect package manager: %w", err)
 	}
 
-	var pm PackageManager
+	var pm interfaces.PackageManager
 	var pmErr error
 
-	switch info.PackageType {
-	case PackageManagerApt:
-		pm, pmErr = NewAptPackageManager()
-	case PackageManagerDnf:
-		pm, pmErr = NewDnfPackageManager()
-	case PackageManagerPacman:
-		pm, pmErr = NewPacmanPackageManager()
-	case PackageManagerHomebrew:
-		pm, pmErr = NewHomebrewPackageManager()
+	switch pmType {
+	case interfaces.APT:
+		pm, pmErr = implementations.NewAptPackageManager()
+	case interfaces.DNF:
+		pm, pmErr = implementations.NewDnfPackageManager()
+	case interfaces.Pacman:
+		pm, pmErr = implementations.NewPacmanPackageManager()
+	case interfaces.Homebrew:
+		pm, pmErr = implementations.NewHomebrewPackageManager()
 	default:
-		return nil, fmt.Errorf("unsupported package manager type: %s", info.PackageType)
+		return nil, fmt.Errorf("unsupported package manager type: %s", pmType)
 	}
 
 	if pmErr != nil {
@@ -71,16 +65,16 @@ func (f *PackageManagerFactory) GetPackageManager() (PackageManager, error) {
 
 // retryPackageManager wraps a PackageManager with retry logic
 type retryPackageManager struct {
-	PackageManager
+	interfaces.PackageManager
 	maxRetries int
 	retryDelay time.Duration
 }
 
 // Install with retry logic
-func (r *retryPackageManager) Install(pkg string) error {
+func (r *retryPackageManager) Install(packages ...string) error {
 	var lastErr error
 	for i := 0; i < r.maxRetries; i++ {
-		if err := r.PackageManager.Install(pkg); err != nil {
+		if err := r.PackageManager.Install(packages...); err != nil {
 			lastErr = err
 			if i < r.maxRetries-1 {
 				time.Sleep(r.retryDelay)
@@ -90,14 +84,14 @@ func (r *retryPackageManager) Install(pkg string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("failed to install package after %d retries: %w", r.maxRetries, lastErr)
+	return fmt.Errorf("failed to install packages after %d retries: %w", r.maxRetries, lastErr)
 }
 
-// Uninstall with retry logic
-func (r *retryPackageManager) Uninstall(pkg string) error {
+// Remove with retry logic
+func (r *retryPackageManager) Remove(pkg string) error {
 	var lastErr error
 	for i := 0; i < r.maxRetries; i++ {
-		if err := r.PackageManager.Uninstall(pkg); err != nil {
+		if err := r.PackageManager.Remove(pkg); err != nil {
 			lastErr = err
 			if i < r.maxRetries-1 {
 				time.Sleep(r.retryDelay)
@@ -107,5 +101,5 @@ func (r *retryPackageManager) Uninstall(pkg string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("failed to uninstall package after %d retries: %w", r.maxRetries, lastErr)
+	return fmt.Errorf("failed to remove package after %d retries: %w", r.maxRetries, lastErr)
 } 

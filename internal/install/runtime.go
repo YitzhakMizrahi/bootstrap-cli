@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
 )
 
 // configureNeedrestart sets needrestart mode (can be 'a' for automatic or 'i' for interactive)
@@ -21,12 +21,12 @@ func configureNeedrestart(mode string) error {
 
 // RuntimeInstaller handles language runtime installation
 type RuntimeInstaller struct {
-	pm     packages.PackageManager
+	pm     interfaces.PackageManager
 	logger *log.Logger
 }
 
 // NewRuntimeInstaller creates a new runtime installer
-func NewRuntimeInstaller(pm packages.PackageManager, logger *log.Logger) *RuntimeInstaller {
+func NewRuntimeInstaller(pm interfaces.PackageManager, logger *log.Logger) *RuntimeInstaller {
 	return &RuntimeInstaller{
 		pm:     pm,
 		logger: logger,

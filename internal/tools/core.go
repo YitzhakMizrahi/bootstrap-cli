@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
 )
 
 // ToolCategory represents a category of tools
@@ -246,7 +246,7 @@ func CoreTools() []*CoreTool {
 }
 
 // InstallEssentialTools installs all essential development tools
-func InstallEssentialTools(pm packages.Manager, logger *log.Logger, skipVerification bool) error {
+func InstallEssentialTools(pm interfaces.PackageManager, logger *log.Logger, skipVerification bool) error {
 	logger.Info("Installing essential development tools...")
 
 	tools := CoreTools()
@@ -256,13 +256,7 @@ func InstallEssentialTools(pm packages.Manager, logger *log.Logger, skipVerifica
 		logger.Info("Installing %s...", tool.Name)
 		
 		// Check if tool is already installed
-		installed, err := pm.IsInstalled(tool.PackageName)
-		if err != nil {
-			logger.Error("Failed to check if %s is installed: %v", tool.Name, err)
-			failed = true
-			continue
-		}
-		
+		installed := pm.IsInstalled(tool.PackageName)
 		if installed {
 			logger.Info("%s is already installed", tool.Name)
 			continue
@@ -332,10 +326,10 @@ func runCommand(cmd string) error {
 	return nil
 }
 
-// InstallOptions contains options for tool installation
+// InstallOptions contains options for installing tools
 type InstallOptions struct {
 	Logger           *log.Logger
-	PackageManager   packages.PackageManager
+	PackageManager   interfaces.PackageManager
 	Tools           []*install.Tool
 	SkipVerification bool
 	AdditionalPaths  []string // Additional paths to search for binaries during verification

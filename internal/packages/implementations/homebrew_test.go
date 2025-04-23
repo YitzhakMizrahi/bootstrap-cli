@@ -1,4 +1,4 @@
-package system
+package implementations
 
 import (
 	"os/exec"
@@ -17,9 +17,6 @@ func TestNewHomebrewPackageManager(t *testing.T) {
 	}
 	if pm == nil {
 		t.Fatal("NewHomebrewPackageManager() returned nil")
-	}
-	if pm.brewPath == "" {
-		t.Error("brewPath is empty")
 	}
 }
 
@@ -59,8 +56,8 @@ func TestHomebrewPackageManager_IsInstalled(t *testing.T) {
 	}
 
 	// Test with a package that should be installed
-	if !pm.IsInstalled("tldr") {
-		t.Error("IsInstalled() returned false for tldr package")
+	if !pm.IsInstalled("brew") {
+		t.Error("IsInstalled() returned false for brew package")
 	}
 
 	// Test with a non-existent package
@@ -69,7 +66,7 @@ func TestHomebrewPackageManager_IsInstalled(t *testing.T) {
 	}
 }
 
-func TestHomebrewPackageManager_Uninstall(t *testing.T) {
+func TestHomebrewPackageManager_Remove(t *testing.T) {
 	// Skip if not on a system with brew
 	if _, err := exec.LookPath("brew"); err != nil {
 		t.Skip("brew not available, skipping test")
@@ -80,15 +77,15 @@ func TestHomebrewPackageManager_Uninstall(t *testing.T) {
 		t.Fatalf("NewHomebrewPackageManager() error = %v", err)
 	}
 
-	// Test uninstalling a package that should exist
-	err = pm.Uninstall("curl")
+	// Test removing a package that should exist
+	err = pm.Remove("curl")
 	if err != nil {
-		t.Errorf("Uninstall() error = %v", err)
+		t.Errorf("Remove() error = %v", err)
 	}
 
-	// Test uninstalling a non-existent package
-	err = pm.Uninstall("non-existent-package-123456")
+	// Test removing a non-existent package
+	err = pm.Remove("non-existent-package-123456")
 	if err == nil {
-		t.Error("Uninstall() expected error for non-existent package, got nil")
+		t.Error("Remove() expected error for non-existent package, got nil")
 	}
 } 

@@ -3,7 +3,8 @@ package ui
 import (
 	"fmt"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/shell"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/detector"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/manifoldco/promptui"
@@ -30,7 +31,14 @@ func ShowSystemInfo(info *system.SystemInfo) bool {
 	fmt.Printf("System Info Detected:\n")
 	fmt.Printf("OS: %s %s\n", info.Distro, info.Version)
 	fmt.Printf("Arch: %s\n", info.Arch)
-	fmt.Printf("Package Manager: %s\n\n", info.PackageType)
+	
+	// Detect package manager
+	if pmType, err := detector.DetectPackageManager(); err == nil {
+		fmt.Printf("Package Manager: %s\n", pmType)
+	} else {
+		fmt.Printf("Package Manager: Not detected\n")
+	}
+	fmt.Println()
 
 	prompt := promptui.Select{
 		Label: "Press Enter to continue",
@@ -75,7 +83,7 @@ func PromptDotfiles() (string, error) {
 }
 
 // PromptShellSelection prompts for shell selection
-func PromptShellSelection(currentShell *shell.ShellInfo) (string, error) {
+func PromptShellSelection(currentShell *interfaces.ShellInfo) (string, error) {
 	shells := []string{"zsh", "bash", "fish"}
 	prompt := promptui.Select{
 		Label: fmt.Sprintf("Choose your shell (current: %s)", currentShell.Type),

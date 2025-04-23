@@ -7,7 +7,7 @@ import (
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/shell"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/tools"
@@ -103,7 +103,9 @@ func runUp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("root privileges required for installation")
 	}
 
-	pm, err := packages.DetectPackageManager()
+	// Use the factory to get the package manager
+	f := factory.NewPackageManagerFactory()
+	pm, err := f.GetPackageManager()
 	if err != nil {
 		return fmt.Errorf("failed to detect package manager: %w", err)
 	}

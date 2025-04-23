@@ -110,6 +110,21 @@ func (m *MockPackageManager) Update() error {
 	return nil
 }
 
+func (m *MockPackageManager) GetVersion(packageName string) (string, error) {
+	if version, exists := m.installed[packageName]; exists {
+		return version, nil
+	}
+	return "", fmt.Errorf("package %s not installed", packageName)
+}
+
+func (m *MockPackageManager) ListInstalled() ([]string, error) {
+	packages := make([]string, 0, len(m.installed))
+	for pkg := range m.installed {
+		packages = append(packages, pkg)
+	}
+	return packages, nil
+}
+
 func TestInstaller(t *testing.T) {
 	tests := []struct {
 		name            string

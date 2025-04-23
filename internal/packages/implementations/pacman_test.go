@@ -1,4 +1,4 @@
-package system
+package implementations
 
 import (
 	"os/exec"
@@ -17,9 +17,6 @@ func TestNewPacmanPackageManager(t *testing.T) {
 	}
 	if pm == nil {
 		t.Fatal("NewPacmanPackageManager() returned nil")
-	}
-	if pm.sudoPath == "" {
-		t.Error("sudoPath is empty")
 	}
 }
 
@@ -69,7 +66,7 @@ func TestPacmanPackageManager_IsInstalled(t *testing.T) {
 	}
 }
 
-func TestPacmanPackageManager_Uninstall(t *testing.T) {
+func TestPacmanPackageManager_Remove(t *testing.T) {
 	// Skip if not on a system with pacman
 	if _, err := exec.LookPath("pacman"); err != nil {
 		t.Skip("pacman not available, skipping test")
@@ -80,15 +77,15 @@ func TestPacmanPackageManager_Uninstall(t *testing.T) {
 		t.Fatalf("NewPacmanPackageManager() error = %v", err)
 	}
 
-	// Test uninstalling a package that should exist
-	err = pm.Uninstall("curl")
+	// Test removing a package that should exist
+	err = pm.Remove("curl")
 	if err != nil {
-		t.Errorf("Uninstall() error = %v", err)
+		t.Errorf("Remove() error = %v", err)
 	}
 
-	// Test uninstalling a non-existent package
-	err = pm.Uninstall("non-existent-package-123456")
+	// Test removing a non-existent package
+	err = pm.Remove("non-existent-package-123456")
 	if err == nil {
-		t.Error("Uninstall() expected error for non-existent package, got nil")
+		t.Error("Remove() expected error for non-existent package, got nil")
 	}
 } 

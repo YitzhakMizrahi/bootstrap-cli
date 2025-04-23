@@ -1,4 +1,4 @@
-package system
+package factory
 
 import (
 	"fmt"
@@ -49,41 +49,52 @@ func TestGetPackageManager(t *testing.T) {
 func TestRetryPackageManager(t *testing.T) {
 	// Create a mock package manager that fails twice then succeeds
 	mockPM := &mockPackageManager{
-		failCount: 2,
+		failCount:      2,
+		installCount:   0,
+		uninstallCount: 0,
 	}
+
+	// Create a retry package manager with the mock
 	retryPM := &retryPackageManager{
 		PackageManager: mockPM,
 		maxRetries:    3,
-		retryDelay:    10 * time.Millisecond,
+		retryDelay:    10 * time.Millisecond, // Short delay for testing
 	}
 
-	// Test Install
+	// Test Install with retry
 	err := retryPM.Install("test-package")
 	if err != nil {
 		t.Errorf("Install() error = %v", err)
 	}
 	if mockPM.installCount != 3 {
-		t.Errorf("expected 3 install attempts, got %d", mockPM.installCount)
+		t.Errorf("expected installCount to be 3, got %d", mockPM.installCount)
 	}
 
-	// Test Uninstall
-	err = retryPM.Uninstall("test-package")
+	// Test Remove with retry
+	err = retryPM.Remove("test-package")
 	if err != nil {
-		t.Errorf("Uninstall() error = %v", err)
+		t.Errorf("Remove() error = %v", err)
 	}
 	if mockPM.uninstallCount != 3 {
-		t.Errorf("expected 3 uninstall attempts, got %d", mockPM.uninstallCount)
+		t.Errorf("expected uninstallCount to be 3, got %d", mockPM.uninstallCount)
+	}
+
+	// Test that it fails after max retries
+	mockPM.failCount = 10 // More than maxRetries
+	err = retryPM.Install("test-package")
+	if err == nil {
+		t.Error("expected Install() to fail after max retries")
 	}
 }
 
-// mockPackageManager is a test implementation that fails a specified number of times
+// mockPackageManager is a mock implementation of the PackageManager interface
 type mockPackageManager struct {
 	failCount      int
 	installCount   int
 	uninstallCount int
 }
 
-func (m *mockPackageManager) Install(pkg string) error {
+func (m *mockPackageManager) Install(packages ...string) error {
 	m.installCount++
 	if m.installCount <= m.failCount {
 		return fmt.Errorf("mock install error")
@@ -91,14 +102,34 @@ func (m *mockPackageManager) Install(pkg string) error {
 	return nil
 }
 
-func (m *mockPackageManager) Uninstall(pkg string) error {
+func (m *mockPackageManager) Remove(pkg string) error {
 	m.uninstallCount++
 	if m.uninstallCount <= m.failCount {
-		return fmt.Errorf("mock uninstall error")
+		return fmt.Errorf("mock remove error")
 	}
 	return nil
 }
 
-func (m *mockPackageManager) IsInstalled(pkg string) bool {
+func (m *mockPackageManager) Name() string {
+	return "mock"
+}
+
+func (m *mockPackageManager) IsAvailable() bool {
 	return true
+}
+
+func (m *mockPackageManager) Update() error {
+	return nil
+}
+
+func (m *mockPackageManager) IsInstalled(pkg string) bool {
+	return false
+}
+
+func (m *mockPackageManager) GetVersion(packageName string) (string, error) {
+	return "1.0.0", nil
+}
+
+func (m *mockPackageManager) ListInstalled() ([]string, error) {
+	return []string{}, nil
 } 

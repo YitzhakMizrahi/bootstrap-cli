@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// mockPackageManager implements Manager interface for testing
+// mockPackageManager implements PackageManager interface for testing
 type mockPackageManager struct {
 	installedPackages map[string]string // package name -> version
 }
@@ -15,42 +15,56 @@ func newMockPackageManager() *mockPackageManager {
 	}
 }
 
-func (m *mockPackageManager) Install(packageName string) error {
-	m.installedPackages[packageName] = "1.0.0"
-	return nil
+// Name returns the name of the package manager
+func (m *mockPackageManager) Name() string {
+	return "mock"
 }
 
-func (m *mockPackageManager) Uninstall(packageName string) error {
-	delete(m.installedPackages, packageName)
-	return nil
+// IsAvailable checks if the package manager is available on the system
+func (m *mockPackageManager) IsAvailable() bool {
+	return true
 }
 
-func (m *mockPackageManager) Update(packageName string) error {
-	if version, exists := m.installedPackages[packageName]; exists {
-		m.installedPackages[packageName] = version + ".1"
-		return nil
+// Install installs the given packages
+func (m *mockPackageManager) Install(packages ...string) error {
+	for _, packageName := range packages {
+		m.installedPackages[packageName] = "1.0.0"
 	}
 	return nil
 }
 
-func (m *mockPackageManager) IsInstalled(packageName string) (bool, error) {
-	_, exists := m.installedPackages[packageName]
-	return exists, nil
+// Update updates the package list
+func (m *mockPackageManager) Update() error {
+	return nil
 }
 
+// IsInstalled checks if a package is installed
+func (m *mockPackageManager) IsInstalled(pkg string) bool {
+	_, exists := m.installedPackages[pkg]
+	return exists
+}
+
+// Remove removes a package
+func (m *mockPackageManager) Remove(pkg string) error {
+	delete(m.installedPackages, pkg)
+	return nil
+}
+
+// GetVersion returns the version of a package
+func (m *mockPackageManager) GetVersion(packageName string) (string, error) {
+	if version, exists := m.installedPackages[packageName]; exists {
+		return version, nil
+	}
+	return "", nil
+}
+
+// ListInstalled returns a list of installed packages
 func (m *mockPackageManager) ListInstalled() ([]string, error) {
 	packages := make([]string, 0, len(m.installedPackages))
 	for pkg := range m.installedPackages {
 		packages = append(packages, pkg)
 	}
 	return packages, nil
-}
-
-func (m *mockPackageManager) GetVersion(packageName string) (string, error) {
-	if version, exists := m.installedPackages[packageName]; exists {
-		return version, nil
-	}
-	return "", nil
 }
 
 func TestMockPackageManager(t *testing.T) {
@@ -62,8 +76,7 @@ func TestMockPackageManager(t *testing.T) {
 		if err != nil {
 			t.Errorf("Install() error = %v", err)
 		}
-		installed, _ := pm.IsInstalled("test-package")
-		if !installed {
+		if !pm.IsInstalled("test-package") {
 			t.Error("Package should be installed after Install()")
 		}
 	})
@@ -76,18 +89,6 @@ func TestMockPackageManager(t *testing.T) {
 		}
 		if version != "1.0.0" {
 			t.Errorf("GetVersion() = %v, want %v", version, "1.0.0")
-		}
-	})
-
-	// Test Update
-	t.Run("Update", func(t *testing.T) {
-		err := pm.Update("test-package")
-		if err != nil {
-			t.Errorf("Update() error = %v", err)
-		}
-		version, _ := pm.GetVersion("test-package")
-		if version != "1.0.0.1" {
-			t.Errorf("GetVersion() after update = %v, want %v", version, "1.0.0.1")
 		}
 	})
 
@@ -105,15 +106,14 @@ func TestMockPackageManager(t *testing.T) {
 		}
 	})
 
-	// Test Uninstall
-	t.Run("Uninstall", func(t *testing.T) {
-		err := pm.Uninstall("test-package")
+	// Test Remove
+	t.Run("Remove", func(t *testing.T) {
+		err := pm.Remove("test-package")
 		if err != nil {
-			t.Errorf("Uninstall() error = %v", err)
+			t.Errorf("Remove() error = %v", err)
 		}
-		installed, _ := pm.IsInstalled("test-package")
-		if installed {
-			t.Error("Package should not be installed after Uninstall()")
+		if pm.IsInstalled("test-package") {
+			t.Error("Package should not be installed after Remove()")
 		}
 	})
 } 

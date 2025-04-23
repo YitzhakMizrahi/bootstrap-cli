@@ -6,50 +6,20 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 )
 
-// Shell represents a shell type
-type Shell string
-
-const (
-	// Supported shell types
-	Bash Shell = "bash"
-	Zsh  Shell = "zsh"
-	Fish Shell = "fish"
-)
-
-// ShellInfo contains information about a shell
-type ShellInfo struct {
-	Type         Shell
-	Path         string
-	Version      string
-	IsDefault    bool
-	IsAvailable  bool
-	ConfigFiles  []string
-}
-
-// Manager handles shell detection and operations
-type Manager interface {
-	// DetectCurrent detects the current user's shell
-	DetectCurrent() (*ShellInfo, error)
-	// ListAvailable returns a list of available shells
-	ListAvailable() ([]*ShellInfo, error)
-	// IsInstalled checks if a specific shell is installed
-	IsInstalled(shell Shell) bool
-	// GetInfo returns detailed information about a specific shell
-	GetInfo(shell Shell) (*ShellInfo, error)
-}
-
-// DefaultManager is the default implementation of Manager
+// DefaultManager is the default implementation of interfaces.ShellManager
 type DefaultManager struct{}
 
 // NewManager creates a new shell manager
-func NewManager() Manager {
+func NewManager() interfaces.ShellManager {
 	return &DefaultManager{}
 }
 
 // DetectCurrent detects the current user's shell
-func (m *DefaultManager) DetectCurrent() (*ShellInfo, error) {
+func (m *DefaultManager) DetectCurrent() (*interfaces.ShellInfo, error) {
 	// Try getting shell from SHELL environment variable first
 	shellPath := os.Getenv("SHELL")
 	if shellPath == "" {
@@ -67,9 +37,9 @@ func (m *DefaultManager) DetectCurrent() (*ShellInfo, error) {
 }
 
 // ListAvailable returns a list of available shells
-func (m *DefaultManager) ListAvailable() ([]*ShellInfo, error) {
-	shells := []Shell{Bash, Zsh, Fish}
-	var available []*ShellInfo
+func (m *DefaultManager) ListAvailable() ([]*interfaces.ShellInfo, error) {
+	shells := []interfaces.Shell{interfaces.Bash, interfaces.Zsh, interfaces.Fish}
+	var available []*interfaces.ShellInfo
 
 	for _, shell := range shells {
 		if m.IsInstalled(shell) {
@@ -85,13 +55,13 @@ func (m *DefaultManager) ListAvailable() ([]*ShellInfo, error) {
 }
 
 // IsInstalled checks if a specific shell is installed
-func (m *DefaultManager) IsInstalled(shell Shell) bool {
+func (m *DefaultManager) IsInstalled(shell interfaces.Shell) bool {
 	_, err := exec.LookPath(string(shell))
 	return err == nil
 }
 
 // GetInfo returns detailed information about a specific shell
-func (m *DefaultManager) GetInfo(shell Shell) (*ShellInfo, error) {
+func (m *DefaultManager) GetInfo(shell interfaces.Shell) (*interfaces.ShellInfo, error) {
 	if !m.IsInstalled(shell) {
 		return nil, fmt.Errorf("shell %s is not installed", shell)
 	}
@@ -122,7 +92,7 @@ func (m *DefaultManager) GetInfo(shell Shell) (*ShellInfo, error) {
 	// Get config files
 	configFiles := getShellConfigFiles(shell)
 
-	return &ShellInfo{
+	return &interfaces.ShellInfo{
 		Type:        shell,
 		Path:        shellPath,
 		Version:     version,
@@ -133,30 +103,30 @@ func (m *DefaultManager) GetInfo(shell Shell) (*ShellInfo, error) {
 }
 
 // getShellTypeFromPath determines the shell type from its path
-func getShellTypeFromPath(path string) Shell {
+func getShellTypeFromPath(path string) interfaces.Shell {
 	base := filepath.Base(path)
 	switch base {
 	case "bash":
-		return Bash
+		return interfaces.Bash
 	case "zsh":
-		return Zsh
+		return interfaces.Zsh
 	case "fish":
-		return Fish
+		return interfaces.Fish
 	default:
 		return ""
 	}
 }
 
 // getShellVersion gets the version of a shell
-func getShellVersion(shell Shell, path string) (string, error) {
+func getShellVersion(shell interfaces.Shell, path string) (string, error) {
 	var cmd *exec.Cmd
 
 	switch shell {
-	case Bash:
+	case interfaces.Bash:
 		cmd = exec.Command(path, "--version")
-	case Zsh:
+	case interfaces.Zsh:
 		cmd = exec.Command(path, "--version")
-	case Fish:
+	case interfaces.Fish:
 		cmd = exec.Command(path, "--version")
 	default:
 		return "", fmt.Errorf("unsupported shell type: %s", shell)
@@ -173,26 +143,26 @@ func getShellVersion(shell Shell, path string) (string, error) {
 }
 
 // getShellConfigFiles returns the configuration files for a shell
-func getShellConfigFiles(shell Shell) []string {
+func getShellConfigFiles(shell interfaces.Shell) []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil
 	}
 
 	switch shell {
-	case Bash:
+	case interfaces.Bash:
 		return []string{
 			filepath.Join(home, ".bashrc"),
 			filepath.Join(home, ".bash_profile"),
 			filepath.Join(home, ".profile"),
 		}
-	case Zsh:
+	case interfaces.Zsh:
 		return []string{
 			filepath.Join(home, ".zshrc"),
 			filepath.Join(home, ".zprofile"),
 			filepath.Join(home, ".zshenv"),
 		}
-	case Fish:
+	case interfaces.Fish:
 		return []string{
 			filepath.Join(home, ".config/fish/config.fish"),
 		}

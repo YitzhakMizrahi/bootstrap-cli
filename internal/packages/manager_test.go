@@ -3,51 +3,53 @@ package packages
 import (
 	"runtime"
 	"testing"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
 )
 
-func TestDetectPackageManager(t *testing.T) {
-	pm, err := DetectPackageManager()
+func TestPackageManagerDetection(t *testing.T) {
+	f := factory.NewPackageManagerFactory()
+	pm, err := f.GetPackageManager()
 
 	switch runtime.GOOS {
 	case "linux":
 		// On Linux, we should at least find one package manager
-		if err == ErrPackageManagerNotFound {
-			t.Error("No package manager found on Linux")
+		if err != nil {
+			t.Errorf("Failed to get package manager on Linux: %v", err)
 		}
 		if pm != nil && pm.Name() == "" {
 			t.Error("Package manager name is empty")
 		}
 	case "darwin":
 		// On macOS, we might find Homebrew
-		if pm != nil && pm.Name() != string(Homebrew) {
+		if pm != nil && pm.Name() != string(interfaces.Homebrew) {
 			t.Errorf("Expected Homebrew on macOS, got %s", pm.Name())
 		}
 	default:
 		// On other systems, we expect no package manager
-		if err != ErrPackageManagerNotFound {
+		if pm != nil {
 			t.Errorf("Expected no package manager, got %v", pm)
 		}
 	}
 }
 
-func TestAPTManager(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("Skipping APT tests on non-Linux system")
+func TestPackageManagerFactory(t *testing.T) {
+	f := factory.NewPackageManagerFactory()
+	pm, err := f.GetPackageManager()
+	
+	if err != nil {
+		t.Errorf("Failed to get package manager: %v", err)
 	}
-
-	apt := &APTManager{}
-	if apt.Name() != string(APT) {
-		t.Errorf("Expected APT name to be %s, got %s", APT, apt.Name())
+	
+	if pm == nil {
+		t.Fatal("Package manager is nil")
+	}
+	
+	if pm.Name() == "" {
+		t.Error("Package manager name is empty")
 	}
 }
 
-func TestHomebrewManager(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("Skipping Homebrew tests on non-macOS system")
-	}
-
-	brew := &HomebrewManager{}
-	if brew.Name() != string(Homebrew) {
-		t.Errorf("Expected Homebrew name to be %s, got %s", Homebrew, brew.Name())
-	}
-} 
+// TestAPTManager and TestHomebrewManager functions have been removed
+// as they referenced implementations that have been consolidated 

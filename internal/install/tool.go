@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
 )
 
 // PackageMapping defines package names for different package managers
@@ -57,7 +57,7 @@ func (e *InstallError) Error() string {
 // Installer handles tool installation
 type Installer struct {
 	// PackageManager is the package manager to use
-	PackageManager packages.PackageManager
+	PackageManager interfaces.PackageManager
 	// Logger is the logger to use
 	Logger *log.Logger
 	// MaxRetries is the maximum number of retries for failed operations
@@ -67,7 +67,7 @@ type Installer struct {
 }
 
 // NewInstaller creates a new installer with the given package manager
-func NewInstaller(pm packages.PackageManager) *Installer {
+func NewInstaller(pm interfaces.PackageManager) *Installer {
 	return &Installer{
 		PackageManager: pm,
 		Logger:        log.New(log.InfoLevel),

@@ -11,43 +11,144 @@ import (
 
 // SystemInfo contains information about the current system
 type SystemInfo struct {
-	OS          string
-	Arch        string
-	Distro      string
-	Version     string
-	Kernel      string
-	PackageType PackageManagerType // apt, dnf, pacman, brew
+	OS              string
+	Arch            string
+	Shell           string
+	HomeDir         string
+	Distro          string  // Linux distribution name or "macOS"
+	Version         string  // OS/distro version
+	Kernel          string  // Kernel version
+	PackageType     string  // Package manager type (apt, dnf, pacman, brew)
+	IsRoot          bool
+	IsWSL           bool
+	IsDocker        bool
+	IsVM            bool
+	IsContainer     bool
+	IsHeadless      bool
+	IsGUI           bool
+	IsSSH           bool
+	IsCI            bool
+	IsDevelopment   bool
+	IsProduction    bool
+	IsStaging       bool
+	IsTesting       bool
+	IsDebug         bool
+	IsVerbose       bool
+	IsQuiet         bool
+	IsSilent        bool
+	IsInteractive   bool
+	IsNonInteractive bool
+	IsColor         bool
+	IsNoColor       bool
+	IsForce         bool
+	IsDryRun        bool
 }
 
-// Detect returns information about the current system
+// Detect gathers information about the current system
 func Detect() (*SystemInfo, error) {
 	info := &SystemInfo{
-		OS:   runtime.GOOS,
-		Arch: runtime.GOARCH,
+		OS:     runtime.GOOS,
+		Arch:   runtime.GOARCH,
+		Shell:  os.Getenv("SHELL"),
+		HomeDir: os.Getenv("HOME"),
+		IsRoot: os.Geteuid() == 0,
 	}
-
-	var err error
 
 	// Get kernel version
-	if info.Kernel, err = getKernelVersion(); err != nil {
-		return nil, fmt.Errorf("failed to get kernel version: %w", err)
+	kernelVersion, err := getKernelVersion()
+	if err == nil {
+		info.Kernel = kernelVersion
 	}
 
-	// Get distro and version info for Linux
-	if info.OS == "linux" {
-		if err = getLinuxDistroInfo(info); err != nil {
-			return nil, fmt.Errorf("failed to get Linux distro info: %w", err)
+	// Detect OS-specific information
+	switch info.OS {
+	case "linux":
+		if err := getLinuxDistroInfo(info); err != nil {
+			return nil, fmt.Errorf("failed to get Linux distribution info: %w", err)
 		}
-	} else if info.OS == "darwin" {
-		if err = getDarwinInfo(info); err != nil {
+		// Detect package manager type
+		if _, err := exec.LookPath("apt"); err == nil {
+			info.PackageType = "apt"
+		} else if _, err := exec.LookPath("dnf"); err == nil {
+			info.PackageType = "dnf"
+		} else if _, err := exec.LookPath("pacman"); err == nil {
+			info.PackageType = "pacman"
+		}
+	case "darwin":
+		if err := getDarwinInfo(info); err != nil {
 			return nil, fmt.Errorf("failed to get macOS info: %w", err)
 		}
+		// Check for Homebrew
+		if _, err := exec.LookPath("brew"); err == nil {
+			info.PackageType = "brew"
+		}
 	}
 
-	// Detect package manager type
-	if err = detectPackageManager(info); err != nil {
-		return nil, fmt.Errorf("failed to detect package manager: %w", err)
+	// Detect WSL
+	if _, err := os.ReadFile("/proc/version"); err == nil {
+		content, err := os.ReadFile("/proc/version")
+		if err == nil {
+			info.IsWSL = strings.Contains(strings.ToLower(string(content)), "microsoft")
+		}
 	}
+
+	// Detect Docker
+	if _, err := os.ReadFile("/.dockerenv"); err == nil {
+		info.IsDocker = true
+	}
+
+	// Detect VM
+	if _, err := os.ReadFile("/sys/class/dmi/id/product_name"); err == nil {
+		content, err := os.ReadFile("/sys/class/dmi/id/product_name")
+		if err == nil {
+			product := strings.ToLower(string(content))
+			info.IsVM = strings.Contains(product, "virtualbox") ||
+				strings.Contains(product, "vmware") ||
+				strings.Contains(product, "qemu") ||
+				strings.Contains(product, "xen")
+		}
+	}
+
+	// Detect container
+	info.IsContainer = info.IsDocker || info.IsWSL
+
+	// Detect headless
+	info.IsHeadless = os.Getenv("DISPLAY") == ""
+
+	// Detect GUI
+	info.IsGUI = !info.IsHeadless
+
+	// Detect SSH
+	info.IsSSH = os.Getenv("SSH_TTY") != ""
+
+	// Detect CI
+	info.IsCI = os.Getenv("CI") != ""
+
+	// Detect environment
+	info.IsDevelopment = os.Getenv("GO_ENV") == "development"
+	info.IsProduction = os.Getenv("GO_ENV") == "production"
+	info.IsStaging = os.Getenv("GO_ENV") == "staging"
+	info.IsTesting = os.Getenv("GO_ENV") == "testing"
+
+	// Detect debug mode
+	info.IsDebug = os.Getenv("DEBUG") != ""
+	info.IsVerbose = os.Getenv("VERBOSE") != ""
+	info.IsQuiet = os.Getenv("QUIET") != ""
+	info.IsSilent = os.Getenv("SILENT") != ""
+
+	// Detect interactive mode
+	info.IsInteractive = !info.IsCI && !info.IsNonInteractive
+	info.IsNonInteractive = os.Getenv("NONINTERACTIVE") != ""
+
+	// Detect color mode
+	info.IsColor = !info.IsNoColor
+	info.IsNoColor = os.Getenv("NO_COLOR") != ""
+
+	// Detect force mode
+	info.IsForce = os.Getenv("FORCE") != ""
+
+	// Detect dry run mode
+	info.IsDryRun = os.Getenv("DRY_RUN") != ""
 
 	return info, nil
 }
@@ -122,38 +223,4 @@ func getDarwinInfo(info *SystemInfo) error {
 	}
 	info.Version = strings.TrimSpace(string(out))
 	return nil
-}
-
-// detectPackageManager determines the system's package manager
-func detectPackageManager(info *SystemInfo) error {
-	if info.OS == "linux" {
-		// Check for apt (Debian/Ubuntu)
-		if _, err := exec.LookPath("apt"); err == nil {
-			info.PackageType = PackageManagerApt
-			return nil
-		}
-
-		// Check for dnf (Fedora)
-		if _, err := exec.LookPath("dnf"); err == nil {
-			info.PackageType = PackageManagerDnf
-			return nil
-		}
-
-		// Check for pacman (Arch)
-		if _, err := exec.LookPath("pacman"); err == nil {
-			info.PackageType = PackageManagerPacman
-			return nil
-		}
-
-		return fmt.Errorf("no supported package manager found")
-	} else if info.OS == "darwin" {
-		// Check for Homebrew
-		if _, err := exec.LookPath("brew"); err == nil {
-			info.PackageType = PackageManagerHomebrew
-			return nil
-		}
-		return fmt.Errorf("Homebrew not found")
-	}
-
-	return fmt.Errorf("unsupported OS: %s", info.OS)
 } 

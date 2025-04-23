@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
@@ -45,7 +46,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// --- Phase 1: Tool Selection ---
 	logger.Info("Step 1: Select tools to install")
-	selector := ui.NewToolSelector()
+	defaultTools := []string{
+		"git", "curl", "wget", "tmux",
+		"ripgrep", "bat", "fzf", "exa",
+		"htop", "btop", "neofetch",
+	}
+	selector := ui.NewToolSelector(defaultTools)
 	p := tea.NewProgram(selector)
 
 	// Run the interactive UI
@@ -62,8 +68,18 @@ func runInit(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 
+		// Convert string slice to []*install.Tool
+		var toolObjects []*install.Tool
+		for _, name := range selectedTools {
+			toolObjects = append(toolObjects, &install.Tool{
+				Name:        name,
+				PackageName: name,
+				Description: "Selected tool", // Basic description
+			})
+		}
+
 		// Store selected tools for the installer
-		tools.SetSelectedTools(selectedTools)
+		tools.SetSelectedTools(toolObjects)
 
 		if len(selectedTools) == 0 {
 			logger.Info("No tools selected. Skipping tool installation.")
@@ -102,7 +118,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			opts := &tools.InstallOptions{
 				Logger:           logger,
 				PackageManager:   pm,
-				Tools:            selectedTools,
+				Tools:            toolObjects,
 				SkipVerification: false, // Default to verify
 				AdditionalPaths:  []string{"/usr/bin", "/usr/local/bin", "/opt/homebrew/bin"}, // Common paths
 			}

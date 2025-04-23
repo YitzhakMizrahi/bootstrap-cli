@@ -76,35 +76,30 @@ type ToolSelector struct {
 }
 
 // NewToolSelector creates a new tool selector
-func NewToolSelector() *ToolSelector {
-	categories := tools.GetToolCategories()
-	lists := make([]list.Model, len(categories))
-	selected := make(map[string]bool)
+func NewToolSelector(toolList []string) *ToolSelector {
+	items := make([]list.Item, len(toolList))
+	for i, tool := range toolList {
+		items[i] = ToolItem{
+			tool: &install.Tool{
+				Name:        tool,
+				PackageName: tool,
+			},
+		}
+	}
 
 	delegate := list.NewDefaultDelegate()
 	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Foreground(lipgloss.Color("#7D56F4"))
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Foreground(lipgloss.Color("#626262"))
 
-	// Create a list for each category
-	for i, category := range categories {
-		items := make([]list.Item, len(category.Tools))
-		for j, tool := range category.Tools {
-			tool := tool // Create new variable to avoid closure issues
-			items[j] = ToolItem{tool: &tool}
-		}
-
-		l := list.New(items, delegate, 0, 0)
-		l.Title = category.Name
-		l.SetShowHelp(false)
-		l.SetFilteringEnabled(false)
-		l.Styles.Title = categoryStyle
-		lists[i] = l
-	}
+	l := list.New(items, delegate, 0, 0)
+	l.Title = "Available Tools"
+	l.SetShowHelp(false)
+	l.SetFilteringEnabled(false)
+	l.Styles.Title = categoryStyle
 
 	return &ToolSelector{
-		categories: categories,
-		lists:      lists,
-		selected:   selected,
+		lists:      []list.Model{l},
+		selected:   make(map[string]bool),
 		width:     80,
 		height:    20,
 	}
@@ -222,15 +217,12 @@ func (m *ToolSelector) Finished() bool {
 	return m.done && !m.quitting
 }
 
-// GetSelectedTools returns the list of selected tools
-func (m *ToolSelector) GetSelectedTools() []*install.Tool {
-	var selected []*install.Tool
-	for _, category := range m.categories {
-		for _, tool := range category.Tools {
-			if m.selected[tool.Name] {
-				tool := tool // Create new variable to avoid closure issues
-				selected = append(selected, &tool)
-			}
+// GetSelectedTools returns the list of selected tool names
+func (m *ToolSelector) GetSelectedTools() []string {
+	var selected []string
+	for name, isSelected := range m.selected {
+		if isSelected {
+			selected = append(selected, name)
 		}
 	}
 	return selected

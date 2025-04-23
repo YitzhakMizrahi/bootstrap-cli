@@ -1,42 +1,36 @@
-# 🤮 PROJECT_STRUCTURE.md – Bootstrap CLI
+# 🧮 PROJECT_STRUCTURE.md – Bootstrap CLI
 
 ## 🧱 High-Level Directory Layout
 ```
 bootstrap-cli/
 ├── cmd/                # CLI commands via Cobra
 ├── internal/           # Main logic (system, install, shell, flow...)
+│   ├── system/         # OS/arch/distro detection
+│   ├── packages/       # Package manager detection + abstraction
+│   ├── install/        # Tool installation logic
+│   ├── shell/          # Shell selection, .rc file writing
+│   ├── dotfiles/       # GitHub clone only (MVP scope)
+│   ├── config/         # YAML config load/save/validate
+│   ├── flow/           # Guided CLI flows (init, install, shell, etc.)
+│   ├── ui/             # Prompt modules, spinners, selections
+│   ├── symlinks/       # Shared symlink + PATH config logic
+│   ├── utils/          # Logger, paths, validations
+│   ├── interfaces/     # Shared interfaces (ToolInstaller, ShellManager...)
+│   └── testutil/       # Reusable mocks, stubs, and helpers for unit tests
 ├── pkg/                # Optional public packages and templates
+│   ├── templates/      # Static config templates (e.g. .zshrc, starship.toml)
+│   ├── plugin/         # Optional plugin loader (post-MVP)
+│   └── i18n/           # Language packs (future)
 ├── test/               # Integration + e2e tests
+│   ├── integration/    # Real install test (via LXC)
+│   ├── fixtures/       # Static test data (YAML configs, test plans)
+│   └── e2e/            # Simulated full user flow test (init → up)
 ├── docs/               # Specifications + guides
 ├── scripts/            # Helper scripts (build, test, release)
 ├── .github/            # CI/CD config, issue templates
 ├── main.go             # Entrypoint
 └── Makefile            # Build shortcuts
 ```
-
-## 📂 internal/
-Organized by domain (loosely DDD-inspired):
-- `system/` – OS/arch/distro detection
-- `packages/` – Package manager detection + abstraction
-- `install/` – Tool installation logic
-- `shell/` – Shell selection, .rc file writing
-- `dotfiles/` – GitHub clone only (MVP scope)
-- `config/` – YAML config load/save/validate
-- `flow/` – Guided CLI flows (init, install, shell, etc.)
-- `ui/` – Prompt modules, spinners, selections
-- `symlinks/` – Shared symlink + PATH config logic
-- `utils/` – Logger, paths, validations
-
-## 📂 pkg/
-For public APIs or templates:
-- `templates/` – Static config templates (e.g. .zshrc, starship.toml)
-- `plugin/` – Optional plugin loader (post-MVP)
-- `i18n/` – Language packs (future)
-
-## 🔪 test/
-- `integration/` – Real install test (via LXC)
-- `fixtures/` – Static test data
-- `e2e/` – Simulated user flow test
 
 ## 🔧 CI/Linting
 - `.golangci.yml` – Includes: gofmt, golint, govet, errcheck
@@ -95,13 +89,13 @@ release:
 lxc launch ubuntu:22.04 bootstrap-test
 
 # Create a clean snapshot to restore from if needed
-lxc snapshot bootstrap-test clean
+lxc snapshot bootstrap-test clean-setup
 
 # Push the compiled binary with executable permissions
 lxc file push build/bin/bootstrap-cli bootstrap-test/home/devuser/bootstrap-cli --mode=755
 
 # Run the CLI interactively from inside the container
-lxc exec bootstrap-test -- su - devuser -c '/home/devuser/bootstrap-cli up'
+lxc exec bootstrap-test -- su - devuser
 ```
 
 ---

@@ -1,8 +1,12 @@
 package packages
 
 import (
+	"bytes"
 	"os/exec"
+	"strings"
 	"testing"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 )
 
 func TestNewPackageManager(t *testing.T) {
@@ -153,4 +157,90 @@ func TestPackageManager_GetVersion(t *testing.T) {
 	if version != "" {
 		t.Error("GetVersion() returned non-empty version for non-existent package")
 	}
+}
+
+func TestPackageManagerLogging(t *testing.T) {
+	// Create a buffer to capture log output
+	var logBuffer bytes.Buffer
+	
+	// Create a logger that writes to our buffer
+	customLogger := log.New(log.DebugLevel)
+	customLogger.SetOutput(&logBuffer)
+	
+	// Create a package manager with our custom logger
+	pm := &packageManager{
+		system: "ubuntu",
+		cmd:    "apt-get",
+		logger: customLogger,
+	}
+	
+	// Test Install logging
+	t.Run("Install Logging", func(t *testing.T) {
+		logBuffer.Reset()
+		_ = pm.Install("test-package")
+		
+		logOutput := logBuffer.String()
+		if !strings.Contains(logOutput, "Installing package: test-package") {
+			t.Error("Log missing installation start message")
+		}
+		if !strings.Contains(logOutput, "Failed to install package test-package") {
+			t.Error("Log missing installation failure message")
+		}
+	})
+	
+	// Test Uninstall logging
+	t.Run("Uninstall Logging", func(t *testing.T) {
+		logBuffer.Reset()
+		_ = pm.Uninstall("test-package")
+		
+		logOutput := logBuffer.String()
+		if !strings.Contains(logOutput, "Uninstalling package: test-package") {
+			t.Error("Log missing uninstallation start message")
+		}
+		if !strings.Contains(logOutput, "Failed to uninstall package test-package") {
+			t.Error("Log missing uninstallation failure message")
+		}
+	})
+	
+	// Test IsInstalled logging
+	t.Run("IsInstalled Logging", func(t *testing.T) {
+		logBuffer.Reset()
+		_, _ = pm.IsInstalled("test-package")
+		
+		logOutput := logBuffer.String()
+		if !strings.Contains(logOutput, "Checking if package is installed: test-package") {
+			t.Error("Log missing check installation message")
+		}
+		if !strings.Contains(logOutput, "Failed to check if package test-package is installed") {
+			t.Error("Log missing check installation failure message")
+		}
+	})
+	
+	// Test ListInstalled logging
+	t.Run("ListInstalled Logging", func(t *testing.T) {
+		logBuffer.Reset()
+		_, _ = pm.ListInstalled()
+		
+		logOutput := logBuffer.String()
+		if !strings.Contains(logOutput, "Listing installed packages") {
+			t.Error("Log missing list packages message")
+		}
+		if !strings.Contains(logOutput, "Failed to list installed packages") {
+			t.Error("Log missing list packages failure message")
+		}
+	})
+	
+	// Test GetVersion logging
+	t.Run("GetVersion Logging", func(t *testing.T) {
+		logBuffer.Reset()
+		_, _ = pm.GetVersion("test-package")
+		
+		logOutput := logBuffer.String()
+		if !strings.Contains(logOutput, "Getting version for package: test-package") {
+			t.Error("Log missing get version message")
+		}
+		if !strings.Contains(logOutput, "Failed to get version for package test-package") {
+			t.Error("Log missing get version failure message")
+		}
+	})
 } 

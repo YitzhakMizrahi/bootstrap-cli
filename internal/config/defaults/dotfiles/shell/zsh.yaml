@@ -1,0 +1,52 @@
+name: zsh
+description: "Modern shell with oh-my-zsh integration"
+category: "shell"
+tags: ["shell", "zsh", "oh-my-zsh"]
+files:
+  - source: "~/.oh-my-zsh"
+    destination: "~/.oh-my-zsh"
+    type: "directory"
+  - source: "~/.zshrc"
+    destination: "~/.zshrc"
+    type: "file"
+    content: |
+      # Path to oh-my-zsh
+      export ZSH="$HOME/.oh-my-zsh"
+      
+      # Theme
+      ZSH_THEME="robbyrussell"
+      
+      # Plugins
+      plugins=(
+        git
+        docker
+        kubectl
+        zsh-autosuggestions
+        zsh-syntax-highlighting
+      )
+      
+      source $ZSH/oh-my-zsh.sh
+dependencies:
+  - curl
+  - git
+shell_config:
+  env:
+    - name: LANG
+      value: "en_US.UTF-8"
+    - name: LC_ALL
+      value: "en_US.UTF-8"
+    - name: EDITOR
+      value: "vim"
+    - name: VISUAL
+      value: "vim"
+  path_append:
+    - "$HOME/.local/bin"
+    - "$HOME/bin"
+post_install:
+  - command: 'sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"'
+    description: "Install oh-my-zsh"
+  - command: "git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions"
+    description: "Install zsh-autosuggestions plugin"
+  - command: "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting"
+    description: "Install zsh-syntax-highlighting plugin"
+requires_restart: true 

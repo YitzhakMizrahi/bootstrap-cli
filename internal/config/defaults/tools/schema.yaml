@@ -1,0 +1,87 @@
+name: tool
+description: Schema for tool configuration files
+type: object
+required:
+  - name
+  - description
+  - category
+  - package_names
+properties:
+  name:
+    type: string
+    description: Name of the tool
+  description:
+    type: string
+    description: Description of the tool
+  category:
+    type: string
+    description: Category of the tool (e.g., modern, traditional)
+  tags:
+    type: array
+    items:
+      type: string
+    description: Tags for categorizing the tool
+  package_names:
+    type: object
+    description: Package names for different package managers
+    properties:
+      apt:
+        type: string
+      brew:
+        type: string
+      dnf:
+        type: string
+      pacman:
+        type: string
+  version:
+    type: string
+    description: Version of the tool to install
+  system_dependencies:
+    type: array
+    items:
+      type: string
+    description: System dependencies required by the tool
+  dependencies:
+    type: array
+    items:
+      type: string
+    description: Other tools required by this tool
+  verify_command:
+    type: string
+    description: Command to verify successful installation
+  post_install:
+    type: array
+    items:
+      type: object
+      properties:
+        command:
+          type: string
+        description:
+          type: string
+    description: Commands to run after installation
+  shell_config:
+    type: object
+    description: Shell configuration for the tool
+    properties:
+      aliases:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            command:
+              type: string
+      env:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            value:
+              type: string
+      path_append:
+        type: array
+        items:
+          type: string 

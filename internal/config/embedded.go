@@ -1,4 +1,4 @@
-package internal
+package config
 
 import (
 	"embed"
@@ -7,16 +7,15 @@ import (
 	"path/filepath"
 )
 
-// ExtractEmbeddedConfigs extracts embedded configurations to a temporary directory
-func ExtractEmbeddedConfigs(destDir string) error {
-	// Create the base config directory
-	configDir := filepath.Join(destDir, "defaults", "config")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
+//go:embed defaults/tools/schema.yaml
+//go:embed defaults/tools/modern/*.yaml
+//go:embed defaults/dotfiles/shell/*.yaml
+var configFS embed.FS
 
-	// Extract all embedded configs
-	err := extractDir(configFiles, "defaults/config", destDir)
+// ExtractEmbeddedConfigs extracts embedded configurations to the loader's base directory
+func (l *ConfigLoader) ExtractEmbeddedConfigs() error {
+	// Extract all embedded configs to the base directory
+	err := extractDir(configFS, "defaults", l.baseDir)
 	if err != nil {
 		return fmt.Errorf("failed to extract embedded configs: %w", err)
 	}
@@ -68,4 +67,14 @@ func extractFile(efs embed.FS, sourcePath, destPath string) error {
 
 	// Write file
 	return os.WriteFile(destPath, data, 0644)
+}
+
+// GetEmbeddedConfigPath returns the path to a specific embedded config file
+func (l *ConfigLoader) GetEmbeddedConfigPath(relativePath string) (string, error) {
+	fullPath := filepath.Join(l.baseDir, relativePath)
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		return "", fmt.Errorf("embedded config not found: %s", relativePath)
+	}
+
+	return fullPath, nil
 } 

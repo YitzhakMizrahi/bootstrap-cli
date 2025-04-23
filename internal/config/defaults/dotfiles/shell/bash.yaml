@@ -1,0 +1,52 @@
+name: bash
+description: "Basic bash configuration with sensible defaults"
+category: "shell"
+tags: ["shell", "bash"]
+files:
+  - source: "~/.bashrc"
+    destination: "~/.bashrc"
+    type: "file"
+    content: |
+      # If not running interactively, don't do anything
+      [[ $- != *i* ]] && return
+      
+      # History settings
+      HISTSIZE=1000
+      HISTFILESIZE=2000
+      HISTCONTROL=ignoreboth
+      shopt -s histappend
+      
+      # Check window size after each command
+      shopt -s checkwinsize
+      
+      # Make less more friendly for non-text input files
+      [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
+      
+      # Enable color support
+      if [ -x /usr/bin/dircolors ]; then
+          test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+          alias ls='ls --color=auto'
+          alias grep='grep --color=auto'
+          alias fgrep='fgrep --color=auto'
+          alias egrep='egrep --color=auto'
+      fi
+dependencies: []
+shell_config:
+  env:
+    - name: LANG
+      value: "en_US.UTF-8"
+    - name: LC_ALL
+      value: "en_US.UTF-8"
+    - name: EDITOR
+      value: "vim"
+    - name: VISUAL
+      value: "vim"
+  path_append:
+    - "$HOME/.local/bin"
+    - "$HOME/bin"
+  aliases:
+    - name: ll
+      command: "ls -l"
+    - name: la
+      command: "ls -la"
+requires_restart: true 

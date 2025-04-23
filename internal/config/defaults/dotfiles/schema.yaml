@@ -1,0 +1,98 @@
+name: dotfile
+description: Schema for dotfile configuration files
+type: object
+required:
+  - name
+  - description
+  - category
+  - files
+properties:
+  name:
+    type: string
+    description: Name of the dotfile configuration
+  description:
+    type: string
+    description: Description of what this dotfile configuration does
+  category:
+    type: string
+    description: Category of the dotfile (e.g., shell, editor, git)
+  tags:
+    type: array
+    items:
+      type: string
+    description: Tags for categorizing the dotfile
+  files:
+    type: array
+    items:
+      type: object
+      required:
+        - source
+        - destination
+        - type
+      properties:
+        source:
+          type: string
+          description: Source path or content
+        destination:
+          type: string
+          description: Destination path where the file should be placed
+        type:
+          type: string
+          enum: [file, directory, symlink]
+          description: Type of the file operation
+        content:
+          type: string
+          description: Content of the file if type is file
+        permissions:
+          type: string
+          description: File permissions in octal format
+        backup:
+          type: boolean
+          description: Whether to backup existing file
+        backup_suffix:
+          type: string
+          description: Suffix to use for backup files
+  dependencies:
+    type: array
+    items:
+      type: string
+    description: Dependencies required by this dotfile configuration
+  shell_config:
+    type: object
+    description: Shell-specific configuration
+    properties:
+      aliases:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            command:
+              type: string
+      env:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            value:
+              type: string
+      path_append:
+        type: array
+        items:
+          type: string
+  post_install:
+    type: array
+    items:
+      type: object
+      properties:
+        command:
+          type: string
+        description:
+          type: string
+    description: Commands to run after installation
+  requires_restart:
+    type: boolean
+    description: Whether a shell restart is required after applying this configuration 

@@ -1,0 +1,39 @@
+name: fish
+description: "Modern and user-friendly shell"
+category: "shell"
+tags: ["shell", "fish"]
+files:
+  - source: "~/.config/fish/config.fish"
+    destination: "~/.config/fish/config.fish"
+    type: "file"
+    content: |
+      # Set environment variables
+      set -gx LANG en_US.UTF-8
+      set -gx LC_ALL en_US.UTF-8
+      set -gx EDITOR vim
+      set -gx VISUAL vim
+      
+      # Add paths
+      fish_add_path ~/.local/bin
+      fish_add_path ~/bin
+      
+      # Enable vi mode
+      fish_vi_key_bindings
+      
+      # Configure fish colors
+      set -g fish_color_command blue
+      set -g fish_color_param cyan
+      set -g fish_color_error red
+      set -g fish_color_normal normal
+dependencies:
+  - curl
+shell_config:
+  aliases:
+    - name: ll
+      command: "ls -l"
+    - name: la
+      command: "ls -la"
+post_install:
+  - command: "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher"
+    description: "Install fisher plugin manager"
+requires_restart: true 

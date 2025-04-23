@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
@@ -44,14 +45,39 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 	logger.Info("Starting Bootstrap CLI initialization...")
 
+	// Initialize config loader
+	configLoader := config.NewConfigLoader(filepath.Join(os.TempDir(), "bootstrap-cli"))
+
+	// Detect system info and package manager early as we'll need it for multiple phases
+	sysInfo, err := system.Detect()
+	if err != nil {
+		return fmt.Errorf("failed to detect system info: %w", err)
+	}
+	
+	f := factory.NewPackageManagerFactory()
+	pm, err := f.GetPackageManager()
+	if err != nil {
+		return fmt.Errorf("failed to detect package manager: %w", err)
+	}
+	logger.Info("System: %s %s (%s)", sysInfo.Distro, sysInfo.Version, sysInfo.OS)
+	logger.Info("Package Manager: %s", pm.Name())
+
 	// --- Phase 1: Tool Selection ---
 	logger.Info("Step 1: Select tools to install")
-	defaultTools := []string{
-		"git", "curl", "wget", "tmux",
-		"ripgrep", "bat", "fzf", "exa",
-		"htop", "btop", "neofetch",
+	availableTools, err := configLoader.LoadTools()
+	if err != nil {
+		return fmt.Errorf("failed to load tool configurations: %w", err)
 	}
-	selector := ui.NewToolSelector(defaultTools)
+
+	// Extract tool names for the selector
+	var toolNames []string
+	toolMap := make(map[string]*install.Tool)
+	for _, tool := range availableTools {
+		toolNames = append(toolNames, tool.Name)
+		toolMap[tool.Name] = tool
+	}
+
+	selector := ui.NewToolSelector(toolNames)
 	p := tea.NewProgram(selector)
 
 	// Run the interactive UI
@@ -62,24 +88,22 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Check if user quit
 	if selectorModel, ok := model.(*ui.ToolSelector); ok {
-		selectedTools := selectorModel.GetSelectedTools()
-		if len(selectedTools) == 0 && !selectorModel.Finished() { // Check if quit early or finished with no selection
+		selectedNames := selectorModel.GetSelectedTools()
+		if len(selectedNames) == 0 && !selectorModel.Finished() {
 			logger.Info("Initialization cancelled or no tools selected.")
 			return nil
 		}
 
-		// Convert string slice to []*install.Tool
-		var toolObjects []*install.Tool
-		for _, name := range selectedTools {
-			toolObjects = append(toolObjects, &install.Tool{
-				Name:        name,
-				PackageName: name,
-				Description: "Selected tool", // Basic description
-			})
+		// Convert selected names back to Tool objects
+		var selectedTools []*install.Tool
+		for _, name := range selectedNames {
+			if tool, exists := toolMap[name]; exists {
+				selectedTools = append(selectedTools, tool)
+			}
 		}
 
 		// Store selected tools for the installer
-		tools.SetSelectedTools(toolObjects)
+		tools.SetSelectedTools(selectedTools)
 
 		if len(selectedTools) == 0 {
 			logger.Info("No tools selected. Skipping tool installation.")
@@ -91,42 +115,23 @@ func runInit(cmd *cobra.Command, args []string) error {
 			if !system.IsRoot() {
 				logger.Warn("Tool installation requires root privileges.")
 				logger.Info("Attempting to relaunch with sudo...")
-				// TODO: Implement a more robust sudo prompt/handling mechanism
-				// For now, just error out and instruct the user.
 				fmt.Printf("\nPlease re-run the command with sudo: sudo %s\n\n", strings.Join(os.Args, " "))
 				return fmt.Errorf("root privileges required for tool installation")
 			}
 
-			// Configure needrestart automatically (best effort)
+			// Configure needrestart automatically
 			if err := configureNeedrestart(); err != nil {
 				logger.Warn("Failed to configure needrestart for automatic restarts: %v", err)
 			}
 
-			// Detect system info and package manager
-			sysInfo, err := system.Detect()
-			if err != nil {
-				return fmt.Errorf("failed to detect system info: %w", err)
-			}
-			
-			// Use the factory to get the package manager
-			f := factory.NewPackageManagerFactory()
-			pm, err := f.GetPackageManager()
-			if err != nil {
-				return fmt.Errorf("failed to detect package manager: %w", err)
-			}
-			logger.Info("System: %s %s (%s)", sysInfo.Distro, sysInfo.Version, sysInfo.OS)
-			logger.Info("Package Manager: %s", pm.Name())
-
-			// Create installation options
 			opts := &tools.InstallOptions{
 				Logger:           logger,
 				PackageManager:   pm,
-				Tools:            toolObjects,
-				SkipVerification: false, // Default to verify
-				AdditionalPaths:  []string{"/usr/bin", "/usr/local/bin", "/opt/homebrew/bin"}, // Common paths
+				Tools:            selectedTools,
+				SkipVerification: false,
+				AdditionalPaths:  []string{"/usr/bin", "/usr/local/bin", "/opt/homebrew/bin"},
 			}
 
-			// Install selected tools (using the internal function)
 			if err := tools.InstallCoreTools(opts); err != nil {
 				return fmt.Errorf("failed to install selected tools: %w", err)
 			}
@@ -137,8 +142,53 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get tool selector model")
 	}
 
-	// --- Placeholder for Future Phases ---
-	logger.Info("Shell configuration and dotfiles setup coming soon.")
+	// --- Phase 3: Font Selection ---
+	logger.Info("Step 3: Select fonts to install")
+	_, err = configLoader.LoadFonts() // We'll use the fonts later when we implement the UI
+	if err != nil {
+		return fmt.Errorf("failed to load font configurations: %w", err)
+	}
+
+	// TODO: Add font selection UI similar to tools
+	// For now, just install JetBrains Mono if user confirms
+	if installFonts, err := ui.PromptFontInstallation(); err == nil && installFonts {
+		fontInstaller := install.NewFontInstaller(logger)
+		if err := fontInstaller.InstallJetBrainsMono(); err != nil {
+			logger.Error("Failed to install JetBrains Mono font: %v", err)
+		} else {
+			logger.Success("Font installation completed successfully!")
+		}
+	}
+
+	// --- Phase 4: Language Selection ---
+	logger.Info("Step 4: Select programming languages to install")
+	_, err = configLoader.LoadLanguages() // We'll use the languages later when we implement the UI
+	if err != nil {
+		return fmt.Errorf("failed to load language configurations: %w", err)
+	}
+
+	// TODO: Add language selection UI similar to tools
+	// For now, prompt for common runtimes
+	if selectedRuntimes, err := ui.PromptLanguageRuntimes(); err == nil && len(selectedRuntimes) > 0 {
+		runtimeInstaller := install.NewRuntimeInstaller(pm, logger)
+		for _, runtime := range selectedRuntimes {
+			if err := runtimeInstaller.Install(runtime); err != nil {
+				logger.Error("Failed to install runtime %s: %v", runtime, err)
+			}
+		}
+		logger.Success("Language runtime installation completed successfully!")
+	}
+
+	// --- Phase 5: Dotfiles Setup ---
+	logger.Info("Step 5: Configure dotfiles")
+	_, err = configLoader.LoadDotfiles() // We'll use the dotfiles later when we implement the UI
+	if err != nil {
+		return fmt.Errorf("failed to load dotfile configurations: %w", err)
+	}
+
+	// TODO: Add dotfiles selection and setup UI
+	// For now, just log that it's coming soon
+	logger.Info("Dotfiles setup coming soon!")
 
 	logger.Success("Bootstrap CLI initialization finished!")
 	return nil

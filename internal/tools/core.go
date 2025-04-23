@@ -3,11 +3,10 @@ package tools
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
@@ -22,55 +21,41 @@ type ToolCategory struct {
 
 // GetToolCategories returns all available tool categories
 func GetToolCategories() ([]ToolCategory, error) {
-	// Create a temporary directory for extracted configs
-	tempDir, err := os.MkdirTemp("", "bootstrap-cli-config-*")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp directory: %w", err)
-	}
-	defer os.RemoveAll(tempDir) // Clean up on exit
-
-	// Extract embedded configs to the temp directory
-	err = internal.ExtractEmbeddedConfigs(tempDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract embedded configs: %w", err)
-	}
-
 	// Create config loader with the temp directory
-	loader := internal.NewConfigLoader(tempDir)
-	
-	// Load tools from each category
-	essentialTools, err := loader.GetToolsByCategory("tools", "essential")
+	loader := config.NewConfigLoader("")
+
+	// Load all tools
+	tools, err := loader.LoadTools()
 	if err != nil {
-		return nil, fmt.Errorf("error loading essential tools: %w", err)
+		return nil, fmt.Errorf("error loading tools: %w", err)
 	}
 
-	modernTools, err := loader.GetToolsByCategory("tools", "modern")
-	if err != nil {
-		return nil, fmt.Errorf("error loading modern tools: %w", err)
+	// Group tools by category
+	categories := make(map[string][]*install.Tool)
+	for _, tool := range tools {
+		categories[tool.Category] = append(categories[tool.Category], tool)
 	}
 
-	systemTools, err := loader.GetToolsByCategory("tools", "system")
-	if err != nil {
-		return nil, fmt.Errorf("error loading system tools: %w", err)
-	}
-
-	return []ToolCategory{
+	// Create tool categories
+	result := []ToolCategory{
 		{
 			Name:        "Essential Tools",
 			Description: "Core development tools required for most workflows",
-			Tools:       essentialTools,
+			Tools:       categories["essential"],
 		},
 		{
 			Name:        "Modern CLI Tools",
 			Description: "Modern alternatives to traditional command-line tools",
-			Tools:       modernTools,
+			Tools:       categories["modern"],
 		},
 		{
 			Name:        "System Tools",
 			Description: "System monitoring and management utilities",
-			Tools:       systemTools,
+			Tools:       categories["system"],
 		},
-	}, nil
+	}
+
+	return result, nil
 }
 
 // CoreTool represents a core development tool

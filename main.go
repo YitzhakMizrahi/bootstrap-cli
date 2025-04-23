@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/cmd"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 )
 
 func main() {
@@ -16,9 +16,9 @@ func main() {
 	}
 	defer os.RemoveAll(tempDir) // Clean up on exit
 
-	// Extract embedded configs to the temp directory
-	err = internal.ExtractEmbeddedConfigs(tempDir)
-	if err != nil {
+	// Create config loader and extract configs
+	loader := config.NewConfigLoader(tempDir)
+	if err := loader.ExtractEmbeddedConfigs(); err != nil {
 		log.Fatalf("Failed to extract embedded configs: %v", err)
 	}
 

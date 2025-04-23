@@ -1,0 +1,24 @@
+name: lsd
+description: "Modern ls command with colors and icons"
+category: "modern"
+tags: ["cli", "ls", "modern"]
+package_names:
+  apt: lsd
+  brew: lsd
+  dnf: lsd
+  pacman: lsd
+version: "0.23.1"
+system_dependencies: []
+dependencies: []
+verify_command: "lsd --version"
+post_install: []
+shell_config:
+  aliases:
+    - name: ls
+      command: "lsd"
+    - name: ll
+      command: "lsd -l"
+    - name: la
+      command: "lsd -la"
+    - name: lt
+      command: "lsd --tree" 

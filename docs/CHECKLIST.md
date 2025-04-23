@@ -23,7 +23,7 @@ This file tracks implementation milestones. Only update entries **after passing 
 
 | Feature                          | Status  | Notes                         |
 |----------------------------------|---------|-------------------------------|
-| Shell detection (zsh/bash/fish) | ⬛ Todo |                               |
+| Shell detection (zsh/bash/fish) | ✅ Done | Implemented with tests passing |
 | Shell config writer              | ⬛ Todo |                               |
 | Dotfiles clone from GitHub       | ⬛ Todo | MVP supports only GitHub cloning |
 | YAML config loader/saver         | ⬛ Todo |                               |

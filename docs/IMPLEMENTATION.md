@@ -2,33 +2,37 @@
 
 ## ✅ Phase Breakdown
 
-### 📦 Phase 1: Core Infrastructure
-- [ ] System detection (OS, distro, arch)
-- [ ] Package manager detection and abstraction
-- [ ] Core Tool + Installer interface
-- [ ] Tool verification and validation
-- [ ] Modular flow logic in `internal/flow/`
-- [ ] Symlink task struct for unified path/config management
-- [ ] Tests for package ops
+### 📦 Phase 1: Core Infrastructure [COMPLETED]
+- [x] System detection (OS, distro, arch)
+- [x] Package manager detection and abstraction
+- [x] Core Tool + Installer interface
+- [x] Tool verification and validation
+- [x] Modular flow logic in `internal/flow/`
+- [x] Symlink task struct for unified path/config management
+- [x] Tests for package ops
 
-### 🐚 Phase 2: Shell & Configuration
-- [ ] Shell detection and config writing
-- [ ] Dotfile clone from GitHub (optional)
-- [ ] YAML config loader/saver
-- [ ] Configuration validation
-- [ ] Apply declared symlinks via shared handler
-- [ ] Dotfile symlink and PATH setup validation
-- [ ] Tests for config and dotfiles
+### 🐚 Phase 2: Shell & Configuration [IN PROGRESS]
+- [x] Shell detection and config writing
+- [ ] Dotfile clone from GitHub (in progress)
+- [x] YAML config loader/saver
+- [x] Configuration validation
+- [ ] Apply declared symlinks via shared handler (in progress)
+- [ ] Dotfile symlink and PATH setup validation (in progress)
+- [ ] Tests for config and dotfiles (in progress)
 
-### 📚 Phase 3: Enhanced Features
-- [ ] pyenv, nvm, rustup, goenv support
+### 📚 Phase 3: Enhanced Features [PLANNED]
+- [ ] Language runtime support
+  - [ ] pyenv for Python
+  - [ ] nvm for Node.js
+  - [ ] rustup for Rust
+  - [ ] goenv for Go
 - [ ] Font installer (JetBrains Nerd)
 - [ ] Plugin system scaffold (deferred post-MVP)
 - [ ] Bubbletea CLI UI enhancements (experimental in v2)
 - [ ] Config preview screen
 - [ ] Notification + logs
 
-### 🚀 Phase 4: Polish & Optimization
+### 🚀 Phase 4: Polish & Optimization [PLANNED]
 - [ ] Parallel installs
 - [ ] Caching, lazy loading
 - [ ] Error recovery and logging
@@ -38,12 +42,13 @@
 ---
 
 ## 🔍 Testing Strategy
-- `go test ./...`
 - Unit tests per internal package
 - Integration tests in LXC container
 - Fixture-based test data
-
----
+- Test coverage targets:
+  - Core packages: 80%+
+  - UI/Flow packages: 70%+
+  - Utils: 90%+
 
 ## 📦 Config File Schema
 ```yaml
@@ -61,22 +66,26 @@ tools:
   - lsd
 ```
 
----
+## 🧩 Core Interfaces
+### PackageManager
+- Handles system package operations
+- Supports apt, dnf, pacman, homebrew
+- Methods: Install, Remove, Update, IsInstalled
 
-## 🧩 CLI Commands (MVP)
-- `bootstrap-cli up` - full flow orchestration
-- `bootstrap-cli init` - interactive setup
-- `bootstrap-cli detect` - detect system
-- `bootstrap-cli dotfiles` - clone from GitHub
-- `bootstrap-cli shell` - install & configure shell
-- `bootstrap-cli install` - install core tools
-- `bootstrap-cli languages` - install runtimes
-- `bootstrap-cli font` - install fonts
-- `bootstrap-cli validate` - validate setup
-- `bootstrap-cli config` - view/export config
-- `bootstrap-cli version` - show version
+### ToolInstaller
+- Manages tool installation and verification
+- Supports system-specific package names
+- Handles post-install configuration
 
----
+### ShellManager
+- Detects and configures shells
+- Manages shell configuration files
+- Supports bash, zsh, fish
+
+### DotfilesManager
+- Handles dotfile operations
+- Supports GitHub repository cloning
+- Manages symlinks and backups
 
 ## 🔗 Symlink & Path Setup
 Bootstrap CLI ensures installed tools and runtime environments are ready out-of-the-box by:
@@ -87,16 +96,12 @@ Bootstrap CLI ensures installed tools and runtime environments are ready out-of-
 - Appending PATH and language init commands to `.zshrc`/`.bashrc` as needed
 - Verifying correctness via shell validation step (`command -v`, `which`)
 
----
-
 ## 🔮 Future Enhancements
 - Notification history
 - Remote config sync + backup
 - Rollback support
 - i18n + accessibility
 - GUI launcher wrapper
-
----
 
 ## 📌 Notes
 - Each module testable in isolation

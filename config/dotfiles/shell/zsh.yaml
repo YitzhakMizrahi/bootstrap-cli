@@ -1,41 +1,12 @@
-name: Basic Shell Configuration
-description: "Basic shell configuration with common aliases and settings"
+name: Zsh Configuration
+description: "Basic Zsh shell configuration with common aliases and settings"
 category: shell
 tags:
   - shell
+  - zsh
   - terminal
   - productivity
 files:
-  - source: |
-      # Basic shell configuration
-      export EDITOR=vim
-      export VISUAL=vim
-      export LANG=en_US.UTF-8
-      export LC_ALL=en_US.UTF-8
-      
-      # History settings
-      HISTSIZE=10000
-      HISTFILESIZE=20000
-      HISTCONTROL=ignoreboth:erasedups
-      
-      # Common aliases
-      alias ll='ls -la'
-      alias la='ls -A'
-      alias l='ls -CF'
-      alias ..='cd ..'
-      alias ...='cd ../..'
-      alias grep='grep --color=auto'
-      
-      # Enable color support
-      if [ -x /usr/bin/dircolors ]; then
-          test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
-          alias ls='ls --color=auto'
-      fi
-    destination: ~/.bashrc
-    type: content
-    permissions: "0644"
-    backup: true
-    backup_suffix: ".bak"
   - source: |
       # Zsh specific configuration
       autoload -Uz compinit
@@ -63,6 +34,12 @@ files:
       alias ..='cd ..'
       alias ...='cd ../..'
       alias grep='grep --color=auto'
+      
+      # Environment variables
+      export EDITOR=vim
+      export VISUAL=vim
+      export LANG=en_US.UTF-8
+      export LC_ALL=en_US.UTF-8
     destination: ~/.zshrc
     type: content
     permissions: "0644"
@@ -70,6 +47,7 @@ files:
     backup_suffix: ".bak"
 dependencies:
   - vim
+  - zsh
 shell_config:
   env:
     EDITOR: vim

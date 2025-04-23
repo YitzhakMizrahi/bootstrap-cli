@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
@@ -15,205 +16,46 @@ import (
 type ToolCategory struct {
 	Name        string
 	Description string
-	Tools       []install.Tool
+	Tools       []*install.Tool
 }
 
 // GetToolCategories returns all available tool categories
-func GetToolCategories() []ToolCategory {
+func GetToolCategories() ([]ToolCategory, error) {
+	loader := config.NewConfigLoader("config")
+	
+	// Load tools from each category
+	essentialTools, err := loader.GetToolsByCategory("tools", "essential")
+	if err != nil {
+		return nil, fmt.Errorf("error loading essential tools: %w", err)
+	}
+
+	modernTools, err := loader.GetToolsByCategory("tools", "modern")
+	if err != nil {
+		return nil, fmt.Errorf("error loading modern tools: %w", err)
+	}
+
+	systemTools, err := loader.GetToolsByCategory("tools", "system")
+	if err != nil {
+		return nil, fmt.Errorf("error loading system tools: %w", err)
+	}
+
 	return []ToolCategory{
 		{
 			Name:        "Essential Tools",
 			Description: "Core development tools required for most workflows",
-			Tools:       essentialTools(),
+			Tools:       essentialTools,
 		},
 		{
 			Name:        "Modern CLI Tools",
 			Description: "Modern alternatives to traditional command-line tools",
-			Tools:       modernCliTools(),
+			Tools:       modernTools,
 		},
 		{
 			Name:        "System Tools",
 			Description: "System monitoring and management utilities",
-			Tools:       systemTools(),
+			Tools:       systemTools,
 		},
-	}
-}
-
-func essentialTools() []install.Tool {
-	return []install.Tool{
-		{
-			Name:        "git",
-			PackageName: "git",
-			Description: "Distributed version control system",
-			VerifyCommand: "git --version",
-		},
-		{
-			Name:        "curl",
-			PackageName: "curl",
-			Description: "Command line tool for transferring data with URLs",
-			VerifyCommand: "curl --version",
-		},
-		{
-			Name:        "wget",
-			PackageName: "wget",
-			Description: "Non-interactive network downloader",
-			VerifyCommand: "wget --version",
-		},
-		{
-			Name:        "build-essential",
-			PackageName: "build-essential",
-			Description: "Basic build tools and libraries",
-			PackageNames: &install.PackageMapping{
-				Default: "build-essential",
-				APT:     "build-essential",
-				DNF:     "gcc-c++ make",
-				Pacman:  "base-devel",
-			},
-			VerifyCommand: "gcc --version",
-		},
-		{
-			Name:        "vim",
-			PackageName: "vim",
-			Description: "Improved vi editor",
-			VerifyCommand: "vim --version",
-		},
-		{
-			Name:        "nano",
-			PackageName: "nano",
-			Description: "Simple text editor",
-			VerifyCommand: "nano --version",
-		},
-	}
-}
-
-func modernCliTools() []install.Tool {
-	return []install.Tool{
-		{
-			Name:        "ripgrep",
-			PackageName: "ripgrep",
-			Description: "Modern grep alternative written in Rust",
-			VerifyCommand: "rg --version",
-			Category: "Modern CLI",
-			Tags: []string{"search", "grep", "rust"},
-			SystemDependencies: []string{"build-essential"},
-		},
-		{
-			Name:        "bat",
-			PackageName: "bat",
-			Description: "Cat clone with syntax highlighting and Git integration",
-			VerifyCommand: "bat --version",
-			Category: "Modern CLI",
-			Tags: []string{"cat", "syntax", "highlighting"},
-			PackageNames: &install.PackageMapping{
-				Default: "bat",
-				APT:     "bat",
-				DNF:     "bat",
-				Pacman:  "bat",
-				Brew:    "bat",
-			},
-			ShellConfig: &install.ShellConfig{
-				Aliases: map[string]string{
-					"cat": "bat",
-				},
-			},
-		},
-		{
-			Name:        "fzf",
-			PackageName: "fzf",
-			Description: "Command-line fuzzy finder",
-			VerifyCommand: "fzf --version",
-			Category: "Modern CLI",
-			Tags: []string{"fuzzy", "search", "finder"},
-			ShellConfig: &install.ShellConfig{
-				Functions: map[string]string{
-					"fzf-find": `find . -type f -not -path '*/\.*' | fzf --preview 'bat --color=always --style=numbers --line-range=:500 {}'`,
-					"fzf-cd":   `cd "$(find . -type d | fzf)"`,
-				},
-				PathAdditions: []string{"/usr/local/opt/fzf/shell"},
-			},
-			ConfigFiles: []install.ConfigFile{
-				{
-					Source:      "/usr/local/opt/fzf/shell/key-bindings.zsh",
-					Destination: "${HOME}/.config/fzf/key-bindings.zsh",
-					Type:        "symlink",
-				},
-				{
-					Source:      "/usr/local/opt/fzf/shell/completion.zsh",
-					Destination: "${HOME}/.config/fzf/completion.zsh",
-					Type:        "symlink",
-				},
-			},
-		},
-		{
-			Name:        "lsd",
-			PackageName: "lsd",
-			Description: "Modern ls alternative",
-			VerifyCommand: "lsd --version",
-			Category: "Modern CLI",
-			Tags: []string{"ls", "directory", "listing"},
-			PackageNames: &install.PackageMapping{
-				Default: "lsd",
-				APT:     "lsd",
-				DNF:     "lsd",
-				Pacman:  "lsd",
-				Brew:    "lsd",
-			},
-			ShellConfig: &install.ShellConfig{
-				Aliases: map[string]string{
-					"ls":   "lsd",
-					"ll":   "lsd -l",
-					"la":   "lsd -la",
-					"lt":   "lsd --tree",
-					"ltt":  "lsd --tree --depth 2",
-					"lttt": "lsd --tree --depth 3",
-				},
-			},
-		},
-		{
-			Name:        "zoxide",
-			PackageName: "zoxide",
-			Description: "Smarter cd command",
-			VerifyCommand: "zoxide --version",
-			Category: "Modern CLI",
-			Tags: []string{"cd", "navigation", "directory"},
-			ShellConfig: &install.ShellConfig{
-				Functions: map[string]string{
-					"cd": "zoxide cd",
-				},
-				Env: map[string]string{
-					"_ZO_DATA_DIR": "${HOME}/.local/share/zoxide",
-				},
-			},
-			PostInstall: []string{
-				"zoxide init zsh > ${HOME}/.config/zoxide/zsh.zsh",
-				"zoxide init bash > ${HOME}/.config/zoxide/bash.bash",
-				"zoxide init fish > ${HOME}/.config/fish/conf.d/zoxide.fish",
-			},
-		},
-	}
-}
-
-func systemTools() []install.Tool {
-	return []install.Tool{
-		{
-			Name:        "htop",
-			PackageName: "htop",
-			Description: "Interactive process viewer",
-			VerifyCommand: "htop --version",
-		},
-		{
-			Name:        "btop",
-			PackageName: "btop",
-			Description: "Resource monitor with additional features",
-			VerifyCommand: "btop --version",
-		},
-		{
-			Name:        "neofetch",
-			PackageName: "neofetch",
-			Description: "System information tool",
-			VerifyCommand: "neofetch --version",
-		},
-	}
+	}, nil
 }
 
 // CoreTool represents a core development tool
@@ -398,13 +240,13 @@ func runCommand(cmd string) error {
 	return nil
 }
 
-// InstallOptions contains options for installing tools
+// InstallOptions represents options for tool installation
 type InstallOptions struct {
 	Logger           *log.Logger
 	PackageManager   interfaces.PackageManager
 	Tools           []*install.Tool
 	SkipVerification bool
-	AdditionalPaths  []string // Additional paths to search for binaries during verification
+	AdditionalPaths []string
 }
 
 var selectedTools []*install.Tool
@@ -417,4 +259,32 @@ func GetSelectedTools() []*install.Tool {
 // SetSelectedTools sets the list of tools to be installed
 func SetSelectedTools(tools []*install.Tool) {
 	selectedTools = tools
+}
+
+// InstallSelectedTools installs a set of selected development tools
+func InstallSelectedTools(opts *InstallOptions) error {
+	if opts.Logger == nil {
+		opts.Logger = log.New(log.InfoLevel)
+	}
+
+	for _, tool := range opts.Tools {
+		opts.Logger.Info("Installing %s...", tool.Name)
+		
+		// Create installer for the tool
+		installer := install.NewInstaller(opts.PackageManager)
+		
+		// Install the tool
+		if err := installer.Install(tool); err != nil {
+			return fmt.Errorf("failed to install %s: %w", tool.Name, err)
+		}
+
+		// Verify installation if not skipped
+		if !opts.SkipVerification {
+			if err := VerifyTool(tool, opts.AdditionalPaths); err != nil {
+				return fmt.Errorf("failed to verify %s: %w", tool.Name, err)
+			}
+		}
+	}
+
+	return nil
 } 

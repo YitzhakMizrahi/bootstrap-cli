@@ -57,18 +57,36 @@ func runUp(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 4: Shell Selection
-	shellMgr := shell.NewManager()
+	shellMgr := shell.NewDefaultManager()
 	shellInfo, err := shellMgr.DetectCurrent()
 	if err != nil {
 		return fmt.Errorf("failed to detect shell: %w", err)
 	}
+
+	// Get list of available shells
+	availableShells, err := shellMgr.ListAvailable()
+	if err != nil {
+		return fmt.Errorf("failed to list available shells: %w", err)
+	}
+
+	// Update shellInfo with the complete list of available shells
+	shellInfo.Available = make([]string, 0)
+	for _, shell := range availableShells {
+		if !contains(shellInfo.Available, shell.Current) {
+			shellInfo.Available = append(shellInfo.Available, shell.Current)
+		}
+	}
+
 	selectedShell, err := ui.PromptShellSelection(shellInfo)
 	if err != nil {
 		return fmt.Errorf("failed to handle shell selection: %w", err)
 	}
 	if selectedShell != "" {
-		// TODO: Implement shell configuration
-		fmt.Printf("Configuring shell: %s\n", selectedShell)
+		// Configure the selected shell
+		if err := shellMgr.ConfigureShell(selectedShell); err != nil {
+			return fmt.Errorf("failed to configure shell: %w", err)
+		}
+		fmt.Printf("Shell configured: %s\n", selectedShell)
 	}
 
 	// Step 5: Font Installer (Optional)
@@ -115,14 +133,16 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	// Convert selected tool names back to install.Tool objects
 	var toolsToInstall []*install.Tool
-	allToolCategories := tools.GetToolCategories()
+	allToolCategories, err := tools.GetToolCategories()
+	if err != nil {
+		return fmt.Errorf("failed to get tool categories: %w", err)
+	}
 	for _, selectedName := range selectedTools {
 		found := false
 		for _, category := range allToolCategories {
 			for _, tool := range category.Tools {
 				if tool.Name == selectedName {
-					toolRef := tool // Create a local copy for the pointer
-					toolsToInstall = append(toolsToInstall, &toolRef)
+					toolsToInstall = append(toolsToInstall, tool)
 					found = true
 					break
 				}
@@ -177,4 +197,14 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("Bootstrap process completed successfully!")
 	return nil
+}
+
+// contains checks if a string is present in a slice
+func contains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
 } 

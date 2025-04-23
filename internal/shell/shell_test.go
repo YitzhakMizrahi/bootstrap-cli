@@ -128,21 +128,21 @@ func TestDetectCurrent(t *testing.T) {
 		name        string
 		shellEnv    string
 		wantErr     bool
-		wantShell   interfaces.Shell
+		wantShell   string
 		wantDefault bool
 	}{
 		{
 			name:        "bash shell",
 			shellEnv:    bashPath,
 			wantErr:     false,
-			wantShell:   interfaces.Bash,
+			wantShell:   string(interfaces.Bash),
 			wantDefault: true,
 		},
 		{
 			name:        "zsh shell",
 			shellEnv:    zshPath,
 			wantErr:     false,
-			wantShell:   interfaces.Zsh,
+			wantShell:   string(interfaces.Zsh),
 			wantDefault: true,
 		},
 		{
@@ -173,7 +173,7 @@ func TestDetectCurrent(t *testing.T) {
 
 			os.Setenv("SHELL", tt.shellEnv)
 			
-			m := NewManager()
+			m := NewDefaultManager()
 			info, err := m.DetectCurrent()
 			
 			if (err != nil) != tt.wantErr {
@@ -197,7 +197,7 @@ func TestDetectCurrent(t *testing.T) {
 }
 
 func TestListAvailable(t *testing.T) {
-	m := NewManager()
+	m := NewDefaultManager()
 	shells, err := m.ListAvailable()
 	if err != nil {
 		t.Errorf("ListAvailable() error = %v", err)

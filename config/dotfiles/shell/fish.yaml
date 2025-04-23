@@ -1,0 +1,76 @@
+name: Fish Configuration
+description: "Modern Fish shell configuration with smart features enabled"
+category: shell
+tags:
+  - shell
+  - fish
+  - terminal
+  - modern
+  - productivity
+files:
+  - source: |
+      # Fish specific configuration
+      
+      # Enable vi mode
+      fish_vi_key_bindings
+      
+      # Set environment variables
+      set -gx EDITOR vim
+      set -gx VISUAL vim
+      set -gx LANG en_US.UTF-8
+      set -gx LC_ALL en_US.UTF-8
+      
+      # Enable modern features
+      set -g fish_color_autosuggestion '555'  # Subtle autosuggestions
+      set -g fish_color_command blue
+      set -g fish_color_error red
+      set -g fish_color_param cyan
+      
+      # Common aliases (using Fish functions)
+      function ll; ls -la $argv; end
+      function la; ls -A $argv; end
+      function l; ls -CF $argv; end
+      function ..; cd ..; end
+      function ...; cd ../..; end
+      
+      # Enable directory colors
+      if type -q dircolors
+          eval (dircolors -c)
+      end
+      
+      # Better directory navigation
+      function cd
+          builtin cd $argv
+          ls
+      end
+      
+      # Enable modern features
+      set -g fish_greeting # Disable greeting
+      
+      # Enable async prompt
+      set -g async_prompt_functions _pure_prompt_git
+    destination: ~/.config/fish/config.fish
+    type: content
+    permissions: "0644"
+    backup: true
+    backup_suffix: ".bak"
+  - source: |
+      # Fish functions directory
+      mkdir -p ~/.config/fish/functions
+    destination: ~/.config/fish/functions
+    type: directory
+    permissions: "0755"
+dependencies:
+  - vim
+  - fish
+shell_config:
+  env:
+    EDITOR: vim
+    VISUAL: vim
+    LANG: en_US.UTF-8
+    LC_ALL: en_US.UTF-8
+  path_additions: []
+post_install:
+  - fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher"
+  - fish -c "fisher install pure-fish/pure" # Install pure prompt
+requires_restart: true 

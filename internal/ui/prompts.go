@@ -82,20 +82,33 @@ func PromptDotfiles() (string, error) {
 	return url, nil
 }
 
-// PromptShellSelection prompts for shell selection
-func PromptShellSelection(currentShell *interfaces.ShellInfo) (string, error) {
-	shells := []string{"zsh", "bash", "fish"}
-	prompt := promptui.Select{
-		Label: fmt.Sprintf("Choose your shell (current: %s)", currentShell.Type),
-		Items: shells,
+// PromptShellSelection prompts the user to select a shell
+func PromptShellSelection(shellInfo *interfaces.ShellInfo) (string, error) {
+	if len(shellInfo.Available) == 0 {
+		return "", fmt.Errorf("no supported shells found")
 	}
 
-	_, result, err := prompt.Run()
+	prompt := promptui.Select{
+		Label: "Select your preferred shell",
+		Items: shellInfo.Available,
+		Templates: &promptui.SelectTemplates{
+			Label:    "{{ . | cyan }}",
+			Active:   "➤ {{ . | cyan }}",
+			Inactive: "  {{ . | white }}",
+			Selected: "{{ . | green }}",
+			Details: `
+{{ "Current shell:" | faint }}	{{ .Current }}
+{{ "Default shell:" | faint }}	{{ .DefaultPath }}
+`,
+		},
+	}
+
+	_, selected, err := prompt.Run()
 	if err != nil {
 		return "", fmt.Errorf("prompt failed: %w", err)
 	}
 
-	return result, nil
+	return selected, nil
 }
 
 // PromptFontInstallation prompts for font installation

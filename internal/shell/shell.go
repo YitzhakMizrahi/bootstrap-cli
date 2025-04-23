@@ -13,8 +13,8 @@ import (
 // DefaultManager is the default implementation of interfaces.ShellManager
 type DefaultManager struct{}
 
-// NewManager creates a new shell manager
-func NewManager() interfaces.ShellManager {
+// NewDefaultManager creates a new shell manager
+func NewDefaultManager() interfaces.ShellManager {
 	return &DefaultManager{}
 }
 
@@ -62,39 +62,34 @@ func (m *DefaultManager) IsInstalled(shell interfaces.Shell) bool {
 
 // GetInfo returns detailed information about a specific shell
 func (m *DefaultManager) GetInfo(shell interfaces.Shell) (*interfaces.ShellInfo, error) {
-	if !m.IsInstalled(shell) {
-		return nil, fmt.Errorf("shell %s is not installed", shell)
-	}
-
-	shellPath, err := exec.LookPath(string(shell))
+	// Find shell executable
+	path, err := exec.LookPath(string(shell))
 	if err != nil {
-		return nil, fmt.Errorf("failed to find shell path: %w", err)
+		return nil, fmt.Errorf("shell not found: %w", err)
 	}
 
 	// Get shell version
-	version, err := getShellVersion(shell, shellPath)
+	version, err := getShellVersion(shell, path)
 	if err != nil {
-		version = "unknown" // Set unknown version but don't fail
+		version = "unknown"
 	}
-
-	// Check if it's the default shell by comparing resolved paths
-	currentShell := os.Getenv("SHELL")
-	currentShellPath, err := filepath.EvalSymlinks(currentShell)
-	if err != nil {
-		currentShellPath = currentShell
-	}
-	shellRealPath, err := filepath.EvalSymlinks(shellPath)
-	if err != nil {
-		shellRealPath = shellPath
-	}
-	isDefault := currentShellPath == shellRealPath
 
 	// Get config files
 	configFiles := getShellConfigFiles(shell)
 
+	// Check if this is the default shell
+	isDefault := false
+	defaultShell := os.Getenv("SHELL")
+	if defaultShell != "" && filepath.Base(defaultShell) == string(shell) {
+		isDefault = true
+	}
+
 	return &interfaces.ShellInfo{
-		Type:        shell,
-		Path:        shellPath,
+		Current:     string(shell),
+		Available:   []string{string(shell)},
+		DefaultPath: path,
+		Type:        string(shell),
+		Path:        path,
 		Version:     version,
 		IsDefault:   isDefault,
 		IsAvailable: true,
@@ -169,4 +164,10 @@ func getShellConfigFiles(shell interfaces.Shell) []string {
 	default:
 		return nil
 	}
+}
+
+// ConfigureShell configures the shell with the specified type
+func (m *DefaultManager) ConfigureShell(shellType string) error {
+	// TODO: Implement shell configuration
+	return nil
 } 

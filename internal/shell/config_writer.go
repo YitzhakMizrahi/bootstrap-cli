@@ -36,7 +36,7 @@ func NewConfigWriter() (interfaces.ShellConfigWriter, error) {
 
 	return &DefaultConfigWriter{
 		logger: logger,
-		shell:  shellInfo.Type,
+		shell:  interfaces.Shell(shellInfo.Current),
 		pm:     pm,
 	}, nil
 }

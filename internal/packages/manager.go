@@ -2,7 +2,10 @@ package packages
 
 import (
 	"fmt"
+	"os/exec"
 	"runtime"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 )
 
 // Manager defines the interface for package management operations
@@ -95,6 +98,24 @@ func DetectPackageManager() (PackageManager, error) {
 
 // NewManager creates a new package manager for the given system
 func NewManager(system string) (Manager, error) {
-	// TODO: Implement factory method to create appropriate package manager
-	return nil, nil
+	var cmd string
+	switch Type(system) {
+	case APT:
+		cmd = "apt-get"
+	case DNF:
+		cmd = "dnf"
+	case Pacman:
+		cmd = "pacman"
+	case Homebrew:
+		cmd = "brew"
+	default:
+		return nil, fmt.Errorf("unsupported package manager type: %s", system)
+	}
+
+	return &packageManager{
+		system:  system,
+		cmd:     cmd,
+		logger:  log.New(log.InfoLevel),
+		execCmd: exec.Command,
+	}, nil
 } 

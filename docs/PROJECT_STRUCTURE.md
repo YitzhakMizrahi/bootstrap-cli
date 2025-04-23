@@ -101,7 +101,7 @@ lxc snapshot bootstrap-test clean
 lxc file push build/bin/bootstrap-cli bootstrap-test/home/devuser/bootstrap-cli --mode=755
 
 # Run the CLI interactively from inside the container
-lxc exec bootstrap-test -- su - devuser -c '/home/devuser/bootstrap-cli'
+lxc exec bootstrap-test -- su - devuser -c '/home/devuser/bootstrap-cli up'
 ```
 
 ---

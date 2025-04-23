@@ -7,6 +7,7 @@ import (
 	initcmd "github.com/YitzhakMizrahi/bootstrap-cli/cmd/init"
 	packagecmd "github.com/YitzhakMizrahi/bootstrap-cli/cmd/package"
 	"github.com/YitzhakMizrahi/bootstrap-cli/cmd/tools"
+	upcmd "github.com/YitzhakMizrahi/bootstrap-cli/cmd/up"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 	"github.com/spf13/cobra"
 )
@@ -51,6 +52,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 
 	// Add commands
+	rootCmd.AddCommand(upcmd.NewUpCmd())
 	rootCmd.AddCommand(initcmd.NewInitCmd())
 	rootCmd.AddCommand(tools.NewToolsCmd())
 	rootCmd.AddCommand(packagecmd.NewPackageCmd())

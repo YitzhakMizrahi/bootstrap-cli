@@ -47,11 +47,13 @@ func (pm *packageManager) Install(packageName string) error {
 	var cmd *exec.Cmd
 	switch pm.cmd {
 	case "apt-get":
-		cmd = pm.execCmd(pm.cmd, "install", "-y", packageName)
+		cmd = pm.execCmd("sudo", pm.cmd, "install", "-y", packageName)
 	case "dnf":
-		cmd = pm.execCmd(pm.cmd, "install", "-y", packageName)
+		cmd = pm.execCmd("sudo", pm.cmd, "install", "-y", packageName)
 	case "pacman":
-		cmd = pm.execCmd(pm.cmd, "-S", "--noconfirm", packageName)
+		cmd = pm.execCmd("sudo", pm.cmd, "-S", "--noconfirm", packageName)
+	case "brew":
+		cmd = pm.execCmd(pm.cmd, "install", packageName)
 	default:
 		return fmt.Errorf("unsupported package manager: %s", pm.cmd)
 	}
@@ -121,12 +123,23 @@ func (pm *packageManager) IsInstalled(packageName string) (bool, error) {
 		cmd = pm.execCmd(pm.cmd, "list", "installed", packageName)
 	case "pacman":
 		cmd = pm.execCmd(pm.cmd, "-Q", packageName)
+	case "brew":
+		cmd = pm.execCmd(pm.cmd, "list", packageName)
 	default:
 		return false, fmt.Errorf("unsupported package manager: %s", pm.cmd)
 	}
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		// For apt-get, dpkg returns exit status 1 when package is not found
+		// For dnf, it returns exit status 1 when package is not installed
+		// For pacman, it returns exit status 1 when package is not installed
+		// For brew, it returns exit status 1 when package is not installed
+		if strings.Contains(string(output), "no packages found") ||
+			strings.Contains(string(output), "not found") ||
+			strings.Contains(string(output), "not installed") {
+			return false, nil
+		}
 		pm.logger.Error("Failed to check if package %s is installed: %v", packageName, err)
 		return false, fmt.Errorf("command execution failed: %s %s, output: %s, error: %w", pm.cmd, packageName, output, err)
 	}

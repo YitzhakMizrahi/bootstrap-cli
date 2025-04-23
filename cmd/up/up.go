@@ -1,4 +1,4 @@
-package main
+package up
 
 import (
 	"fmt"
@@ -29,9 +29,9 @@ func runUp(cmd *cobra.Command, args []string) error {
 	// Step 1: Detect system
 	sysInfo, err := system.Detect()
 	if err != nil {
-		return fmt.Errorf("failed to get system info: %w", err)
+		return fmt.Errorf("failed to detect system: %w", err)
 	}
-	fmt.Printf("Detected system: %s %s (%s)\n", sysInfo.OS, sysInfo.Distro, sysInfo.Arch)
+	fmt.Printf("Detected system: %s %s (%s)\n", sysInfo.Distro, sysInfo.Version, sysInfo.OS)
 
 	// Step 2: Detect shell
 	shellMgr := shell.NewManager()

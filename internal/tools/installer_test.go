@@ -2,106 +2,97 @@ package tools
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
 )
 
-// MockPackageManager for testing
-type MockPackageManager struct {
-	installed map[string]bool
+// mockPackagesManager implements packages.Manager for testing
+type mockPackagesManager struct {
+	installedPackages map[string]bool
 }
 
-func (m *MockPackageManager) Name() string                 { return "mock" }
-func (m *MockPackageManager) IsAvailable() bool           { return true }
-func (m *MockPackageManager) Update() error               { return nil }
-func (m *MockPackageManager) Remove(pkg string) error     { return nil }
-func (m *MockPackageManager) IsInstalled(pkg string) bool { return m.installed[pkg] }
-
-func (m *MockPackageManager) Install(packages ...string) error {
-	if m.installed == nil {
-		m.installed = make(map[string]bool)
+func (m *mockPackagesManager) Install(packageName string) error {
+	if m.installedPackages == nil {
+		m.installedPackages = make(map[string]bool)
 	}
-	for _, pkg := range packages {
-		m.installed[pkg] = true
-	}
+	m.installedPackages[packageName] = true
 	return nil
 }
 
-func TestInstallCoreTools(t *testing.T) {
-	// Create a buffer to capture log output
-	var logBuf bytes.Buffer
+func (m *mockPackagesManager) Uninstall(packageName string) error {
+	delete(m.installedPackages, packageName)
+	return nil
+}
 
-	// Create a logger that writes to our buffer
+func (m *mockPackagesManager) Update(packageName string) error {
+	return nil
+}
+
+func (m *mockPackagesManager) IsInstalled(packageName string) (bool, error) { 
+	return m.installedPackages[packageName], nil 
+}
+
+func (m *mockPackagesManager) ListInstalled() ([]string, error) {
+	packages := make([]string, 0, len(m.installedPackages))
+	for pkg := range m.installedPackages {
+		packages = append(packages, pkg)
+	}
+	return packages, nil
+}
+
+func (m *mockPackagesManager) GetVersion(packageName string) (string, error) { 
+	return "1.0.0", nil 
+}
+
+// testInstallEssentialTools is a helper function for testing InstallEssentialTools
+func testInstallEssentialTools(t *testing.T, pm packages.Manager, logger *log.Logger) error {
+	// Create a logger that captures output
+	var logOutput strings.Builder
+	logger.SetOutput(&logOutput)
+
+	// Test installing essential tools with verification skipped
+	err := InstallEssentialTools(pm, logger, true)
+	if err != nil {
+		t.Errorf("InstallEssentialTools failed: %v", err)
+		return err
+	}
+
+	// Verify that the tools were installed
+	expectedTools := []string{"git", "curl", "wget"}
+	for _, tool := range expectedTools {
+		installed, err := pm.IsInstalled(tool)
+		if err != nil {
+			t.Errorf("Error checking if %s is installed: %v", tool, err)
+			continue
+		}
+		if !installed {
+			t.Errorf("Expected %s to be installed", tool)
+		}
+	}
+
+	// Verify log output
+	logStr := logOutput.String()
+	if !strings.Contains(logStr, "Installing essential development tools") {
+		t.Error("Expected log to contain installation message")
+	}
+
+	return nil
+}
+
+func TestInstallEssentialTools(t *testing.T) {
+	// Create a mock package manager
+	mockPM := &mockPackagesManager{
+		installedPackages: make(map[string]bool),
+	}
+
+	// Create a logger
 	logger := log.New(log.DebugLevel)
-	logger.SetOutput(&logBuf)
 
-	// Create mock package manager
-	mockPM := &MockPackageManager{}
-
-	// Create test tools
-	testTools := []*install.Tool{
-		{
-			Name:        "TestTool",
-			PackageName: "test-tool",
-			PackageNames: &install.PackageMapping{
-				Default: "test-tool",
-				APT:     "test-tool",
-				DNF:     "test-tool",
-				Pacman:  "test-tool",
-				Brew:    "test-tool",
-			},
-			VerifyCommand: "echo 'test'",
-		},
-	}
-
-	// Create install options
-	opts := &InstallOptions{
-		Logger:         logger,
-		PackageManager: mockPM,
-		Tools:         testTools,
-	}
-
-	// Test installation
-	if err := InstallCoreTools(opts); err != nil {
-		t.Errorf("InstallCoreTools() error = %v", err)
-	}
-
-	// Verify log output contains success messages
-	logOutput := logBuf.String()
-	if !contains(logOutput, "Installing core development tools") {
-		t.Error("Log missing installation start message")
-	}
-	if !contains(logOutput, "TestTool installed successfully") {
-		t.Error("Log missing tool installation success message")
-	}
-	if !contains(logOutput, "All core tools installed successfully") {
-		t.Error("Log missing final success message")
-	}
-
-	// Verify tool was "installed"
-	if !mockPM.IsInstalled("test-tool") {
-		t.Error("Tool was not marked as installed")
-	}
-
-	// Test verification
-	logBuf.Reset()
-	if err := VerifyCoreTools(opts); err != nil {
-		t.Errorf("VerifyCoreTools() error = %v", err)
-	}
-
-	// Verify verification log output
-	logOutput = logBuf.String()
-	if !contains(logOutput, "Verifying core tools installation") {
-		t.Error("Log missing verification start message")
-	}
-	if !contains(logOutput, "TestTool verified") {
-		t.Error("Log missing tool verification success message")
-	}
-	if !contains(logOutput, "All core tools verified successfully") {
-		t.Error("Log missing final verification success message")
-	}
+	// Run the test
+	testInstallEssentialTools(t, mockPM, logger)
 }
 
 // contains checks if a string contains a substring

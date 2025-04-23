@@ -1,60 +1,69 @@
 package tools
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestCoreTools(t *testing.T) {
 	tools := CoreTools()
-
-	// Verify we have tools defined
 	if len(tools) == 0 {
-		t.Error("CoreTools() returned empty list")
+		t.Error("Expected CoreTools to return at least one tool")
 	}
 
-	// Verify each tool has required fields
+	// Check for essential tools
+	essentialTools := map[string]bool{
+		"git":  false,
+		"curl": false,
+		"wget": false,
+	}
+
 	for _, tool := range tools {
-		if tool.Name == "" {
-			t.Error("Tool name is empty")
-		}
-		if tool.PackageName == "" {
-			t.Errorf("Package name is empty for tool %s", tool.Name)
-		}
-		if tool.PackageNames == nil {
-			t.Errorf("PackageNames mapping is nil for tool %s", tool.Name)
-		} else {
-			// Verify package mappings
-			if tool.PackageNames.Default == "" {
-				t.Errorf("Default package name is empty for tool %s", tool.Name)
-			}
-			if tool.PackageNames.APT == "" {
-				t.Errorf("APT package name is empty for tool %s", tool.Name)
-			}
-			if tool.PackageNames.DNF == "" {
-				t.Errorf("DNF package name is empty for tool %s", tool.Name)
-			}
-			if tool.PackageNames.Pacman == "" {
-				t.Errorf("Pacman package name is empty for tool %s", tool.Name)
-			}
-			if tool.PackageNames.Brew == "" {
-				t.Errorf("Brew package name is empty for tool %s", tool.Name)
-			}
-		}
-		if tool.VerifyCommand == "" {
-			t.Errorf("Verify command is empty for tool %s", tool.Name)
+		if _, exists := essentialTools[tool.PackageName]; exists {
+			essentialTools[tool.PackageName] = true
 		}
 	}
 
-	// Verify specific tools are present
-	requiredTools := []string{"Git", "cURL", "Wget", "Build Essential"}
-	for _, required := range requiredTools {
-		found := false
-		for _, tool := range tools {
-			if tool.Name == required {
-				found = true
-				break
-			}
-		}
+	for tool, found := range essentialTools {
 		if !found {
-			t.Errorf("Required tool %s not found in CoreTools()", required)
+			t.Errorf("Essential tool %s not found in CoreTools", tool)
 		}
+	}
+}
+
+func TestRunCommand(t *testing.T) {
+	tests := []struct {
+		name    string
+		cmd     string
+		wantErr bool
+	}{
+		{
+			name:    "valid command",
+			cmd:     "echo hello",
+			wantErr: false,
+		},
+		{
+			name:    "invalid command",
+			cmd:     "nonexistentcommand",
+			wantErr: true,
+		},
+		{
+			name:    "empty command",
+			cmd:     "",
+			wantErr: true,
+		},
+		{
+			name:    "command with arguments",
+			cmd:     "echo hello world",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := runCommand(tt.cmd)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("runCommand() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 } 

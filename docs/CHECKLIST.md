@@ -14,7 +14,7 @@ This file tracks implementation milestones. Only update entries **after passing 
 | Package manager abstraction      | ✅ Done | Interface + apt implementation |
 | Tool install struct + interface  | ✅ Done | Core Tool + Installer interface implemented |
 | Tool verification logic          | ✅ Done | Verification package complete |
-| Core tool install (git, curl...) | ⬛ Todo | Basic structure ready        |
+| Core tool install (git, curl...) | ✅ Done | Implemented with tests passing |
 | Modular flow structure scaffold  | ✅ Done | internal/flow/ created with init/install stubs |
 
 ---

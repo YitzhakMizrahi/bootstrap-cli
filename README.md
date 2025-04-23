@@ -72,8 +72,9 @@ lxc launch ubuntu:22.04 bootstrap-test
 lxc snapshot bootstrap-test clean
 
 # Push binary to test container
-lxc file push build/bin/bootstrap-cli bootstrap-test/usr/local/bin/
-lxc exec bootstrap-test -- bootstrap-cli init
+lxc file push build/bin/bootstrap-cli bootstrap-test/home/devuser/bootstrap-cli --mode=755
+lxc exec bootstrap-test -- su - devuser -c '/home/devuser/bootstrap-cli'
+
 ```
 
 ---

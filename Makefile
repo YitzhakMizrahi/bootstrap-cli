@@ -1,8 +1,8 @@
-.PHONY: build test clean release
+.PHONY: build test clean lint run deps build-lxc all release validate
 
 # Build the application
 build:
-	go build -o build/bin/bootstrap-cli
+	go build -o build/bin/bootstrap-cli main.go
 
 # Run tests
 test:
@@ -26,12 +26,16 @@ deps:
 	go mod tidy
 
 # Build for LXC testing
-build-lxc: build
-	GOOS=linux GOARCH=amd64 go build -o build/bin/bootstrap-cli-linux-amd64 cmd/bootstrap/main.go
+build-lxc:
+	GOOS=linux GOARCH=amd64 go build -o build/bin/bootstrap-cli-linux-amd64 main.go
+
+# Validate setup
+validate:
+	./build/bin/bootstrap-cli validate
 
 # Default target
 all: lint test build
 
 # Create a release
 release:
-	./scripts/release/create-release.sh 
+	./scripts/release/create-release.sh

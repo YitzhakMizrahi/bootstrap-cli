@@ -3,6 +3,7 @@ package install
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -10,47 +11,68 @@ import (
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 )
 
-// MockPackageManager implements PackageManager for testing
+// MockPackageManager simulates a package manager for testing
 type MockPackageManager struct {
-	installedPackages map[string]bool
-	failCount        map[string]int
-	maxFailures      int
-	name             string
-	removedPackages  []string
+	installed       map[string]bool
+	failureCount    map[string]int
+	maxFailures     int
+	removedPackages []string
 }
 
-func (m *MockPackageManager) Name() string {
-	return m.name
-}
-
-func (m *MockPackageManager) IsAvailable() bool {
-	return true
+func NewMockPackageManager(maxFailures int) *MockPackageManager {
+	return &MockPackageManager{
+		installed:       make(map[string]bool),
+		failureCount:    make(map[string]int),
+		maxFailures:     maxFailures,
+		removedPackages: make([]string, 0),
+	}
 }
 
 func (m *MockPackageManager) Install(packages ...string) error {
 	for _, pkg := range packages {
-		if m.failCount[pkg] < m.maxFailures {
-			m.failCount[pkg]++
-			return errors.New("simulated failure")
+		if m.failureCount[pkg] < m.maxFailures {
+			m.failureCount[pkg]++
+			return errors.New("simulated install failure")
 		}
-		m.installedPackages[pkg] = true
+		m.installed[pkg] = true
 	}
-	return nil
-}
-
-func (m *MockPackageManager) Update() error {
 	return nil
 }
 
 func (m *MockPackageManager) IsInstalled(pkg string) bool {
-	return m.installedPackages[pkg]
+	return m.installed[pkg]
+}
+
+func (m *MockPackageManager) Uninstall(pkg string) error {
+	if m.failureCount[pkg] < m.maxFailures {
+		m.failureCount[pkg]++
+		return errors.New("simulated uninstall failure")
+	}
+	if _, exists := m.installed[pkg]; exists {
+		delete(m.installed, pkg)
+		m.removedPackages = append(m.removedPackages, pkg)
+	}
+	return nil
+}
+
+func (m *MockPackageManager) IsAvailable() bool {
+	// For testing purposes, assume the package manager is always available
+	return true
+}
+
+func (m *MockPackageManager) Name() string {
+	return "mock"
 }
 
 func (m *MockPackageManager) Remove(pkg string) error {
-	if _, exists := m.installedPackages[pkg]; exists {
-		delete(m.installedPackages, pkg)
-		m.removedPackages = append(m.removedPackages, pkg)
+	if _, exists := m.installed[pkg]; !exists {
+		return fmt.Errorf("package %s not installed", pkg)
 	}
+	delete(m.installed, pkg)
+	return nil
+}
+
+func (m *MockPackageManager) Update() error {
 	return nil
 }
 
@@ -165,17 +187,15 @@ func TestInstaller(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a mock package manager
 			mockPM := &MockPackageManager{
-				installedPackages: make(map[string]bool),
-				failCount:        make(map[string]int),
-				maxFailures:      tt.maxFail,
-				name:            tt.pmName,
-				removedPackages:  make([]string, 0),
+				installed:    make(map[string]bool),
+				failureCount: make(map[string]int),
+				maxFailures:  tt.maxFail,
 			}
 
 			// Pre-install some packages for cleanup test
 			if tt.cleanupPackages != nil {
 				for _, pkg := range tt.cleanupPackages {
-					mockPM.installedPackages[pkg] = true
+					mockPM.installed[pkg] = true
 				}
 			}
 

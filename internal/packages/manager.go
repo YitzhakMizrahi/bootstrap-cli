@@ -5,6 +5,27 @@ import (
 	"runtime"
 )
 
+// Manager defines the interface for package management operations
+type Manager interface {
+	// Install installs a package
+	Install(packageName string) error
+	
+	// Uninstall removes a package
+	Uninstall(packageName string) error
+	
+	// Update updates a package to its latest version
+	Update(packageName string) error
+	
+	// IsInstalled checks if a package is installed
+	IsInstalled(packageName string) (bool, error)
+	
+	// ListInstalled returns a list of installed packages
+	ListInstalled() ([]string, error)
+	
+	// GetVersion returns the version of a package
+	GetVersion(packageName string) (string, error)
+}
+
 // PackageManager defines the interface for different package managers
 type PackageManager interface {
 	// Name returns the name of the package manager
@@ -70,4 +91,10 @@ func DetectPackageManager() (PackageManager, error) {
 	}
 
 	return nil, ErrPackageManagerNotFound
+}
+
+// NewManager creates a new package manager for the given system
+func NewManager(system string) (Manager, error) {
+	// TODO: Implement factory method to create appropriate package manager
+	return nil, nil
 } 

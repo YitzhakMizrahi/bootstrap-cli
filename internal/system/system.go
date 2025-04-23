@@ -16,7 +16,7 @@ type SystemInfo struct {
 	Distro      string
 	Version     string
 	Kernel      string
-	PackageType string // apt, dnf, pacman, brew
+	PackageType PackageManagerType // apt, dnf, pacman, brew
 }
 
 // Detect returns information about the current system
@@ -129,19 +129,19 @@ func detectPackageManager(info *SystemInfo) error {
 	if info.OS == "linux" {
 		// Check for apt (Debian/Ubuntu)
 		if _, err := exec.LookPath("apt"); err == nil {
-			info.PackageType = "apt"
+			info.PackageType = PackageManagerApt
 			return nil
 		}
 
 		// Check for dnf (Fedora)
 		if _, err := exec.LookPath("dnf"); err == nil {
-			info.PackageType = "dnf"
+			info.PackageType = PackageManagerDnf
 			return nil
 		}
 
 		// Check for pacman (Arch)
 		if _, err := exec.LookPath("pacman"); err == nil {
-			info.PackageType = "pacman"
+			info.PackageType = PackageManagerPacman
 			return nil
 		}
 
@@ -149,7 +149,7 @@ func detectPackageManager(info *SystemInfo) error {
 	} else if info.OS == "darwin" {
 		// Check for Homebrew
 		if _, err := exec.LookPath("brew"); err == nil {
-			info.PackageType = "brew"
+			info.PackageType = PackageManagerHomebrew
 			return nil
 		}
 		return fmt.Errorf("Homebrew not found")

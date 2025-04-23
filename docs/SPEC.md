@@ -1,9 +1,9 @@
 # 📘 SPEC.md – Bootstrap CLI Specification
 
-## 🎯 Project Vision
+## 🌟 Project Vision
 Bootstrap CLI aims to be the standard tool for setting up development environments across Linux, macOS, and WSL. It provides an interactive, guided experience for installing and configuring development tools, making it easy for developers to replicate their preferred environment across different machines.
 
-## 🎯 Core Objectives
+## 🌟 Core Objectives
 1. **Guided Setup Experience**
    - Interactive CLI interface for selecting tools and configurations
    - Clear categorization of tools (essential, modern CLI, system tools)
@@ -24,7 +24,7 @@ Bootstrap CLI aims to be the standard tool for setting up development environmen
 
 4. **Reproducible Environments**
    - Config export/import
-   - Version-controlled dotfiles
+   - Version-controlled dotfiles (GitHub-only for MVP)
    - Validation and verification
    - Idempotent operations
 
@@ -34,7 +34,7 @@ Bootstrap CLI aims to be the standard tool for setting up development environmen
 - Container orchestration
 - Remote system management
 
-## 🎯 Success Criteria
+## 🌟 Success Criteria
 1. **Usability**
    - Complete setup in under 10 minutes
    - No manual intervention needed
@@ -72,8 +72,8 @@ Bootstrap CLI aims to be the standard tool for setting up development environmen
 - Node (nvm), Python (pyenv), Go (goenv), Rust (rustup)
 
 ### 5. Dotfiles Management
-- GitHub clone, or fresh start
-- Sync, backup, override modes
+- GitHub clone only (MVP scope)
+- No local sync/restore in MVP
 
 ### 6. Configuration Management
 - Templates (minimal, dev, sysadmin, data sci)
@@ -86,14 +86,20 @@ Bootstrap CLI aims to be the standard tool for setting up development environmen
   - progress bars
   - step indicators
   - validation prompts
+- `promptui` or `survey` in MVP
+- `Bubbletea` and styling enhancements in v2
 
-## 🔁 User Journey
+## ♻ User Journey
 1. Launch → detect system
 2. Choose tools → install
 3. Select shell + setup config
-4. Manage dotfiles + fonts
+4. Clone dotfiles + fonts
 5. Install languages
 6. Validate config + complete
+
+### Shortcut: `bootstrap-cli up`
+- Runs the entire journey in sequence
+- Optionally supports `--config` for non-interactive setup
 
 ## 📊 Wireframes Summary
 - Welcome Screen
@@ -106,12 +112,12 @@ Bootstrap CLI aims to be the standard tool for setting up development environmen
 - Install Progress
 - Validation & Finish
 
-## 🧪 Validation Goals
+## 🔢 Validation Goals
 - Config syntax check
 - Tool availability after install
 - Dotfile path + symlink check
 
-## 🧭 Templates
+## 🌍 Templates
 - Minimal (bare essentials)
 - Developer (git, nvm, zsh, tools)
 - System Admin (network tools, tmux, btop)
@@ -124,3 +130,4 @@ Bootstrap CLI aims to be the standard tool for setting up development environmen
 - GUI launcher wrapper
 
 _See `docs/WIREFRAMES.md` for screen-by-screen layout._
+

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	initcmd "github.com/YitzhakMizrahi/bootstrap-cli/cmd/init"
+	packagecmd "github.com/YitzhakMizrahi/bootstrap-cli/cmd/package"
 	"github.com/YitzhakMizrahi/bootstrap-cli/cmd/tools"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 	"github.com/spf13/cobra"
@@ -39,7 +41,7 @@ It helps you install and configure:
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -49,5 +51,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 
 	// Add commands
+	rootCmd.AddCommand(initcmd.NewInitCmd())
 	rootCmd.AddCommand(tools.NewToolsCmd())
+	rootCmd.AddCommand(packagecmd.NewPackageCmd())
 } 

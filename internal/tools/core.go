@@ -1,6 +1,10 @@
 package tools
 
-import "github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
+import (
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
+)
 
 // ToolCategory represents a category of tools
 type ToolCategory struct {
@@ -118,4 +122,25 @@ func CoreTools() []install.Tool {
 		allTools = append(allTools, category.Tools...)
 	}
 	return allTools
+}
+
+// InstallOptions contains options for tool installation
+type InstallOptions struct {
+	Logger           *log.Logger
+	PackageManager   packages.PackageManager
+	Tools           []*install.Tool
+	SkipVerification bool
+	AdditionalPaths  []string // Additional paths to search for binaries during verification
+}
+
+var selectedTools []*install.Tool
+
+// GetSelectedTools returns the list of tools selected during initialization
+func GetSelectedTools() []*install.Tool {
+	return selectedTools
+}
+
+// SetSelectedTools sets the list of tools to be installed
+func SetSelectedTools(tools []*install.Tool) {
+	selectedTools = tools
 } 

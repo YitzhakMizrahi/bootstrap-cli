@@ -9,7 +9,7 @@ import (
 func TestLogger(t *testing.T) {
 	tests := []struct {
 		name     string
-		level    Level
+		level    LogLevel
 		logFunc  func(*Logger, string, ...interface{})
 		logLevel string
 		message  string

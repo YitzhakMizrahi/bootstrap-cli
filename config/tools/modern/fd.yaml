@@ -1,0 +1,28 @@
+name: fd
+package_names:
+  default: fd-find
+  apt: fd-find
+  dnf: fd-find
+  pacman: fd
+  brew: fd
+version: latest
+description: "A simple, fast and user-friendly alternative to 'find'"
+category: modern
+tags:
+  - search
+  - terminal
+  - productivity
+  - development
+system_dependencies: []
+dependencies: []
+verify_command: fd --version
+post_install: []
+shell_config:
+  aliases:
+    find: fd
+  functions: []
+  env:
+    FD_IGNORE: ".git,node_modules,target,dist"
+  path_additions: []
+config_files: []
+requires_restart: false 

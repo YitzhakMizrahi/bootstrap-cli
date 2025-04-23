@@ -12,6 +12,7 @@ import (
 // APTManager implements the PackageManager interface for APT-based systems
 type APTManager struct {
 	aptGetPath string
+	aptPath    string
 }
 
 // NewAptPackageManager creates a new APT package manager instance
@@ -22,8 +23,15 @@ func NewAptPackageManager() (interfaces.PackageManager, error) {
 		return nil, fmt.Errorf("apt-get is required but not found: %w", err)
 	}
 
+	// Check for apt
+	aptPath, err := exec.LookPath("apt")
+	if err != nil {
+		return nil, fmt.Errorf("apt is required but not found: %w", err)
+	}
+
 	return &APTManager{
 		aptGetPath: aptGetPath,
+		aptPath:    aptPath,
 	}, nil
 }
 
@@ -46,17 +54,108 @@ func (a *APTManager) Update() error {
 	return cmd.Run()
 }
 
+// checkPPAExists checks if a PPA exists before trying to add it
+func (a *APTManager) checkPPAExists(ppa string) bool {
+	cmd := exec.Command("add-apt-repository", "-n", ppa)
+	cmd.Stderr = os.Stderr
+	return cmd.Run() == nil
+}
+
+// addRepository adds a third-party repository
+func (a *APTManager) addRepository(repo string) error {
+	// Install prerequisites if needed
+	if err := a.installPrerequisites(); err != nil {
+		return fmt.Errorf("failed to install prerequisites: %w", err)
+	}
+
+	// For PPAs, check if they exist first
+	if strings.HasPrefix(repo, "ppa:") {
+		if !a.checkPPAExists(repo) {
+			return fmt.Errorf("PPA %s does not exist", repo)
+		}
+	}
+
+	// Add the repository using add-apt-repository
+	cmd := exec.Command("add-apt-repository", "-y", repo)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to add repository: %w", err)
+	}
+
+	// Update package list
+	return a.Update()
+}
+
+// installPrerequisites installs necessary packages for adding repositories
+func (a *APTManager) installPrerequisites() error {
+	prerequisites := []string{"software-properties-common", "curl", "gnupg"}
+	for _, pkg := range prerequisites {
+		if !a.IsInstalled(pkg) {
+			if err := a.Install(pkg); err != nil {
+				return fmt.Errorf("failed to install prerequisite %s: %w", pkg, err)
+			}
+		}
+	}
+	return nil
+}
+
+// SetupSpecialPackage handles special package installations that require repository setup
+func (a *APTManager) SetupSpecialPackage(pkg string) error {
+	switch pkg {
+	case "lsd":
+		// Try to add the repository for lsd
+		if err := a.addRepository("ppa:asilosenior/lsd"); err != nil {
+			return fmt.Errorf("failed to set up lsd repository: %w", err)
+		}
+	case "bat":
+		// Try to add the repository for bat
+		if err := a.addRepository("ppa:asilosenior/bat"); err != nil {
+			return fmt.Errorf("failed to set up bat repository: %w", err)
+		}
+	default:
+		return nil
+	}
+	return nil
+}
+
 // Install installs one or more packages
 func (a *APTManager) Install(packages ...string) error {
 	if len(packages) == 0 {
 		return fmt.Errorf("no packages specified")
 	}
 
+	// First try to install without any special setup
 	args := append([]string{"install", "-y"}, packages...)
 	cmd := exec.Command(a.aptGetPath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	err := cmd.Run()
+
+	// If installation failed, check if it's a "package not found" error
+	if err != nil {
+		output := err.Error()
+		if strings.Contains(output, "Unable to locate package") {
+			// Try special setup for each package
+			for _, pkg := range packages {
+				if setupErr := a.SetupSpecialPackage(pkg); setupErr != nil {
+					// If setup fails, continue to next package
+					continue
+				}
+				// Try installing again after setup
+				cmd = exec.Command(a.aptGetPath, args...)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				if retryErr := cmd.Run(); retryErr == nil {
+					return nil
+				}
+			}
+			// If we get here, no package could be installed
+			return fmt.Errorf("package not found: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // Remove removes a package

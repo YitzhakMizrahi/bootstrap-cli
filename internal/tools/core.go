@@ -93,30 +93,102 @@ func modernCliTools() []install.Tool {
 			PackageName: "ripgrep",
 			Description: "Modern grep alternative written in Rust",
 			VerifyCommand: "rg --version",
+			Category: "Modern CLI",
+			Tags: []string{"search", "grep", "rust"},
+			SystemDependencies: []string{"build-essential"},
 		},
 		{
 			Name:        "bat",
 			PackageName: "bat",
 			Description: "Cat clone with syntax highlighting and Git integration",
 			VerifyCommand: "bat --version",
+			Category: "Modern CLI",
+			Tags: []string{"cat", "syntax", "highlighting"},
+			PackageNames: &install.PackageMapping{
+				Default: "bat",
+				APT:     "bat",
+				DNF:     "bat",
+				Pacman:  "bat",
+				Brew:    "bat",
+			},
+			ShellConfig: &install.ShellConfig{
+				Aliases: map[string]string{
+					"cat": "bat",
+				},
+			},
 		},
 		{
 			Name:        "fzf",
 			PackageName: "fzf",
 			Description: "Command-line fuzzy finder",
 			VerifyCommand: "fzf --version",
+			Category: "Modern CLI",
+			Tags: []string{"fuzzy", "search", "finder"},
+			ShellConfig: &install.ShellConfig{
+				Functions: map[string]string{
+					"fzf-find": `find . -type f -not -path '*/\.*' | fzf --preview 'bat --color=always --style=numbers --line-range=:500 {}'`,
+					"fzf-cd":   `cd "$(find . -type d | fzf)"`,
+				},
+				PathAdditions: []string{"/usr/local/opt/fzf/shell"},
+			},
+			ConfigFiles: []install.ConfigFile{
+				{
+					Source:      "/usr/local/opt/fzf/shell/key-bindings.zsh",
+					Destination: "${HOME}/.config/fzf/key-bindings.zsh",
+					Type:        "symlink",
+				},
+				{
+					Source:      "/usr/local/opt/fzf/shell/completion.zsh",
+					Destination: "${HOME}/.config/fzf/completion.zsh",
+					Type:        "symlink",
+				},
+			},
 		},
 		{
 			Name:        "lsd",
 			PackageName: "lsd",
 			Description: "Modern ls alternative",
 			VerifyCommand: "lsd --version",
+			Category: "Modern CLI",
+			Tags: []string{"ls", "directory", "listing"},
+			PackageNames: &install.PackageMapping{
+				Default: "lsd",
+				APT:     "lsd",
+				DNF:     "lsd",
+				Pacman:  "lsd",
+				Brew:    "lsd",
+			},
+			ShellConfig: &install.ShellConfig{
+				Aliases: map[string]string{
+					"ls":   "lsd",
+					"ll":   "lsd -l",
+					"la":   "lsd -la",
+					"lt":   "lsd --tree",
+					"ltt":  "lsd --tree --depth 2",
+					"lttt": "lsd --tree --depth 3",
+				},
+			},
 		},
 		{
 			Name:        "zoxide",
 			PackageName: "zoxide",
 			Description: "Smarter cd command",
 			VerifyCommand: "zoxide --version",
+			Category: "Modern CLI",
+			Tags: []string{"cd", "navigation", "directory"},
+			ShellConfig: &install.ShellConfig{
+				Functions: map[string]string{
+					"cd": "zoxide cd",
+				},
+				Env: map[string]string{
+					"_ZO_DATA_DIR": "${HOME}/.local/share/zoxide",
+				},
+			},
+			PostInstall: []string{
+				"zoxide init zsh > ${HOME}/.config/zoxide/zsh.zsh",
+				"zoxide init bash > ${HOME}/.config/zoxide/bash.bash",
+				"zoxide init fish > ${HOME}/.config/fish/conf.d/zoxide.fish",
+			},
 		},
 	}
 }

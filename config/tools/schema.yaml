@@ -1,0 +1,36 @@
+# Tool Configuration Schema
+name: string  # Name of the tool
+package_name: string  # Default package name
+package_names:  # System-specific package names
+  default: string  # Default package name
+  apt: string  # APT package name
+  dnf: string  # DNF package name
+  pacman: string  # Pacman package name
+  brew: string  # Homebrew package name
+version: string  # Desired version (optional)
+description: string  # Tool description
+category: string  # Tool category (essential, modern, system)
+tags:  # List of tags for searching/filtering
+  - string
+system_dependencies:  # System-level dependencies
+  - string
+dependencies:  # Tool-specific dependencies
+  - string
+verify_command: string  # Command to verify installation
+post_install:  # Commands to run after installation
+  - string
+shell_config:  # Shell-specific configuration
+  aliases:  # Shell aliases
+    string: string  # alias: command
+  functions:  # Shell functions
+    string: string  # function_name: function_body
+  env:  # Environment variables
+    string: string  # variable: value
+  path_additions:  # PATH additions
+    - string
+config_files:  # Configuration files to create/symlink
+  - source: string  # Source path or content
+    destination: string  # Target path
+    type: string  # file, symlink, or content
+    permissions: string  # File permissions (e.g., "0644")
+requires_restart: boolean  # Whether shell restart is needed 

@@ -1,0 +1,32 @@
+name: fzf
+package_names:
+  default: fzf
+  apt: fzf
+  dnf: fzf
+  pacman: fzf
+  brew: fzf
+version: latest
+description: "Fuzzy finder for the command line"
+category: modern
+tags:
+  - search
+  - terminal
+  - productivity
+system_dependencies: []
+dependencies: []
+verify_command: fzf --version
+post_install: []
+shell_config:
+  aliases:
+    fzf: fzf
+  functions:
+    fzf-cd: |
+      function fzf-cd() {
+        local dir
+        dir=$(find . -type d -not -path '*/\.*' | fzf) && cd "$dir"
+      }
+  env:
+    FZF_DEFAULT_OPTS: "--height 40% --layout=reverse --border"
+  path_additions: []
+config_files: []
+requires_restart: false 

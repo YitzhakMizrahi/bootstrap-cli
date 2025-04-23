@@ -134,4 +134,48 @@ func (p *PacmanPackageManager) ListInstalled() ([]string, error) {
 	}
 
 	return packages, nil
+}
+
+// SetupSpecialPackage sets up any special repository requirements for a package
+func (p *PacmanPackageManager) SetupSpecialPackage(pkg string) error {
+	// For Pacman, we might need to enable additional repositories from the AUR
+	// This is a placeholder implementation that can be extended based on specific package requirements
+	switch pkg {
+	case "yay":
+		// Install yay from AUR if not already installed
+		if !p.IsInstalled("yay") {
+			// First ensure base-devel is installed
+			cmd := exec.Command(p.sudoPath, "pacman", "-S", "--noconfirm", "base-devel", "git")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("failed to install base-devel: %w", err)
+			}
+
+			// Clone and install yay
+			tempDir, err := os.MkdirTemp("", "yay-install")
+			if err != nil {
+				return fmt.Errorf("failed to create temp directory: %w", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			cmd = exec.Command("git", "clone", "https://aur.archlinux.org/yay.git", tempDir)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("failed to clone yay: %w", err)
+			}
+
+			cmd = exec.Command("makepkg", "-si", "--noconfirm")
+			cmd.Dir = tempDir
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("failed to build and install yay: %w", err)
+			}
+		}
+		return nil
+	default:
+		return nil // No special setup needed for this package
+	}
 } 

@@ -1,0 +1,81 @@
+name: Basic Shell Configuration
+description: "Basic shell configuration with common aliases and settings"
+category: shell
+tags:
+  - shell
+  - terminal
+  - productivity
+files:
+  - source: |
+      # Basic shell configuration
+      export EDITOR=vim
+      export VISUAL=vim
+      export LANG=en_US.UTF-8
+      export LC_ALL=en_US.UTF-8
+      
+      # History settings
+      HISTSIZE=10000
+      HISTFILESIZE=20000
+      HISTCONTROL=ignoreboth:erasedups
+      
+      # Common aliases
+      alias ll='ls -la'
+      alias la='ls -A'
+      alias l='ls -CF'
+      alias ..='cd ..'
+      alias ...='cd ../..'
+      alias grep='grep --color=auto'
+      
+      # Enable color support
+      if [ -x /usr/bin/dircolors ]; then
+          test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+          alias ls='ls --color=auto'
+      fi
+    destination: ~/.bashrc
+    type: content
+    permissions: "0644"
+    backup: true
+    backup_suffix: ".bak"
+  - source: |
+      # Zsh specific configuration
+      autoload -Uz compinit
+      compinit
+      
+      # Enable colors
+      autoload -U colors && colors
+      
+      # History settings
+      HISTSIZE=10000
+      SAVEHIST=10000
+      HISTFILE=~/.zsh_history
+      setopt SHARE_HISTORY
+      setopt HIST_IGNORE_ALL_DUPS
+      setopt HIST_REDUCE_BLANKS
+      
+      # Completion settings
+      zstyle ':completion:*' menu select
+      zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+      
+      # Common aliases
+      alias ll='ls -la'
+      alias la='ls -A'
+      alias l='ls -CF'
+      alias ..='cd ..'
+      alias ...='cd ../..'
+      alias grep='grep --color=auto'
+    destination: ~/.zshrc
+    type: content
+    permissions: "0644"
+    backup: true
+    backup_suffix: ".bak"
+dependencies:
+  - vim
+shell_config:
+  env:
+    EDITOR: vim
+    VISUAL: vim
+    LANG: en_US.UTF-8
+    LC_ALL: en_US.UTF-8
+  path_additions: []
+post_install: []
+requires_restart: true 

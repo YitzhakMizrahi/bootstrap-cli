@@ -1,0 +1,24 @@
+# Font Configuration Schema
+name: string  # Name of the font
+description: string  # Font description
+category: string  # Font category (monospace, sans-serif, serif)
+tags:  # List of tags for searching/filtering
+  - string
+variants:  # Available font variants
+  - name: string  # Variant name
+    weight: string  # Font weight
+    style: string  # Font style (normal, italic)
+    nerd_font: boolean  # Whether this is a Nerd Font variant
+download_url: string  # URL to download the font
+install_path: string  # Path where the font should be installed
+config_files:  # Configuration files to create/symlink
+  - source: string  # Source path or content
+    destination: string  # Target path
+    type: string  # file, symlink, or content
+    permissions: string  # File permissions (e.g., "0644")
+shell_config:  # Shell-specific configuration
+  env:  # Environment variables
+    string: string  # variable: value
+  path_additions:  # PATH additions
+    - string
+requires_restart: boolean  # Whether shell restart is needed 

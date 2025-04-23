@@ -1,0 +1,91 @@
+name: Python
+description: "A high-level, interpreted programming language"
+category: interpreted
+tags:
+  - programming
+  - development
+  - data-science
+  - web-development
+version: "3.11"
+package_names:
+  default: python3
+  apt: python3
+  dnf: python3
+  pacman: python
+  brew: python@3.11
+system_dependencies:
+  - build-essential
+  - libssl-dev
+  - zlib1g-dev
+  - libbz2-dev
+  - libreadline-dev
+  - libsqlite3-dev
+  - libncursesw5-dev
+  - xz-utils
+  - tk-dev
+  - libffi-dev
+  - liblzma-dev
+dependencies: []
+verify_command: python --version
+post_install: []
+shell_config:
+  aliases:
+    python: python
+    pip: pip
+  functions:
+    venv: |
+      function venv() {
+        python -m venv "$1"
+        source "$1/bin/activate"
+      }
+  env:
+    PYTHONPATH: "${HOME}/.local/lib/python/site-packages"
+    PIP_USER: "true"
+  path_additions:
+    - "${HOME}/.local/bin"
+config_files:
+  - source: |
+      [global]
+      user = true
+      timeout = 60
+      index-url = https://pypi.org/simple
+    destination: ~/.config/pip/pip.conf
+    type: content
+    permissions: "0644"
+package_manager:
+  name: pip
+  install_command: "pip install --user"
+  global_packages:
+    - black
+    - pylint
+    - pytest
+    - ipython
+    - jupyter
+version_manager:
+  name: pyenv
+  install_command: |
+    git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+    cd ~/.pyenv && src/configure && make -C src
+  versions:
+    - "3.11.0"
+    - "3.10.0"
+    - "3.9.0"
+  global_version: "3.11.0"
+  post_install:
+    - pyenv rehash
+  shell_config:
+    aliases:
+      pyenv: "pyenv"
+    functions:
+      pyenv-init: |
+        function pyenv-init() {
+          eval "$(pyenv init -)"
+          eval "$(pyenv init --path)"
+        }
+    env:
+      PYENV_ROOT: "${HOME}/.pyenv"
+      PATH: "${HOME}/.pyenv/bin:$PATH"
+    path_additions:
+      - "${HOME}/.pyenv/bin"
+      - "${HOME}/.pyenv/shims"
+requires_restart: true 

@@ -1,0 +1,57 @@
+# Language Configuration Schema
+name: string  # Name of the language
+description: string  # Language description
+category: string  # Language category (compiled, interpreted, etc.)
+tags:  # List of tags for searching/filtering
+  - string
+version: string  # Desired version
+package_names:  # System-specific package names
+  default: string  # Default package name
+  apt: string  # APT package name
+  dnf: string  # DNF package name
+  pacman: string  # Pacman package name
+  brew: string  # Homebrew package name
+system_dependencies:  # System-level dependencies
+  - string
+dependencies:  # Language-specific dependencies
+  - string
+verify_command: string  # Command to verify installation
+post_install:  # Commands to run after installation
+  - string
+shell_config:  # Shell-specific configuration
+  aliases:  # Shell aliases
+    string: string  # alias: command
+  functions:  # Shell functions
+    string: string  # function_name: function_body
+  env:  # Environment variables
+    string: string  # variable: value
+  path_additions:  # PATH additions
+    - string
+config_files:  # Configuration files to create/symlink
+  - source: string  # Source path or content
+    destination: string  # Target path
+    type: string  # file, symlink, or content
+    permissions: string  # File permissions (e.g., "0644")
+package_manager:  # Language-specific package manager configuration
+  name: string  # Package manager name (npm, pip, cargo, etc.)
+  install_command: string  # Command to install packages
+  global_packages:  # Global packages to install
+    - string
+version_manager:  # Version manager configuration
+  name: string  # Version manager name (pyenv, nvm, rbenv, etc.)
+  install_command: string  # Command to install the version manager
+  versions:  # List of versions to install
+    - string  # Version number
+  global_version: string  # Default global version
+  post_install:  # Commands to run after version manager installation
+    - string
+  shell_config:  # Shell-specific configuration for version manager
+    aliases:  # Shell aliases
+      string: string  # alias: command
+    functions:  # Shell functions
+      string: string  # function_name: function_body
+    env:  # Environment variables
+      string: string  # variable: value
+    path_additions:  # PATH additions
+      - string
+requires_restart: boolean  # Whether shell restart is needed 

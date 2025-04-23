@@ -1,0 +1,41 @@
+name: ripgrep
+package_names:
+  default: ripgrep
+  apt: ripgrep
+  dnf: ripgrep
+  pacman: ripgrep
+  brew: ripgrep
+version: latest
+description: "A search tool that combines the usability of The Silver Searcher with the raw speed of grep"
+category: modern
+tags:
+  - search
+  - terminal
+  - productivity
+  - development
+system_dependencies: []
+dependencies: []
+verify_command: rg --version
+post_install: []
+shell_config:
+  aliases:
+    grep: rg
+  functions: []
+  env:
+    RIPGREP_CONFIG_PATH: "~/.config/ripgrep/ripgreprc"
+  path_additions: []
+config_files:
+  - source: |
+      --type-add 'web:*.{html,css,js,jsx,ts,tsx,json,svg}'
+      --type-add 'text:*.{txt,md,log}'
+      --type-add 'code:*.{go,rs,py,java,c,cpp,h,hpp,cs}'
+      --smart-case
+      --hidden
+      --glob '!.git/*'
+      --glob '!node_modules/*'
+      --glob '!target/*'
+      --glob '!dist/*'
+    destination: ~/.config/ripgrep/ripgreprc
+    type: content
+    permissions: "0644"
+requires_restart: false 

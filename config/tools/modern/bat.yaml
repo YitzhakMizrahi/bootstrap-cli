@@ -1,0 +1,29 @@
+name: bat
+package_names:
+  default: bat
+  apt: bat
+  dnf: bat
+  pacman: bat
+  brew: bat
+version: latest
+description: "A cat(1) clone with syntax highlighting and Git integration"
+category: modern
+tags:
+  - terminal
+  - productivity
+  - development
+system_dependencies: []
+dependencies: []
+verify_command: bat --version
+post_install: []
+shell_config:
+  aliases:
+    cat: bat
+    less: bat
+  functions: []
+  env:
+    BAT_THEME: "TwoDark"
+    BAT_STYLE: "numbers,changes,header"
+  path_additions: []
+config_files: []
+requires_restart: false 

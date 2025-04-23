@@ -133,4 +133,23 @@ func (d *DnfPackageManager) ListInstalled() ([]string, error) {
 		}
 	}
 	return packages, nil
+}
+
+// SetupSpecialPackage sets up any special repository requirements for a package
+func (d *DnfPackageManager) SetupSpecialPackage(pkg string) error {
+	// For DNF, we might need to enable additional repositories
+	// This is a placeholder implementation that can be extended based on specific package requirements
+	switch pkg {
+	case "docker":
+		// Enable Docker repository
+		cmd := exec.Command(d.sudoPath, "dnf", "config-manager", "--add-repo", "https://download.docker.com/linux/fedora/docker-ce.repo")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to enable Docker repository: %w", err)
+		}
+		return nil
+	default:
+		return nil // No special setup needed for this package
+	}
 } 

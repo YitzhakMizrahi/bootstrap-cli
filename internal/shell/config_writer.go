@@ -5,83 +5,115 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
 )
 
 // DotfilesStrategy defines how to handle existing dotfiles
 type DotfilesStrategy int
 
 const (
-	// MergeWithExisting merges our configs with existing ones
+	// MergeWithExisting merges new configurations with existing ones
 	MergeWithExisting DotfilesStrategy = iota
-	// SkipIfExists skips adding configs that already exist
+	// SkipIfExists skips adding configurations if they already exist
 	SkipIfExists
-	// ReplaceExisting replaces existing configs with ours
+	// ReplaceExisting replaces existing configurations with new ones
 	ReplaceExisting
 )
 
-// ConfigWriter handles writing shell configurations
+// ConfigWriter handles shell configuration file management
 type ConfigWriter interface {
-	// WriteConfig writes a configuration to the shell's config file
-	WriteConfig(shell Shell, config string, strategy DotfilesStrategy) error
-	// AddToPath adds a path to the shell's PATH variable
-	AddToPath(shell Shell, path string, strategy DotfilesStrategy) error
-	// SetEnvVar sets an environment variable in the shell's config
-	SetEnvVar(shell Shell, key, value string, strategy DotfilesStrategy) error
-	// AddAlias adds an alias to the shell's config
-	AddAlias(shell Shell, name, command string, strategy DotfilesStrategy) error
-	// AddSource adds a source command to the shell's config
-	AddSource(shell Shell, file string, strategy DotfilesStrategy) error
-	// HasConfig checks if a specific configuration already exists
-	HasConfig(shell Shell, config string) bool
+	// WriteConfig writes shell configurations to the appropriate file
+	WriteConfig(configs []string, strategy DotfilesStrategy) error
+	// AddToPath adds a directory to the PATH environment variable
+	AddToPath(path string) error
+	// SetEnvVar sets an environment variable
+	SetEnvVar(name, value string) error
+	// AddAlias adds a shell alias
+	AddAlias(name, command string) error
+	// HasConfig checks if a configuration exists
+	HasConfig(config string) bool
 }
 
-// DefaultConfigWriter is the default implementation of ConfigWriter
+// DefaultConfigWriter implements ConfigWriter
 type DefaultConfigWriter struct {
-	manager Manager
+	logger *log.Logger
+	shell  Shell
+	pm     packages.Manager
 }
 
-// NewConfigWriter creates a new shell config writer
-func NewConfigWriter(manager Manager) ConfigWriter {
-	return &DefaultConfigWriter{
-		manager: manager,
-	}
-}
-
-// WriteConfig writes a configuration to the shell's config file
-func (w *DefaultConfigWriter) WriteConfig(shell Shell, config string, strategy DotfilesStrategy) error {
-	// Get shell info
-	info, err := w.manager.GetInfo(shell)
+// NewConfigWriter creates a new DefaultConfigWriter
+func NewConfigWriter() (*DefaultConfigWriter, error) {
+	sysInfo, err := system.Detect()
 	if err != nil {
-		return fmt.Errorf("failed to get shell info: %w", err)
+		return nil, fmt.Errorf("failed to get system info: %w", err)
 	}
 
-	// Get the primary config file
-	configFile := info.ConfigFiles[0]
+	shellInfo, err := NewManager().DetectCurrent()
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect shell: %w", err)
+	}
+
+	logger := log.New(log.InfoLevel)
+	pm, err := packages.NewPackageManager(sysInfo.OS)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create package manager: %w", err)
+	}
+
+	return &DefaultConfigWriter{
+		logger: logger,
+		shell:  shellInfo.Type,
+		pm:     pm,
+	}, nil
+}
+
+// WriteConfig writes shell configurations to the appropriate file
+func (w *DefaultConfigWriter) WriteConfig(configs []string, strategy DotfilesStrategy) error {
+	// Get shell config file path
+	configFile := w.getConfigFile()
 	if configFile == "" {
-		return fmt.Errorf("no config file found for shell %s", shell)
+		return fmt.Errorf("no config file found for shell %s", w.shell)
 	}
 
-	// Check if config already exists
-	if strategy != ReplaceExisting && w.HasConfig(shell, config) {
-		if strategy == SkipIfExists {
-			return nil // Skip if already exists and strategy is SkipIfExists
+	// Read existing config if it exists
+	var existingConfig string
+	if _, err := os.Stat(configFile); err == nil {
+		data, err := os.ReadFile(configFile)
+		if err != nil {
+			return fmt.Errorf("failed to read config file: %w", err)
 		}
-		// For MergeWithExisting, we'll add our config after existing ones
+		existingConfig = string(data)
 	}
 
-	// Read existing config
-	existingConfig, err := os.ReadFile(configFile)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to read config file: %w", err)
+	// Process each config
+	var newConfigs []string
+	for _, config := range configs {
+		if strategy != ReplaceExisting && w.HasConfig(config) {
+			if strategy == SkipIfExists {
+				continue
+			}
+			// For MergeWithExisting, we'll keep both
+		}
+		newConfigs = append(newConfigs, config)
 	}
 
-	// Prepare new config
-	var newConfig string
-	if len(existingConfig) > 0 {
-		// Add a separator if there's existing content
-		newConfig = string(existingConfig) + "\n\n# Added by bootstrap-cli\n" + config
+	// Write the new config
+	var content string
+	if strategy == ReplaceExisting {
+		content = strings.Join(newConfigs, "\n")
+		if len(newConfigs) > 0 {
+			content += "\n"
+		}
 	} else {
-		newConfig = "# Generated by bootstrap-cli\n" + config
+		content = existingConfig
+		if len(newConfigs) > 0 {
+			if content != "" && !strings.HasSuffix(content, "\n") {
+				content += "\n"
+			}
+			content += strings.Join(newConfigs, "\n") + "\n"
+		}
 	}
 
 	// Ensure directory exists
@@ -90,131 +122,63 @@ func (w *DefaultConfigWriter) WriteConfig(shell Shell, config string, strategy D
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Write config
-	if err := os.WriteFile(configFile, []byte(newConfig), 0644); err != nil {
+	// Write the file
+	if err := os.WriteFile(configFile, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
 	return nil
 }
 
-// AddToPath adds a path to the shell's PATH variable
-func (w *DefaultConfigWriter) AddToPath(shell Shell, path string, strategy DotfilesStrategy) error {
-	var config string
-
-	switch shell {
-	case Bash, Zsh:
-		config = fmt.Sprintf("export PATH=\"%s:$PATH\"", path)
-	case Fish:
-		config = fmt.Sprintf("set -gx PATH %s $PATH", path)
-	default:
-		return fmt.Errorf("unsupported shell type: %s", shell)
-	}
-
-	return w.WriteConfig(shell, config, strategy)
+// AddToPath adds a directory to the PATH environment variable
+func (w *DefaultConfigWriter) AddToPath(path string) error {
+	config := fmt.Sprintf("export PATH=%s:$PATH", path)
+	return w.WriteConfig([]string{config}, MergeWithExisting)
 }
 
-// SetEnvVar sets an environment variable in the shell's config
-func (w *DefaultConfigWriter) SetEnvVar(shell Shell, key, value string, strategy DotfilesStrategy) error {
-	var config string
-
-	switch shell {
-	case Bash, Zsh:
-		config = fmt.Sprintf("export %s=\"%s\"", key, value)
-	case Fish:
-		config = fmt.Sprintf("set -gx %s %s", key, value)
-	default:
-		return fmt.Errorf("unsupported shell type: %s", shell)
-	}
-
-	return w.WriteConfig(shell, config, strategy)
+// SetEnvVar sets an environment variable
+func (w *DefaultConfigWriter) SetEnvVar(name, value string) error {
+	config := fmt.Sprintf("export %s=%s", name, value)
+	return w.WriteConfig([]string{config}, MergeWithExisting)
 }
 
-// AddAlias adds an alias to the shell's config
-func (w *DefaultConfigWriter) AddAlias(shell Shell, name, command string, strategy DotfilesStrategy) error {
-	var config string
-
-	switch shell {
-	case Bash, Zsh:
-		config = fmt.Sprintf("alias %s='%s'", name, command)
-	case Fish:
-		config = fmt.Sprintf("alias %s='%s'", name, command)
-	default:
-		return fmt.Errorf("unsupported shell type: %s", shell)
-	}
-
-	return w.WriteConfig(shell, config, strategy)
+// AddAlias adds a shell alias
+func (w *DefaultConfigWriter) AddAlias(name, command string) error {
+	config := fmt.Sprintf("alias %s='%s'", name, command)
+	return w.WriteConfig([]string{config}, MergeWithExisting)
 }
 
-// AddSource adds a source command to the shell's config
-func (w *DefaultConfigWriter) AddSource(shell Shell, file string, strategy DotfilesStrategy) error {
-	var config string
-
-	switch shell {
-	case Bash, Zsh:
-		config = fmt.Sprintf("source %s", file)
-	case Fish:
-		config = fmt.Sprintf("source %s", file)
-	default:
-		return fmt.Errorf("unsupported shell type: %s", shell)
-	}
-
-	return w.WriteConfig(shell, config, strategy)
-}
-
-// HasConfig checks if a specific configuration already exists
-func (w *DefaultConfigWriter) HasConfig(shell Shell, config string) bool {
-	// Get shell info
-	info, err := w.manager.GetInfo(shell)
-	if err != nil {
-		return false
-	}
-
-	// Get the primary config file
-	configFile := info.ConfigFiles[0]
+// HasConfig checks if a configuration exists
+func (w *DefaultConfigWriter) HasConfig(config string) bool {
+	configFile := w.getConfigFile()
 	if configFile == "" {
 		return false
 	}
 
-	// Read config file
-	content, err := os.ReadFile(configFile)
+	data, err := os.ReadFile(configFile)
 	if err != nil {
 		return false
 	}
 
-	contentStr := string(content)
+	return strings.Contains(string(data), config)
+}
 
-	// Check if config exists
-	// For simple configs (not export/set commands), do exact match
-	if !strings.HasPrefix(config, "export ") && !strings.HasPrefix(config, "set -gx ") {
-		return strings.Contains(contentStr, config)
+// getConfigFile returns the appropriate config file path for the shell
+func (w *DefaultConfigWriter) getConfigFile() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		w.logger.Error("Failed to get user home directory: %v", err)
+		return ""
 	}
 
-	// For export/set commands, check for similar patterns
-	// Extract the variable name from the config
-	var varName string
-	switch {
-	case strings.HasPrefix(config, "export "):
-		parts := strings.SplitN(config[7:], "=", 2)
-		varName = strings.TrimSpace(parts[0])
-	case strings.HasPrefix(config, "set -gx "):
-		parts := strings.SplitN(config[8:], " ", 2)
-		varName = strings.TrimSpace(parts[0])
+	switch w.shell {
+	case Bash:
+		return filepath.Join(home, ".bashrc")
+	case Zsh:
+		return filepath.Join(home, ".zshrc")
+	case Fish:
+		return filepath.Join(home, ".config", "fish", "config.fish")
 	default:
-		return false
+		return ""
 	}
-
-	// Look for any line containing this variable name
-	lines := strings.Split(contentStr, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		if strings.Contains(line, "export "+varName+"=") || strings.Contains(line, "set -gx "+varName+" ") {
-			return true
-		}
-	}
-
-	return false
 } 

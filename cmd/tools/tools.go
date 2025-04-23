@@ -32,15 +32,19 @@ func NewToolsCmd() *cobra.Command {
 		Use:    "tools",
 		Short:  "Manage development tools",
 		Hidden: true, // Hide from user-facing CLI
-		Long: `Install and manage development tools.
-This command is used internally by the init command to install selected tools.`,
+		Long: `Manage development tools.
+This command is used internally by the init command to install selected tools.
+It provides functionality for installing and verifying development tools.`,
 	}
 
 	// Add install subcommand
 	installCmd := &cobra.Command{
 		Use:    "install",
-		Short:  "Install selected development tools",
+		Short:  "Install core development tools",
 		Hidden: true,
+		Long: `Install core development tools.
+This command installs the tools selected during initialization.
+It handles package management, dependencies, and post-install verification.`,
 		RunE:   runInstall,
 	}
 

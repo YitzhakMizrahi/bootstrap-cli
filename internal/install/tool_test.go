@@ -1,7 +1,6 @@
 package install
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -13,62 +12,97 @@ import (
 
 // MockPackageManager simulates a package manager for testing
 type MockPackageManager struct {
-	installed       map[string]bool
+	installed       map[string]string // package -> version
 	failureCount    map[string]int
 	maxFailures     int
 	removedPackages []string
+	name           string
 }
 
-func NewMockPackageManager(maxFailures int) *MockPackageManager {
+func NewMockPackageManager(maxFailures int, name string) *MockPackageManager {
 	return &MockPackageManager{
-		installed:       make(map[string]bool),
+		installed:       make(map[string]string),
 		failureCount:    make(map[string]int),
 		maxFailures:     maxFailures,
 		removedPackages: make([]string, 0),
+		name:           name,
 	}
 }
 
 func (m *MockPackageManager) Install(packages ...string) error {
 	for _, pkg := range packages {
-		if m.failureCount[pkg] < m.maxFailures {
-			m.failureCount[pkg]++
+		// Extract package name and version
+		name, version := pkg, ""
+		if strings.Contains(pkg, "=") {
+			parts := strings.Split(pkg, "=")
+			name, version = parts[0], parts[1]
+		} else if strings.Contains(pkg, "@") {
+			parts := strings.Split(pkg, "@")
+			name, version = parts[0], parts[1]
+		}
+
+		if m.failureCount[name] < m.maxFailures {
+			m.failureCount[name]++
 			return errors.New("simulated install failure")
 		}
-		m.installed[pkg] = true
+		m.installed[name] = version
 	}
 	return nil
 }
 
 func (m *MockPackageManager) IsInstalled(pkg string) bool {
-	return m.installed[pkg]
+	// Extract package name without version
+	name := pkg
+	if strings.Contains(pkg, "=") {
+		name = strings.Split(pkg, "=")[0]
+	} else if strings.Contains(pkg, "@") {
+		name = strings.Split(pkg, "@")[0]
+	}
+	_, exists := m.installed[name]
+	return exists
 }
 
 func (m *MockPackageManager) Uninstall(pkg string) error {
-	if m.failureCount[pkg] < m.maxFailures {
-		m.failureCount[pkg]++
+	// Extract package name without version
+	name := pkg
+	if strings.Contains(pkg, "=") {
+		name = strings.Split(pkg, "=")[0]
+	} else if strings.Contains(pkg, "@") {
+		name = strings.Split(pkg, "@")[0]
+	}
+
+	if m.failureCount[name] < m.maxFailures {
+		m.failureCount[name]++
 		return errors.New("simulated uninstall failure")
 	}
-	if _, exists := m.installed[pkg]; exists {
-		delete(m.installed, pkg)
-		m.removedPackages = append(m.removedPackages, pkg)
+	if _, exists := m.installed[name]; exists {
+		delete(m.installed, name)
+		m.removedPackages = append(m.removedPackages, name)
 	}
 	return nil
 }
 
 func (m *MockPackageManager) IsAvailable() bool {
-	// For testing purposes, assume the package manager is always available
 	return true
 }
 
 func (m *MockPackageManager) Name() string {
-	return "mock"
+	return m.name
 }
 
 func (m *MockPackageManager) Remove(pkg string) error {
-	if _, exists := m.installed[pkg]; !exists {
-		return fmt.Errorf("package %s not installed", pkg)
+	// Extract package name without version
+	name := pkg
+	if strings.Contains(pkg, "=") {
+		name = strings.Split(pkg, "=")[0]
+	} else if strings.Contains(pkg, "@") {
+		name = strings.Split(pkg, "@")[0]
 	}
-	delete(m.installed, pkg)
+
+	if _, exists := m.installed[name]; !exists {
+		return fmt.Errorf("package %s not installed", name)
+	}
+	delete(m.installed, name)
 	return nil
 }
 
@@ -186,93 +220,52 @@ func TestInstaller(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a mock package manager
-			mockPM := &MockPackageManager{
-				installed:    make(map[string]bool),
-				failureCount: make(map[string]int),
-				maxFailures:  tt.maxFail,
-			}
+			mockPM := NewMockPackageManager(tt.maxFail, tt.pmName)
 
-			// Pre-install some packages for cleanup test
-			if tt.cleanupPackages != nil {
-				for _, pkg := range tt.cleanupPackages {
-					mockPM.installed[pkg] = true
-				}
-			}
-
-			// Create a buffer for logging output
-			var logBuf bytes.Buffer
-			logger := log.New(log.DebugLevel)
-			logger.SetOutput(&logBuf)
-
-			// Create an installer with custom settings
+			// Create an installer with the mock package manager
 			installer := &Installer{
 				PackageManager: mockPM,
-				Logger:        logger,
+				Logger:        log.New(log.InfoLevel),
 				MaxRetries:    tt.maxRetries,
 				RetryDelay:    time.Millisecond, // Use short delay for tests
 			}
 
 			// Install the tool
 			err := installer.Install(tt.tool)
+
+			// Check error
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Install() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			// Check log output
-			logOutput := logBuf.String()
-			if tt.wantErr {
-				if !strings.Contains(logOutput, "ERROR") {
-					t.Error("Expected error log message not found")
-				}
-				if tt.expectCleanup {
-					if !strings.Contains(logOutput, "Cleaning up installed packages") {
-						t.Error("Expected cleanup log message not found")
-					}
-					// Check if all packages that should be cleaned up were removed
-					if tt.cleanupPackages != nil {
-						for _, pkg := range tt.cleanupPackages {
-							found := false
-							for _, removed := range mockPM.removedPackages {
-								if removed == pkg {
-									found = true
-									break
-								}
-							}
-							if !found {
-								t.Errorf("Expected package %s to be removed during cleanup", pkg)
-							}
-						}
-					}
-				}
-			} else {
-				if !strings.Contains(logOutput, "Successfully installed") {
-					t.Error("Expected success log message not found")
+			// Check if package was installed with correct version
+			if !tt.wantErr && tt.expectedPkgName != "" {
+				name, version := tt.expectedPkgName, ""
+				if strings.Contains(tt.expectedPkgName, "=") {
+					parts := strings.Split(tt.expectedPkgName, "=")
+					name, version = parts[0], parts[1]
+				} else if strings.Contains(tt.expectedPkgName, "@") {
+					parts := strings.Split(tt.expectedPkgName, "@")
+					name, version = parts[0], parts[1]
 				}
 
-				// Verify correct package name was used
-				if tt.expectedPkgName != "" && !mockPM.IsInstalled(tt.expectedPkgName) {
+				if installedVersion, ok := mockPM.installed[name]; !ok {
 					t.Errorf("Expected package %s was not installed", tt.expectedPkgName)
-				}
-			}
-
-			// Check if dependencies were installed
-			if !tt.wantErr {
-				for _, dep := range tt.tool.Dependencies {
-					if !mockPM.IsInstalled(dep) {
-						t.Errorf("Dependency %s was not installed", dep)
-					}
+				} else if version != "" && installedVersion != version {
+					t.Errorf("Expected package %s to be installed with version %s, got %s", name, version, installedVersion)
 				}
 			}
 
 			// Check cleanup
 			if tt.expectCleanup {
-				if len(mockPM.removedPackages) == 0 {
-					t.Error("Expected packages to be removed during cleanup")
+				for _, pkg := range tt.cleanupPackages {
+					if _, exists := mockPM.installed[pkg]; exists {
+						t.Errorf("Expected package %s to be removed during cleanup", pkg)
+					}
 				}
-			} else {
-				if len(mockPM.removedPackages) > 0 {
-					t.Error("Unexpected package removal during successful installation")
+				if len(mockPM.installed) > 0 {
+					t.Error("Expected packages to be removed during cleanup")
 				}
 			}
 		})

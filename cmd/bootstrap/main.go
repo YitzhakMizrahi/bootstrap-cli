@@ -43,6 +43,7 @@ func main() {
 	rootCmd := NewRootCmd()
 
 	// Add subcommands
+	rootCmd.AddCommand(NewUpCmd()) // Add up command
 	rootCmd.AddCommand(initCmd.NewInitCmd())
 	rootCmd.AddCommand(toolsCmd.NewToolsCmd()) // Keep internal tools command hidden
 	rootCmd.AddCommand(packageCmd.NewPackageCmd()) // Add package management command

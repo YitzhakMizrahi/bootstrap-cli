@@ -70,11 +70,11 @@ type retryPackageManager struct {
 	retryDelay time.Duration
 }
 
-// Install with retry logic
-func (r *retryPackageManager) Install(packages ...string) error {
+// Install installs a package with retries
+func (r *retryPackageManager) Install(packageName string) error {
 	var lastErr error
 	for i := 0; i < r.maxRetries; i++ {
-		if err := r.PackageManager.Install(packages...); err != nil {
+		if err := r.PackageManager.Install(packageName); err != nil {
 			lastErr = err
 			if i < r.maxRetries-1 {
 				time.Sleep(r.retryDelay)
@@ -84,7 +84,7 @@ func (r *retryPackageManager) Install(packages ...string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("failed to install packages after %d retries: %w", r.maxRetries, lastErr)
+	return fmt.Errorf("failed to install package after %d retries: %w", r.maxRetries, lastErr)
 }
 
 // Remove with retry logic

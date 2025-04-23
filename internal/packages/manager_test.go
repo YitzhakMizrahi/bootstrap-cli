@@ -18,13 +18,13 @@ func TestPackageManagerDetection(t *testing.T) {
 		if err != nil {
 			t.Errorf("Failed to get package manager on Linux: %v", err)
 		}
-		if pm != nil && pm.Name() == "" {
+		if pm != nil && pm.GetName() == "" {
 			t.Error("Package manager name is empty")
 		}
 	case "darwin":
 		// On macOS, we might find Homebrew
-		if pm != nil && pm.Name() != string(interfaces.Homebrew) {
-			t.Errorf("Expected Homebrew on macOS, got %s", pm.Name())
+		if pm != nil && pm.GetName() != string(interfaces.Homebrew) {
+			t.Errorf("Expected Homebrew on macOS, got %s", pm.GetName())
 		}
 	default:
 		// On other systems, we expect no package manager
@@ -46,10 +46,7 @@ func TestPackageManagerFactory(t *testing.T) {
 		t.Fatal("Package manager is nil")
 	}
 	
-	if pm.Name() == "" {
+	if pm.GetName() == "" {
 		t.Error("Package manager name is empty")
 	}
-}
-
-// TestAPTManager and TestHomebrewManager functions have been removed
-// as they referenced implementations that have been consolidated 
+} 

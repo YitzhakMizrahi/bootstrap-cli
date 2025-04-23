@@ -1,0 +1,24 @@
+name: cURL
+description: "Command line tool for transferring data with URLs"
+category: "essential"
+tags: ["network", "download", "essential"]
+package_names:
+  apt: curl
+  brew: curl
+  dnf: curl
+  pacman: curl
+version: "latest"
+system_dependencies: []
+dependencies: []
+verify_command: "curl --version"
+post_install: []
+shell_config:
+  aliases:
+    curljson: "curl -H 'Content-Type: application/json'"
+    curltime: "curl -w '@$HOME/.dotfiles/network/curl-format' -o /dev/null -s"
+
+files:
+  - source: network/curl-format
+    destination: ~/.dotfiles/network/curl-format
+    type: content
+    permissions: 0644 

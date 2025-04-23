@@ -1,0 +1,34 @@
+name: Git
+description: "Distributed version control system"
+category: "essential"
+tags: ["vcs", "development", "essential"]
+package_names:
+  apt: git
+  brew: git
+  dnf: git
+  pacman: git
+version: "latest"
+system_dependencies: []
+dependencies: []
+verify_command: "git --version"
+post_install:
+  - command: "git config --global init.defaultBranch main"
+    description: "Set default branch name to main"
+  - command: "git config --global core.editor \"code --wait\""
+    description: "Set VS Code as default editor"
+  - command: "git config --global pull.rebase false"
+    description: "Set merge as default pull strategy"
+shell_config:
+  aliases:
+    - name: g
+      command: "git"
+    - name: ga
+      command: "git add"
+    - name: gc
+      command: "git commit"
+    - name: gp
+      command: "git push"
+    - name: gl
+      command: "git pull"
+    - name: gs
+      command: "git status" 

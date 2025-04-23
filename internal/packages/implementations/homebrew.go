@@ -38,30 +38,25 @@ func (h *HomebrewPackageManager) IsAvailable() bool {
 	return err == nil
 }
 
-// Install installs packages using Homebrew
-func (h *HomebrewPackageManager) Install(packages ...string) error {
-	// Update package list first
-	updateCmd := exec.Command(h.brewPath, "update")
-	updateCmd.Stdout = os.Stdout
-	updateCmd.Stderr = os.Stderr
-	if err := updateCmd.Run(); err != nil {
-		return fmt.Errorf("failed to update package list: %w", err)
-	}
-
-	// Install packages
-	args := append([]string{"install"}, packages...)
-	cmd := exec.Command(h.brewPath, args...)
+// Install installs a package using Homebrew
+func (h *HomebrewPackageManager) Install(packageName string) error {
+	cmd := exec.Command("brew", "install", packageName)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install packages: %w", err)
-	}
-	return nil
+	return cmd.Run()
 }
 
 // Update updates the package list
 func (h *HomebrewPackageManager) Update() error {
 	cmd := exec.Command(h.brewPath, "update")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Upgrade upgrades all packages
+func (h *HomebrewPackageManager) Upgrade() error {
+	cmd := exec.Command("brew", "upgrade")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -124,4 +119,9 @@ func (h *HomebrewPackageManager) ListInstalled() ([]string, error) {
 		}
 	}
 	return packages, nil
+}
+
+// GetName returns the name of the package manager
+func (h *HomebrewPackageManager) GetName() string {
+	return string(interfaces.Homebrew)
 } 

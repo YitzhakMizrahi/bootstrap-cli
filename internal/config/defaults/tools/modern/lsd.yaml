@@ -1,24 +1,32 @@
 name: lsd
 description: "Modern ls command with colors and icons"
 category: "modern"
-tags: ["cli", "ls", "modern"]
+tags: ["modern", "ls", "files", "icons"]
+
 package_names:
   apt: lsd
   brew: lsd
   dnf: lsd
   pacman: lsd
-version: "0.23.1"
+
+version: "latest"
 system_dependencies: []
 dependencies: []
 verify_command: "lsd --version"
-post_install: []
+
+post_install:
+  - command: "mkdir -p ~/.config/lsd"
+    description: "Create lsd config directory"
+
 shell_config:
   aliases:
-    - name: ls
-      command: "lsd"
-    - name: ll
-      command: "lsd -l"
-    - name: la
-      command: "lsd -la"
-    - name: lt
-      command: "lsd --tree" 
+    ls: "lsd"  # Replace ls with lsd
+    ll: "lsd -l"  # Long format
+    la: "lsd -la"  # Long format including hidden files
+    lt: "lsd --tree"  # Tree view
+    lta: "lsd --tree -a"  # Tree view with hidden files
+    lld: "lsd -l --group-dirs first"  # List with directories first
+    llz: "lsd -l --total-size"  # List with total size
+
+  env:
+    LS_COLORS: "$(vivid generate molokai)"  # Use vivid for LS_COLORS if available 

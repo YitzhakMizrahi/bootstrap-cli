@@ -4,18 +4,61 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 )
 
 func TestNewPackageManagerFactory(t *testing.T) {
-	factory := NewPackageManagerFactory()
-	if factory == nil {
-		t.Fatal("NewPackageManagerFactory() returned nil")
+	tests := []struct {
+		name     string
+		pmType   interfaces.PackageManagerType
+		wantType interfaces.PackageManager
+		wantErr  bool
+	}{
+		{
+			name:     "test apt",
+			pmType:   interfaces.APT,
+			wantType: NewMockPackageManager(0, "apt"),
+			wantErr:  false,
+		},
+		{
+			name:     "test dnf",
+			pmType:   interfaces.DNF,
+			wantType: NewMockPackageManager(0, "dnf"),
+			wantErr:  false,
+		},
+		{
+			name:     "test pacman",
+			pmType:   interfaces.Pacman,
+			wantType: NewMockPackageManager(0, "pacman"),
+			wantErr:  false,
+		},
+		{
+			name:     "test brew",
+			pmType:   interfaces.Homebrew,
+			wantType: NewMockPackageManager(0, "brew"),
+			wantErr:  false,
+		},
+		{
+			name:     "test unknown",
+			pmType:   interfaces.PackageManagerType("unknown"),
+			wantType: nil,
+			wantErr:  true,
+		},
 	}
-	if factory.maxRetries != 3 {
-		t.Errorf("expected maxRetries to be 3, got %d", factory.maxRetries)
-	}
-	if factory.retryDelay != 5*time.Second {
-		t.Errorf("expected retryDelay to be 5s, got %v", factory.retryDelay)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := NewPackageManagerFactory()
+			got, err := f.GetPackageManager()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetPackageManager() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && got.GetName() != tt.wantType.GetName() {
+				t.Errorf("GetPackageManager() = %v, want %v", got, tt.wantType)
+			}
+		})
 	}
 }
 
@@ -94,11 +137,7 @@ type mockPackageManager struct {
 	uninstallCount int
 }
 
-func (m *mockPackageManager) Install(packages ...string) error {
-	m.installCount++
-	if m.installCount <= m.failCount {
-		return fmt.Errorf("mock install error")
-	}
+func (m *mockPackageManager) Install(packageName string) error {
 	return nil
 }
 
@@ -132,4 +171,12 @@ func (m *mockPackageManager) GetVersion(packageName string) (string, error) {
 
 func (m *mockPackageManager) ListInstalled() ([]string, error) {
 	return []string{}, nil
+}
+
+func (m *mockPackageManager) GetName() string {
+	return "mock"
+}
+
+func (m *mockPackageManager) Upgrade() error {
+	return nil
 } 

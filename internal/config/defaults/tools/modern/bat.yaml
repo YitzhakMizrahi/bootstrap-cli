@@ -1,0 +1,29 @@
+name: bat
+description: "A cat clone with syntax highlighting and Git integration"
+category: "modern"
+tags: ["modern", "file", "syntax-highlighting"]
+
+package_names:
+  apt: bat
+  brew: bat
+  dnf: bat
+  pacman: bat
+
+version: "latest"
+system_dependencies: []
+dependencies: []
+verify_command: "bat --version"
+
+post_install:
+  - command: "mkdir -p ~/.config/bat"
+    description: "Create bat config directory"
+
+shell_config:
+  aliases:
+    cat: "bat --paging=never"  # Replace cat with bat but disable paging by default
+    batdiff: "bat --diff"      # Show git diff with syntax highlighting
+    bathelp: "bat --plain --language=help" # Format help pages with bat
+
+  env:
+    BAT_THEME: "Dracula"       # Set default theme
+    BAT_STYLE: "numbers,changes,header"  # Show line numbers, Git changes, and file headers 

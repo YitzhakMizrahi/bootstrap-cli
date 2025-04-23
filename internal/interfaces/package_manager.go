@@ -1,21 +1,31 @@
 package interfaces
 
-// PackageManager defines the interface for package management operations
+// PackageManager represents a system package manager
 type PackageManager interface {
-	// Name returns the name of the package manager
-	Name() string
+	// Install installs a package
+	Install(packageName string) error
+	
+	// IsInstalled checks if a package is installed
+	IsInstalled(packageName string) bool
+	
+	// GetName returns the name of the package manager (apt, brew, dnf, pacman)
+	GetName() string
+	
 	// IsAvailable checks if the package manager is available on the system
 	IsAvailable() bool
-	// Install installs the given packages
-	Install(packages ...string) error
+	
 	// Update updates the package list
 	Update() error
-	// IsInstalled checks if a package is installed
-	IsInstalled(pkg string) bool
+	
+	// Upgrade upgrades all packages
+	Upgrade() error
+
 	// Remove removes a package
-	Remove(pkg string) error
-	// GetVersion returns the version of a package
+	Remove(packageName string) error
+
+	// GetVersion returns the version of an installed package
 	GetVersion(packageName string) (string, error)
+
 	// ListInstalled returns a list of installed packages
 	ListInstalled() ([]string, error)
 }

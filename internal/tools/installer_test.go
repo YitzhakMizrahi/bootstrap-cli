@@ -20,7 +20,7 @@ func newMockPackagesManager() *mockPackagesManager {
 	}
 }
 
-func (m *mockPackagesManager) Name() string {
+func (m *mockPackagesManager) GetName() string {
 	return "mock"
 }
 
@@ -28,14 +28,16 @@ func (m *mockPackagesManager) IsAvailable() bool {
 	return true
 }
 
-func (m *mockPackagesManager) Install(packages ...string) error {
-	for _, pkg := range packages {
-		m.installedPackages[pkg] = true
-	}
+func (m *mockPackagesManager) Install(pkg string) error {
+	m.installedPackages[pkg] = true
 	return nil
 }
 
 func (m *mockPackagesManager) Update() error {
+	return nil
+}
+
+func (m *mockPackagesManager) Upgrade() error {
 	return nil
 }
 

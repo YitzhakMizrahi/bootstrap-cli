@@ -36,34 +36,23 @@ func (d *DnfPackageManager) Name() string {
 	return string(interfaces.DNF)
 }
 
+// GetName returns the name of the package manager
+func (d *DnfPackageManager) GetName() string {
+	return string(interfaces.DNF)
+}
+
 // IsAvailable checks if the package manager is available on the system
 func (d *DnfPackageManager) IsAvailable() bool {
 	_, err := exec.LookPath("dnf")
 	return err == nil
 }
 
-// Install installs packages using dnf
-func (d *DnfPackageManager) Install(packages ...string) error {
-	// Update package list first
-	updateCmd := exec.Command(d.sudoPath, "dnf", "check-update")
-	updateCmd.Stdout = os.Stdout
-	updateCmd.Stderr = os.Stderr
-	if err := updateCmd.Run(); err != nil {
-		// DNF check-update returns 100 if updates are available, which is not an error
-		if !strings.Contains(err.Error(), "exit status 100") {
-			return fmt.Errorf("failed to check for updates: %w", err)
-		}
-	}
-
-	// Install packages
-	args := append([]string{"dnf", "install", "-y"}, packages...)
-	cmd := exec.Command(d.sudoPath, args...)
+// Install installs a package using dnf
+func (d *DnfPackageManager) Install(packageName string) error {
+	cmd := exec.Command("sudo", "dnf", "install", "-y", packageName)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install packages: %w", err)
-	}
-	return nil
+	return cmd.Run()
 }
 
 // Update updates the package list
@@ -152,4 +141,12 @@ func (d *DnfPackageManager) SetupSpecialPackage(pkg string) error {
 	default:
 		return nil // No special setup needed for this package
 	}
+}
+
+// Upgrade upgrades all packages
+func (d *DnfPackageManager) Upgrade() error {
+	cmd := exec.Command("sudo", "dnf", "upgrade", "-y")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 } 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
@@ -60,7 +61,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to detect package manager: %w", err)
 	}
 	logger.Info("System: %s %s (%s)", sysInfo.Distro, sysInfo.Version, sysInfo.OS)
-	logger.Info("Package Manager: %s", pm.Name())
+	logger.Info("Package Manager: %s", pm.GetName())
 
 	// --- Phase 1: Tool Selection ---
 	logger.Info("Step 1: Select tools to install")
@@ -71,7 +72,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Extract tool names for the selector
 	var toolNames []string
-	toolMap := make(map[string]*install.Tool)
+	toolMap := make(map[string]*interfaces.Tool)
 	for _, tool := range availableTools {
 		toolNames = append(toolNames, tool.Name)
 		toolMap[tool.Name] = tool
@@ -95,7 +96,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 
 		// Convert selected names back to Tool objects
-		var selectedTools []*install.Tool
+		var selectedTools []*interfaces.Tool
 		for _, name := range selectedNames {
 			if tool, exists := toolMap[name]; exists {
 				selectedTools = append(selectedTools, tool)

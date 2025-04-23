@@ -119,42 +119,13 @@ func (a *APTManager) SetupSpecialPackage(pkg string) error {
 	return nil
 }
 
-// Install installs one or more packages
-func (a *APTManager) Install(packages ...string) error {
-	if len(packages) == 0 {
-		return fmt.Errorf("no packages specified")
-	}
-
-	// First try to install without any special setup
-	args := append([]string{"install", "-y"}, packages...)
-	cmd := exec.Command(a.aptGetPath, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-
-	// If installation failed, check if it's a "package not found" error
+// Install installs a package using apt
+func (a *APTManager) Install(pkg string) error {
+	cmd := exec.Command("sudo", "apt-get", "install", "-y", pkg)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		output := err.Error()
-		if strings.Contains(output, "Unable to locate package") {
-			// Try special setup for each package
-			for _, pkg := range packages {
-				if setupErr := a.SetupSpecialPackage(pkg); setupErr != nil {
-					// If setup fails, continue to next package
-					continue
-				}
-				// Try installing again after setup
-				cmd = exec.Command(a.aptGetPath, args...)
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				if retryErr := cmd.Run(); retryErr == nil {
-					return nil
-				}
-			}
-			// If we get here, no package could be installed
-			return fmt.Errorf("package not found: %w", err)
-		}
+		return fmt.Errorf("failed to install package %s: %v\nOutput: %s", pkg, err, output)
 	}
-
 	return nil
 }
 
@@ -194,4 +165,17 @@ func (a *APTManager) ListInstalled() ([]string, error) {
 		return nil, err
 	}
 	return strings.Split(strings.TrimSpace(string(output)), "\n"), nil
-} 
+}
+
+// GetName returns the name of the package manager
+func (a *APTManager) GetName() string {
+	return string(interfaces.APT)
+}
+
+// Upgrade upgrades all packages
+func (a *APTManager) Upgrade() error {
+	cmd := exec.Command("sudo", a.aptGetPath, "upgrade", "-y")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}

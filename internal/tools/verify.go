@@ -6,11 +6,11 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 )
 
 // VerifyTool checks if a tool is properly installed and accessible
-func VerifyTool(tool *install.Tool, additionalPaths []string) error {
+func VerifyTool(tool *interfaces.Tool, additionalPaths []string) error {
 	// Check if binary exists in PATH or additional paths
 	paths := append(filepath.SplitList(os.Getenv("PATH")), additionalPaths...)
 	

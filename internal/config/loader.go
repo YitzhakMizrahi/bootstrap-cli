@@ -9,7 +9,6 @@ import (
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
-	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
 
@@ -53,12 +52,12 @@ func mergeConfigs[T any](defaultConfig, userConfig *T) *T {
 }
 
 // LoadTools loads all tool configurations
-func (l *ConfigLoader) LoadTools() ([]*install.Tool, error) {
+func (l *ConfigLoader) LoadTools() ([]*interfaces.Tool, error) {
 	configs, err := l.loadConfigsFromDir("tools")
 	if err != nil {
 		return nil, err
 	}
-	tools, ok := configs.([]*install.Tool)
+	tools, ok := configs.([]*interfaces.Tool)
 	if !ok {
 		return nil, fmt.Errorf("failed to convert configs to tools")
 	}
@@ -123,7 +122,7 @@ func (l *ConfigLoader) loadConfigsFromDir(dir string) (interface{}, error) {
 	// Merge configs based on type
 	switch dir {
 	case "tools":
-		configs = l.mergeToolConfigs(defaultConfigs.([]*install.Tool), userConfigs.([]*install.Tool))
+		configs = l.mergeToolConfigs(defaultConfigs.([]*interfaces.Tool), userConfigs.([]*interfaces.Tool))
 	case "fonts":
 		configs = l.mergeFontConfigs(defaultConfigs.([]*install.Font), userConfigs.([]*install.Font))
 	case "languages":
@@ -148,7 +147,7 @@ func (l *ConfigLoader) loadDefaultConfigs(dir string) (interface{}, error) {
 	var configs interface{}
 	switch dir {
 	case "tools":
-		tools := make([]*install.Tool, 0)
+		tools := make([]*interfaces.Tool, 0)
 		for _, entry := range entries {
 			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
 				continue
@@ -158,7 +157,7 @@ func (l *ConfigLoader) loadDefaultConfigs(dir string) (interface{}, error) {
 			if err != nil {
 				return nil, fmt.Errorf("error reading default file %s: %w", path, err)
 			}
-			var tool install.Tool
+			var tool interfaces.Tool
 			if err := yaml.Unmarshal(data, &tool); err != nil {
 				return nil, fmt.Errorf("error unmarshaling default YAML from %s: %w", path, err)
 			}
@@ -181,7 +180,7 @@ func (l *ConfigLoader) loadUserConfigs(dir string) (interface{}, error) {
 	var configs interface{}
 	switch dir {
 	case "tools":
-		tools := make([]*install.Tool, 0)
+		tools := make([]*interfaces.Tool, 0)
 		err := filepath.Walk(userDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -206,33 +205,39 @@ func (l *ConfigLoader) loadUserConfigs(dir string) (interface{}, error) {
 	return configs, nil
 }
 
-// mergeToolConfigs merges tool configurations
-func (l *ConfigLoader) mergeToolConfigs(defaults, users []*install.Tool) []*install.Tool {
-	merged := make([]*install.Tool, 0)
-	
-	// Create a map of tools by name
-	toolMap := make(map[string]*install.Tool)
-	for _, tool := range defaults {
-		toolMap[tool.Name] = tool
+// mergeToolConfigs merges user tool configs into default configs
+func (l *ConfigLoader) mergeToolConfigs(defaults, users []*interfaces.Tool) []*interfaces.Tool {
+	if users == nil {
+		return defaults
+	}
+	if defaults == nil {
+		return users
 	}
 	
-	// Merge or add user tools
-	for _, tool := range users {
-		if defaultTool, exists := toolMap[tool.Name]; exists {
-			merged = append(merged, mergeConfigs(defaultTool, tool))
+	// Create map of default tools by name
+	defaultMap := make(map[string]*interfaces.Tool)
+	for _, tool := range defaults {
+		defaultMap[tool.Name] = tool
+	}
+	
+	// Merge or append user tools
+	result := make([]*interfaces.Tool, 0)
+	for _, user := range users {
+		if def, exists := defaultMap[user.Name]; exists {
+			merged := mergeConfigs(def, user)
+			result = append(result, merged)
+			delete(defaultMap, user.Name)
 		} else {
-			merged = append(merged, tool)
+			result = append(result, user)
 		}
 	}
 	
-	// Add remaining default tools
-	for _, tool := range defaults {
-		if _, exists := toolMap[tool.Name]; !exists {
-			merged = append(merged, tool)
-		}
+	// Add remaining defaults
+	for _, def := range defaultMap {
+		result = append(result, def)
 	}
 	
-	return merged
+	return result
 }
 
 // mergeFontConfigs merges font configurations
@@ -322,20 +327,18 @@ func (l *ConfigLoader) mergeDotfileConfigs(defaults, users []*interfaces.Dotfile
 	return merged
 }
 
-// loadConfigFile loads a single configuration file
-func (l *ConfigLoader) loadConfigFile(path string) (*install.Tool, error) {
-	v := viper.New()
-	v.SetConfigFile(path)
-
-	if err := v.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("error reading config file: %w", err)
+// loadTool loads a tool configuration from a file
+func (l *ConfigLoader) loadTool(path string) (*interfaces.Tool, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file %s: %w", path, err)
 	}
-
-	var tool install.Tool
-	if err := v.Unmarshal(&tool); err != nil {
-		return nil, fmt.Errorf("error unmarshaling config: %w", err)
+	
+	var tool interfaces.Tool
+	if err := yaml.Unmarshal(data, &tool); err != nil {
+		return nil, fmt.Errorf("error unmarshaling YAML from %s: %w", path, err)
 	}
-
+	
 	return &tool, nil
 }
 
@@ -373,9 +376,9 @@ func (l *ConfigLoader) GetCategories(configType string) ([]string, error) {
 }
 
 // GetToolsByCategory returns all tools in a specific category
-func (l *ConfigLoader) GetToolsByCategory(category, subcategory string) ([]*install.Tool, error) {
+func (l *ConfigLoader) GetToolsByCategory(category, subcategory string) ([]*interfaces.Tool, error) {
 	dir := filepath.Join(l.baseDir, category, subcategory)
-	tools := make([]*install.Tool, 0)
+	tools := make([]*interfaces.Tool, 0)
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -400,21 +403,6 @@ func (l *ConfigLoader) GetToolsByCategory(category, subcategory string) ([]*inst
 	}
 
 	return tools, nil
-}
-
-// loadTool loads a single tool configuration from a YAML file
-func (l *ConfigLoader) loadTool(path string) (*install.Tool, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("error reading file %s: %w", path, err)
-	}
-
-	var tool install.Tool
-	if err := yaml.Unmarshal(data, &tool); err != nil {
-		return nil, fmt.Errorf("error unmarshaling YAML from %s: %w", path, err)
-	}
-
-	return &tool, nil
 }
 
 // GetFonts loads all font configurations

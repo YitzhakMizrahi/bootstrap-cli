@@ -1,0 +1,36 @@
+name: fzf
+description: "A command-line fuzzy finder"
+category: "modern"
+tags: ["modern", "search", "filter", "interactive"]
+
+package_names:
+  apt: fzf
+  brew: fzf
+  dnf: fzf
+  pacman: fzf
+
+version: "latest"
+system_dependencies: []
+dependencies: []
+verify_command: "fzf --version"
+
+post_install:
+  - command: "$(which fzf)/install --all"
+    description: "Install fzf shell integration scripts"
+
+shell_config:
+  env:
+    FZF_DEFAULT_OPTS: "--height 40% --layout=reverse --border --info=inline"
+    FZF_DEFAULT_COMMAND: "fd --type f --hidden --follow --exclude .git"  # Use fd for file search
+    FZF_CTRL_T_COMMAND: "$FZF_DEFAULT_COMMAND"  # Use same command for CTRL-T
+    FZF_ALT_C_COMMAND: "fd --type d --hidden --follow --exclude .git"   # Use fd for directory search
+
+  aliases:
+    preview: "fzf --preview 'bat --style=numbers --color=always {}'"  # Preview files with bat
+    fzfh: "history | fzf"  # Search command history
+    
+  functions:
+    fcd: |
+      cd "$(fd --type d --hidden --follow --exclude .git | fzf)"  # Fuzzy change directory
+    fkill: |
+      ps -ef | sed 1d | fzf -m | awk '{print $2}' | xargs kill -${1:-9}  # Fuzzy process killer 

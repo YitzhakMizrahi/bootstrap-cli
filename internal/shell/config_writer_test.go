@@ -13,14 +13,15 @@ import (
 // mockPackageManager implements interfaces.PackageManager for testing
 type mockPackageManager struct{}
 
-func (m *mockPackageManager) Name() string                                   { return "mock" }
-func (m *mockPackageManager) IsAvailable() bool                             { return true }
-func (m *mockPackageManager) Install(packages ...string) error              { return nil }
-func (m *mockPackageManager) Update() error                                 { return nil }
-func (m *mockPackageManager) IsInstalled(pkg string) bool                   { return true }
-func (m *mockPackageManager) Remove(pkg string) error                       { return nil }
-func (m *mockPackageManager) GetVersion(packageName string) (string, error) { return "", nil }
-func (m *mockPackageManager) ListInstalled() ([]string, error)             { return nil, nil }
+func (m *mockPackageManager) GetName() string                     { return "mock" }
+func (m *mockPackageManager) IsAvailable() bool                   { return true }
+func (m *mockPackageManager) Install(pkg string) error           { return nil }
+func (m *mockPackageManager) Update() error                      { return nil }
+func (m *mockPackageManager) Upgrade() error                     { return nil }
+func (m *mockPackageManager) IsInstalled(pkg string) bool        { return true }
+func (m *mockPackageManager) Remove(pkg string) error            { return nil }
+func (m *mockPackageManager) GetVersion(pkg string) (string, error) { return "", nil }
+func (m *mockPackageManager) ListInstalled() ([]string, error)   { return nil, nil }
 
 // testConfigWriter creates a DefaultConfigWriter for testing
 func testConfigWriter(t *testing.T, shell interfaces.ShellType) (*DefaultConfigWriter, string, func()) {

@@ -4,6 +4,7 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -44,18 +45,6 @@ func TestAptPackageManager_Install(t *testing.T) {
 	if err == nil {
 		t.Error("Install() expected error for non-existent package, got nil")
 	}
-
-	// Test installing multiple packages
-	err = pm.Install("curl", "wget", "git")
-	if err != nil {
-		t.Errorf("Install() error = %v", err)
-	}
-
-	// Test installing with no packages
-	err = pm.Install()
-	if err == nil {
-		t.Error("Install() expected error for empty package list, got nil")
-	}
 }
 
 func TestAptPackageManager_IsInstalled(t *testing.T) {
@@ -80,6 +69,48 @@ func TestAptPackageManager_IsInstalled(t *testing.T) {
 	}
 }
 
+func TestAptPackageManager_Update(t *testing.T) {
+	// Skip if not on a system with apt-get
+	if _, err := exec.LookPath("apt-get"); err != nil {
+		t.Skip("apt-get not available, skipping test")
+	}
+
+	pm, err := NewAptPackageManager()
+	if err != nil {
+		t.Fatalf("NewAptPackageManager() error = %v", err)
+	}
+
+	err = pm.Update()
+	if err != nil {
+		t.Errorf("Update() error = %v", err)
+	}
+}
+
+func TestAptPackageManager_Upgrade(t *testing.T) {
+	// Skip if not on a system with apt-get
+	if _, err := exec.LookPath("apt-get"); err != nil {
+		t.Skip("apt-get not available, skipping test")
+	}
+
+	pm, err := NewAptPackageManager()
+	if err != nil {
+		t.Fatalf("NewAptPackageManager() error = %v", err)
+	}
+
+	err = pm.Upgrade()
+	if err != nil {
+		t.Errorf("Upgrade() error = %v", err)
+	}
+}
+
+func TestAptPackageManager_GetName(t *testing.T) {
+	pm, err := NewAptPackageManager()
+	if err != nil {
+		t.Fatalf("NewAptPackageManager() error = %v", err)
+	}
+	assert.Equal(t, string(interfaces.APT), pm.GetName())
+}
+
 func TestAptPackageManager_Remove(t *testing.T) {
 	// Skip if not on a system with apt-get
 	if _, err := exec.LookPath("apt-get"); err != nil {
@@ -101,23 +132,6 @@ func TestAptPackageManager_Remove(t *testing.T) {
 	err = pm.Remove("non-existent-package-123456")
 	if err == nil {
 		t.Error("Remove() expected error for non-existent package, got nil")
-	}
-}
-
-func TestAptPackageManager_Update(t *testing.T) {
-	// Skip if not on a system with apt-get
-	if _, err := exec.LookPath("apt-get"); err != nil {
-		t.Skip("apt-get not available, skipping test")
-	}
-
-	pm, err := NewAptPackageManager()
-	if err != nil {
-		t.Fatalf("NewAptPackageManager() error = %v", err)
-	}
-
-	err = pm.Update()
-	if err != nil {
-		t.Errorf("Update() error = %v", err)
 	}
 }
 
@@ -184,7 +198,11 @@ func TestAptPackageManager_InstallMultiple(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewAptPackageManager() error = %v", err)
 	}
-	err = pm.Install("package1", "package2", "package3")
+	err = pm.Install("package1")
+	assert.NoError(t, err)
+	err = pm.Install("package2")
+	assert.NoError(t, err)
+	err = pm.Install("package3")
 	assert.NoError(t, err)
 }
 
@@ -193,6 +211,22 @@ func TestAptPackageManager_InstallEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewAptPackageManager() error = %v", err)
 	}
-	err = pm.Install()
+	err = pm.Install("")
 	assert.Error(t, err)
+}
+
+func TestAptInstall(t *testing.T) {
+	// Skip if not on a system with apt-get
+	if _, err := exec.LookPath("apt-get"); err != nil {
+		t.Skip("apt-get not available, skipping test")
+	}
+
+	pm, err := NewAptPackageManager()
+	if err != nil {
+		t.Fatalf("NewAptPackageManager() error = %v", err)
+	}
+
+	// Test installing a package
+	err = pm.Install("test-package")
+	assert.NoError(t, err)
 } 

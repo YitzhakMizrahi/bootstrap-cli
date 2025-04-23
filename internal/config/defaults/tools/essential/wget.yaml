@@ -1,0 +1,14 @@
+name: Wget
+description: "Network utility to retrieve files from the web"
+category: "essential"
+tags: ["network", "download", "essential"]
+package_names:
+  apt: wget
+  brew: wget
+  dnf: wget
+  pacman: wget
+version: "latest"
+system_dependencies: []
+dependencies: []
+verify_command: "wget --version"
+post_install: [] 

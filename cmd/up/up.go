@@ -153,7 +153,27 @@ func runUp(cmd *cobra.Command, args []string) error {
 		for _, category := range allToolCategories {
 			for _, tool := range category.Tools {
 				if tool.Name == selectedName {
-					toolsToInstall = append(toolsToInstall, tool)
+					// Convert interfaces.Tool to install.Tool
+					toolsToInstall = append(toolsToInstall, &install.Tool{
+						Name:        tool.Name,
+						Description: tool.Description,
+						Category:    tool.Category,
+						Tags:        tool.Tags,
+						PackageName: tool.PackageName,
+						PackageNames: &install.PackageMapping{
+							APT:     tool.PackageNames.APT,
+							DNF:     tool.PackageNames.DNF,
+							Pacman:  tool.PackageNames.Pacman,
+							Brew:    tool.PackageNames.Brew,
+						},
+						Version:       tool.Version,
+						VerifyCommand: tool.VerifyCommand,
+						ShellConfig: interfaces.ShellConfig{
+							Aliases:   tool.ShellConfig.Aliases,
+							Functions: tool.ShellConfig.Functions,
+							Exports:   tool.ShellConfig.Env,
+						},
+					})
 					found = true
 					break
 				}

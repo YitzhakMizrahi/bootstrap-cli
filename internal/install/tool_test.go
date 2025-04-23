@@ -29,24 +29,22 @@ func NewMockPackageManager(maxFailures int, name string) *MockPackageManager {
 	}
 }
 
-func (m *MockPackageManager) Install(packages ...string) error {
-	for _, pkg := range packages {
-		// Extract package name and version
-		name, version := pkg, ""
-		if strings.Contains(pkg, "=") {
-			parts := strings.Split(pkg, "=")
-			name, version = parts[0], parts[1]
-		} else if strings.Contains(pkg, "@") {
-			parts := strings.Split(pkg, "@")
-			name, version = parts[0], parts[1]
-		}
-
-		if m.failureCount[name] < m.maxFailures {
-			m.failureCount[name]++
-			return errors.New("simulated install failure")
-		}
-		m.installed[name] = version
+func (m *MockPackageManager) Install(packageName string) error {
+	// Extract package name and version
+	name, version := packageName, ""
+	if strings.Contains(packageName, "=") {
+		parts := strings.Split(packageName, "=")
+		name, version = parts[0], parts[1]
+	} else if strings.Contains(packageName, "@") {
+		parts := strings.Split(packageName, "@")
+		name, version = parts[0], parts[1]
 	}
+
+	if m.failureCount[name] < m.maxFailures {
+		m.failureCount[name]++
+		return errors.New("simulated install failure")
+	}
+	m.installed[name] = version
 	return nil
 }
 
@@ -86,7 +84,7 @@ func (m *MockPackageManager) IsAvailable() bool {
 	return true
 }
 
-func (m *MockPackageManager) Name() string {
+func (m *MockPackageManager) GetName() string {
 	return m.name
 }
 
@@ -107,6 +105,10 @@ func (m *MockPackageManager) Remove(pkg string) error {
 }
 
 func (m *MockPackageManager) Update() error {
+	return nil
+}
+
+func (m *MockPackageManager) Upgrade() error {
 	return nil
 }
 

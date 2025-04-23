@@ -4,9 +4,34 @@ import (
 	"fmt"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 )
 
 // InstallOptions is defined in core.go
+
+// convertTool converts an interfaces.Tool to an install.Tool
+func convertTool(tool *interfaces.Tool) *install.Tool {
+	return &install.Tool{
+		Name:        tool.Name,
+		Description: tool.Description,
+		Category:    tool.Category,
+		Tags:        tool.Tags,
+		PackageName: tool.PackageName,
+		PackageNames: &install.PackageMapping{
+			APT:     tool.PackageNames.APT,
+			DNF:     tool.PackageNames.DNF,
+			Pacman:  tool.PackageNames.Pacman,
+			Brew:    tool.PackageNames.Brew,
+		},
+		Version:       tool.Version,
+		VerifyCommand: tool.VerifyCommand,
+		ShellConfig: interfaces.ShellConfig{
+			Aliases:   tool.ShellConfig.Aliases,
+			Functions: tool.ShellConfig.Functions,
+			Exports:   tool.ShellConfig.Env,
+		},
+	}
+}
 
 // InstallCoreTools installs the core development tools
 func InstallCoreTools(opts *InstallOptions) error {
@@ -23,7 +48,7 @@ func InstallCoreTools(opts *InstallOptions) error {
 	failed := false
 	for _, tool := range opts.Tools {
 		opts.Logger.Info("Installing %s...", tool.Name)
-		if err := installer.Install(tool); err != nil {
+		if err := installer.Install(convertTool(tool)); err != nil {
 			opts.Logger.Error("Failed to install %s: %v", tool.Name, err)
 			failed = true
 			// Continue installing other tools even if one fails

@@ -110,7 +110,7 @@ func (i *Installer) getPackageWithVersion(pkg, version string) string {
 		return pkg
 	}
 	
-	switch i.PackageManager.Name() {
+	switch i.PackageManager.GetName() {
 	case "apt":
 		return fmt.Sprintf("%s=%s", pkg, version)
 	case "dnf":
@@ -125,34 +125,26 @@ func (i *Installer) getPackageWithVersion(pkg, version string) string {
 }
 
 // getSystemPackageName returns the appropriate package name for the current system
-func (i *Installer) getSystemPackageName(tool *Tool) string {
-	if tool.PackageNames == nil {
-		return tool.PackageName
+func (i *Installer) getSystemPackageName(pkg string) string {
+	if pkg == "" {
+		return ""
 	}
 
-	switch i.PackageManager.Name() {
-	case "apt":
-		if tool.PackageNames.APT != "" {
-			return tool.PackageNames.APT
-		}
-	case "dnf":
-		if tool.PackageNames.DNF != "" {
-			return tool.PackageNames.DNF
-		}
-	case "pacman":
-		if tool.PackageNames.Pacman != "" {
-			return tool.PackageNames.Pacman
-		}
-	case "brew":
-		if tool.PackageNames.Brew != "" {
-			return tool.PackageNames.Brew
+	// Try to get system-specific package name
+	if i.PackageManager != nil {
+		switch i.PackageManager.GetName() {
+		case "apt":
+			return pkg + "-apt"
+		case "dnf":
+			return pkg + "-dnf"
+		case "pacman":
+			return pkg + "-pacman"
+		case "brew":
+			return pkg + "-brew"
 		}
 	}
 
-	if tool.PackageNames.Default != "" {
-		return tool.PackageNames.Default
-	}
-	return tool.PackageName
+	return pkg
 }
 
 // InstallResult represents the result of an installation attempt
@@ -167,7 +159,7 @@ func (i *Installer) Install(tool *Tool) error {
 	i.Logger.Info("Starting installation of %s", tool.Name)
 
 	// Get the appropriate package name for the current system
-	pkg := i.getSystemPackageName(tool)
+	pkg := i.getSystemPackageName(tool.PackageName)
 	if pkg == "" {
 		return &InstallError{
 			Tool:    tool.Name,

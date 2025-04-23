@@ -3,6 +3,7 @@ package packagecmd
 import (
 	"fmt"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
 	"github.com/spf13/cobra"
 )
@@ -10,6 +11,7 @@ import (
 var (
 	packageName string
 	system      string
+	logger      *log.Logger
 )
 
 // NewPackageCmd creates the package command
@@ -17,16 +19,21 @@ func NewPackageCmd() *cobra.Command {
 	packageCmd := &cobra.Command{
 		Use:   "package",
 		Short: "Manage system packages",
-		Long: `Manage system packages using the appropriate package manager for your system.
-This command supports various package managers like apt, dnf, pacman, and more.`,
+		Long: `Manage system packages using the system's package manager.`,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			logger = log.New(log.InfoLevel)
+			if debug, _ := cmd.Flags().GetBool("debug"); debug {
+				logger.SetLevel(log.DebugLevel)
+			}
+		},
 	}
 
 	// Add subcommands
 	packageCmd.AddCommand(newInstallCmd())
-	packageCmd.AddCommand(newUninstallCmd())
-	packageCmd.AddCommand(newUpdateCmd())
+	packageCmd.AddCommand(newRemoveCmd())
 	packageCmd.AddCommand(newListCmd())
-	packageCmd.AddCommand(newVersionCmd())
+	packageCmd.AddCommand(newUpdateCmd())
+	packageCmd.AddCommand(newUpgradeCmd())
 
 	// Add flags
 	packageCmd.PersistentFlags().StringVarP(&system, "system", "s", "", "System type (ubuntu, debian, fedora, arch)")
@@ -38,56 +45,49 @@ This command supports various package managers like apt, dnf, pacman, and more.`
 // newInstallCmd creates the install command
 func newInstallCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "install [package]",
-		Short: "Install a package",
-		Long:  `Install a package using the system's package manager.`,
-		Args:  cobra.ExactArgs(1),
+		Use:   "install [packages...]",
+		Short: "Install packages",
+		Long:  `Install packages using the system's package manager.`,
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			packageName = args[0]
 			f := factory.NewPackageManagerFactory()
 			pm, err := f.GetPackageManager()
 			if err != nil {
 				return fmt.Errorf("failed to create package manager: %w", err)
 			}
-			return pm.Install(packageName)
+
+			for _, pkg := range args {
+				if err := pm.Install(pkg); err != nil {
+					return fmt.Errorf("failed to install package %s: %w", pkg, err)
+				}
+				logger.Info("Successfully installed %s", pkg)
+			}
+			return nil
 		},
 	}
 }
 
-// newUninstallCmd creates the uninstall command
-func newUninstallCmd() *cobra.Command {
+// newRemoveCmd creates the remove command
+func newRemoveCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "uninstall [package]",
-		Short: "Uninstall a package",
-		Long:  `Uninstall a package using the system's package manager.`,
-		Args:  cobra.ExactArgs(1),
+		Use:   "remove [packages...]",
+		Short: "Remove packages",
+		Long:  `Remove packages using the system's package manager.`,
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			packageName = args[0]
 			f := factory.NewPackageManagerFactory()
 			pm, err := f.GetPackageManager()
 			if err != nil {
 				return fmt.Errorf("failed to create package manager: %w", err)
 			}
-			return pm.Remove(packageName)
-		},
-	}
-}
 
-// newUpdateCmd creates the update command
-func newUpdateCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "update [package]",
-		Short: "Update a package",
-		Long:  `Update a package using the system's package manager.`,
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			packageName = args[0]
-			f := factory.NewPackageManagerFactory()
-			pm, err := f.GetPackageManager()
-			if err != nil {
-				return fmt.Errorf("failed to create package manager: %w", err)
+			for _, pkg := range args {
+				if err := pm.Remove(pkg); err != nil {
+					return fmt.Errorf("failed to remove package %s: %w", pkg, err)
+				}
+				logger.Info("Successfully removed %s", pkg)
 			}
-			return pm.Update()
+			return nil
 		},
 	}
 }
@@ -95,46 +95,73 @@ func newUpdateCmd() *cobra.Command {
 // newListCmd creates the list command
 func newListCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
+		Use:   "list [packages...]",
 		Short: "List installed packages",
 		Long:  `List all installed packages using the system's package manager.`,
+		RunE:  runList,
+	}
+}
+
+func runList(cmd *cobra.Command, args []string) error {
+	logger.Info("Listing installed packages...")
+
+	// Get package manager
+	f := factory.NewPackageManagerFactory()
+	pm, err := f.GetPackageManager()
+	if err != nil {
+		return fmt.Errorf("failed to get package manager: %w", err)
+	}
+
+	// List installed packages
+	logger.Info("Installed packages:")
+	for _, pkg := range args {
+		if pm.IsInstalled(pkg) {
+			logger.Info("- %s", pkg)
+		}
+	}
+
+	return nil
+}
+
+// newUpdateCmd creates the update command
+func newUpdateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "update",
+		Short: "Update package list",
+		Long:  `Update the package list using the system's package manager.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := factory.NewPackageManagerFactory()
 			pm, err := f.GetPackageManager()
 			if err != nil {
 				return fmt.Errorf("failed to create package manager: %w", err)
 			}
-			pkgs, err := pm.ListInstalled()
-			if err != nil {
-				return fmt.Errorf("failed to list packages: %w", err)
+
+			if err := pm.Update(); err != nil {
+				return fmt.Errorf("failed to update package list: %w", err)
 			}
-			for _, pkg := range pkgs {
-				fmt.Println(pkg)
-			}
+			logger.Info("Successfully updated package list")
 			return nil
 		},
 	}
 }
 
-// newVersionCmd creates the version command
-func newVersionCmd() *cobra.Command {
+// newUpgradeCmd creates the upgrade command
+func newUpgradeCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "version [package]",
-		Short: "Get package version",
-		Long:  `Get the version of an installed package.`,
-		Args:  cobra.ExactArgs(1),
+		Use:   "upgrade",
+		Short: "Upgrade all packages",
+		Long:  `Upgrade all installed packages using the system's package manager.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			packageName = args[0]
 			f := factory.NewPackageManagerFactory()
 			pm, err := f.GetPackageManager()
 			if err != nil {
 				return fmt.Errorf("failed to create package manager: %w", err)
 			}
-			version, err := pm.GetVersion(packageName)
-			if err != nil {
-				return fmt.Errorf("failed to get package version: %w", err)
+
+			if err := pm.Upgrade(); err != nil {
+				return fmt.Errorf("failed to upgrade packages: %w", err)
 			}
-			fmt.Println(version)
+			logger.Info("Successfully upgraded all packages")
 			return nil
 		},
 	}

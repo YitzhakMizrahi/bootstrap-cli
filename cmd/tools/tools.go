@@ -89,7 +89,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	logger.Info("System: %s %s (%s)", sysInfo.Distro, sysInfo.Version, sysInfo.OS)
-	logger.Info("Package Manager: %s", pm.Name())
+	logger.Info("Package Manager: %s", pm.GetName())
 
 	// Get selected tools from the init context
 	selectedTools := tools.GetSelectedTools()
@@ -141,7 +141,7 @@ func runVerify(cmd *cobra.Command, args []string) error {
 	}
 
 	logger.Info("System: %s %s (%s)", sysInfo.Distro, sysInfo.Version, sysInfo.OS)
-	logger.Info("Package Manager: %s", pm.Name())
+	logger.Info("Package Manager: %s", pm.GetName())
 
 	// Create verification options
 	opts := &tools.InstallOptions{

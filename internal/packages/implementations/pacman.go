@@ -36,6 +36,11 @@ func (p *PacmanPackageManager) Name() string {
 	return string(interfaces.Pacman)
 }
 
+// GetName returns the name of the package manager
+func (p *PacmanPackageManager) GetName() string {
+	return string(interfaces.Pacman)
+}
+
 // IsAvailable checks if pacman is available on the system
 func (p *PacmanPackageManager) IsAvailable() bool {
 	_, err := exec.LookPath("pacman")
@@ -53,26 +58,12 @@ func (p *PacmanPackageManager) Update() error {
 	return nil
 }
 
-// Install installs packages using pacman
-func (p *PacmanPackageManager) Install(packages ...string) error {
-	if len(packages) == 0 {
-		return fmt.Errorf("no packages specified")
-	}
-
-	// Update package list first
-	if err := p.Update(); err != nil {
-		return err
-	}
-
-	// Install packages
-	args := append([]string{"pacman", "-S", "--noconfirm"}, packages...)
-	cmd := exec.Command(p.sudoPath, args...)
+// Install installs a package using pacman
+func (p *PacmanPackageManager) Install(packageName string) error {
+	cmd := exec.Command("sudo", "pacman", "-S", "--noconfirm", packageName)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install packages %v: %w", packages, err)
-	}
-	return nil
+	return cmd.Run()
 }
 
 // IsInstalled checks if a package is installed
@@ -178,4 +169,12 @@ func (p *PacmanPackageManager) SetupSpecialPackage(pkg string) error {
 	default:
 		return nil // No special setup needed for this package
 	}
+}
+
+// Upgrade upgrades all packages
+func (p *PacmanPackageManager) Upgrade() error {
+	cmd := exec.Command("sudo", "pacman", "-Syu", "--noconfirm")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 } 

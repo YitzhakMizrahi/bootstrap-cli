@@ -14,31 +14,49 @@ import (
 // DefaultConfigWriter implements interfaces.ShellConfigWriter
 type DefaultConfigWriter struct {
 	logger *log.Logger
-	shell  interfaces.Shell
+	shell  interfaces.ShellType
 	pm     interfaces.PackageManager
+	config string
 }
 
 // NewConfigWriter creates a new shell config writer
 func NewConfigWriter() (interfaces.ShellConfigWriter, error) {
-	shellInfo, err := NewManager().DetectCurrent()
+	logger := log.New(log.InfoLevel)
+	pm, err := factory.NewPackageManagerFactory().GetPackageManager()
 	if err != nil {
-		return nil, fmt.Errorf("failed to detect shell: %w", err)
+		return nil, fmt.Errorf("failed to get package manager: %w", err)
 	}
 
-	logger := log.New(log.InfoLevel)
-	
-	// Use the factory to get the package manager
-	f := factory.NewPackageManagerFactory()
-	pm, err := f.GetPackageManager()
+	shellInfo, err := NewDefaultManager().DetectCurrent()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create package manager: %w", err)
+		return nil, fmt.Errorf("failed to detect current shell: %w", err)
 	}
 
 	return &DefaultConfigWriter{
 		logger: logger,
-		shell:  interfaces.Shell(shellInfo.Current),
+		shell:  interfaces.ShellType(shellInfo.Current),
 		pm:     pm,
+		config: getDefaultRCFile(shellInfo.Current),
 	}, nil
+}
+
+// getDefaultRCFile returns the default RC file for a shell
+func getDefaultRCFile(shellType string) string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	switch shellType {
+	case string(interfaces.BashShell):
+		return filepath.Join(homeDir, ".bashrc")
+	case string(interfaces.ZshShell):
+		return filepath.Join(homeDir, ".zshrc")
+	case string(interfaces.FishShell):
+		return filepath.Join(homeDir, ".config", "fish", "config.fish")
+	default:
+		return ""
+	}
 }
 
 // WriteConfig writes shell configurations to the appropriate file
@@ -144,13 +162,26 @@ func (w *DefaultConfigWriter) getConfigFile() string {
 	}
 
 	switch w.shell {
-	case interfaces.Bash:
+	case interfaces.BashShell:
 		return filepath.Join(home, ".bashrc")
-	case interfaces.Zsh:
+	case interfaces.ZshShell:
 		return filepath.Join(home, ".zshrc")
-	case interfaces.Fish:
+	case interfaces.FishShell:
 		return filepath.Join(home, ".config", "fish", "config.fish")
 	default:
 		return ""
+	}
+}
+
+func (w *DefaultConfigWriter) getShellType() interfaces.ShellType {
+	switch w.shell {
+	case interfaces.BashShell:
+		return interfaces.BashShell
+	case interfaces.ZshShell:
+		return interfaces.ZshShell
+	case interfaces.FishShell:
+		return interfaces.FishShell
+	default:
+		return interfaces.BashShell
 	}
 } 

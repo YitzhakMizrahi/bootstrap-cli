@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 )
 
 // Manager handles dotfiles operations
 type Manager struct {
-	configLoader *config.ConfigLoader
+	configLoader *internal.ConfigLoader
 	baseDir     string
 }
 
@@ -24,7 +24,7 @@ func NewManager() *Manager {
 	}
 	
 	return &Manager{
-		configLoader: config.NewConfigLoader("config"),
+		configLoader: internal.NewConfigLoader("config"),
 		baseDir:     filepath.Join(homeDir, ".dotfiles"),
 	}
 }
@@ -69,7 +69,7 @@ func (m *Manager) ApplyDotfile(dotfile *interfaces.Dotfile) error {
 	}
 
 	// Apply shell configuration
-	if err := m.applyShellConfig(dotfile); err != nil {
+	if err := m.ApplyShellConfig(&dotfile.ShellConfig); err != nil {
 		return fmt.Errorf("failed to apply shell config: %w", err)
 	}
 
@@ -77,7 +77,7 @@ func (m *Manager) ApplyDotfile(dotfile *interfaces.Dotfile) error {
 }
 
 // processFile handles a single file configuration
-func (m *Manager) processFile(dotfile *interfaces.Dotfile, file interfaces.FileConfig) error {
+func (m *Manager) processFile(dotfile *interfaces.Dotfile, file interfaces.DotfileFile) error {
 	// Determine source and destination paths
 	sourcePath := file.Source
 	if !strings.HasPrefix(sourcePath, "http") {
@@ -94,36 +94,31 @@ func (m *Manager) processFile(dotfile *interfaces.Dotfile, file interfaces.FileC
 	}
 
 	// Create parent directories if needed
-	if file.CreateParents {
-		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-			return fmt.Errorf("failed to create parent directories: %w", err)
-		}
+	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		return fmt.Errorf("failed to create parent directories: %w", err)
 	}
 
 	// Handle different file types
-	switch file.Type {
-	case "content":
-		return m.writeContentFile(sourcePath, destPath, file)
-	case "symlink":
-		return m.createSymlink(sourcePath, destPath, file)
+	switch file.Operation {
+	case interfaces.Create, interfaces.Update:
+		return m.WriteContentFile([]byte(file.Content), destPath)
+	case interfaces.Symlink:
+		return m.CreateSymlink(sourcePath, destPath)
+	case interfaces.Delete:
+		if err := os.Remove(destPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to delete file: %w", err)
+		}
+		return nil
 	default:
-		return fmt.Errorf("unsupported file type: %s", file.Type)
+		return fmt.Errorf("unsupported file operation: %s", file.Operation)
 	}
 }
 
-// writeContentFile writes content to a file
-func (m *Manager) writeContentFile(source, dest string, file interfaces.FileConfig) error {
-	// Read source content
-	content, err := os.ReadFile(source)
-	if err != nil {
-		return fmt.Errorf("failed to read source file: %w", err)
-	}
-
+// WriteContentFile writes content to a file
+func (m *Manager) WriteContentFile(content []byte, dest string) error {
 	// Backup existing file if needed
-	if file.Backup {
-		if err := m.backupFile(dest, file.BackupSuffix); err != nil {
-			return fmt.Errorf("failed to backup file: %w", err)
-		}
+	if err := m.BackupFile(dest, ".bak"); err != nil {
+		return fmt.Errorf("failed to backup file: %w", err)
 	}
 
 	// Write content to destination
@@ -134,13 +129,11 @@ func (m *Manager) writeContentFile(source, dest string, file interfaces.FileConf
 	return nil
 }
 
-// createSymlink creates a symlink
-func (m *Manager) createSymlink(source, dest string, file interfaces.FileConfig) error {
+// CreateSymlink creates a symlink
+func (m *Manager) CreateSymlink(source, dest string) error {
 	// Backup existing file if needed
-	if file.Backup {
-		if err := m.backupFile(dest, file.BackupSuffix); err != nil {
-			return fmt.Errorf("failed to backup file: %w", err)
-		}
+	if err := m.BackupFile(dest, ".bak"); err != nil {
+		return fmt.Errorf("failed to backup file: %w", err)
 	}
 
 	// Remove existing file/symlink
@@ -156,8 +149,8 @@ func (m *Manager) createSymlink(source, dest string, file interfaces.FileConfig)
 	return nil
 }
 
-// backupFile creates a backup of an existing file
-func (m *Manager) backupFile(path, suffix string) error {
+// BackupFile creates a backup of an existing file
+func (m *Manager) BackupFile(path, suffix string) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil // No file to backup
 	}
@@ -166,8 +159,8 @@ func (m *Manager) backupFile(path, suffix string) error {
 	return os.Rename(path, backupPath)
 }
 
-// applyShellConfig applies shell-specific configuration
-func (m *Manager) applyShellConfig(dotfile *interfaces.Dotfile) error {
+// ApplyShellConfig applies shell-specific configuration
+func (m *Manager) ApplyShellConfig(config *interfaces.ShellConfig) error {
 	// TODO: Implement shell configuration application
 	return nil
 } 

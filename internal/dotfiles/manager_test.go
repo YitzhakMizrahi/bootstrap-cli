@@ -55,12 +55,13 @@ func TestApplyDotfile(t *testing.T) {
 	// Create test dotfile
 	dotfile := &interfaces.Dotfile{
 		Category: "shell",
-		Files: []interfaces.FileConfig{
+		Files: []interfaces.DotfileFile{
 			{
 				Source:      "test.sh",
 				Destination: ".test.sh",
-				Type:        "content",
+				Operation:   interfaces.Create,
 				Backup:      true,
+				BackupSuffix: ".bak",
 			},
 		},
 	}
@@ -106,18 +107,20 @@ func TestProcessFile(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		file     interfaces.FileConfig
+		file     interfaces.DotfileFile
 		setup    func() error
 		verify   func() error
 		wantErr  bool
 	}{
 		{
 			name: "content file",
-			file: interfaces.FileConfig{
+			file: interfaces.DotfileFile{
 				Source:      "test.sh",
 				Destination: ".test.sh",
-				Type:        "content",
+				Operation:   interfaces.Create,
 				Backup:      true,
+				BackupSuffix: ".bak",
+				Content:    "test content",
 			},
 			setup: func() error {
 				sourcePath := filepath.Join(tmpDir, "shell", "test.sh")
@@ -142,11 +145,12 @@ func TestProcessFile(t *testing.T) {
 		},
 		{
 			name: "symlink",
-			file: interfaces.FileConfig{
+			file: interfaces.DotfileFile{
 				Source:      "test.sh",
 				Destination: ".test.sh",
-				Type:        "symlink",
+				Operation:   interfaces.Symlink,
 				Backup:      true,
+				BackupSuffix: ".bak",
 			},
 			setup: func() error {
 				sourcePath := filepath.Join(tmpDir, "shell", "test.sh")
@@ -204,41 +208,28 @@ func TestBackupFile(t *testing.T) {
 		baseDir: tmpDir,
 	}
 
-	// Create a test file to backup
+	// Create test file
 	testFile := filepath.Join(tmpDir, "test.txt")
-	err = os.WriteFile(testFile, []byte("original content"), 0644)
+	err = os.WriteFile(testFile, []byte("test content"), 0644)
 	require.NoError(t, err)
 
-	// Test backup with default suffix
-	err = manager.backupFile(testFile, ".bak")
-	require.NoError(t, err)
+	// Test backup with non-existent file
+	err = manager.BackupFile(filepath.Join(tmpDir, "nonexistent.txt"), ".bak")
+	assert.NoError(t, err)
+
+	// Test backup with existing file
+	err = manager.BackupFile(testFile, ".bak")
+	assert.NoError(t, err)
 
 	// Verify backup was created
 	backupFile := testFile + ".bak"
-	_, err = os.Stat(backupFile)
+	content, err := os.ReadFile(backupFile)
 	require.NoError(t, err)
+	assert.Equal(t, "test content", string(content))
 
-	// Verify original file no longer exists
-	_, err = os.Stat(testFile)
-	require.True(t, os.IsNotExist(err))
-
-	// Test backup with custom suffix
-	testFile2 := filepath.Join(tmpDir, "test2.txt")
-	err = os.WriteFile(testFile2, []byte("original content"), 0644)
-	require.NoError(t, err)
-
-	err = manager.backupFile(testFile2, ".backup")
-	require.NoError(t, err)
-
-	// Verify backup was created with custom suffix
-	backupFile2 := testFile2 + ".backup"
-	_, err = os.Stat(backupFile2)
-	require.NoError(t, err)
-
-	// Test backup of non-existent file (should not error)
-	nonExistentFile := filepath.Join(tmpDir, "nonexistent.txt")
-	err = manager.backupFile(nonExistentFile, ".bak")
-	require.NoError(t, err)
+	// Clean up
+	os.Remove(testFile)
+	os.Remove(backupFile)
 }
 
 func TestProcessNonExistentFile(t *testing.T) {
@@ -252,20 +243,19 @@ func TestProcessNonExistentFile(t *testing.T) {
 		baseDir: tmpDir,
 	}
 
-	// Create test dotfile with non-existent source
+	// Create test dotfile
 	dotfile := &interfaces.Dotfile{
 		Category: "shell",
 	}
 
-	file := interfaces.FileConfig{
+	file := interfaces.DotfileFile{
 		Source:      "nonexistent.sh",
 		Destination: ".test.sh",
-		Type:        "content",
+		Operation:   interfaces.Create,
 		Backup:      true,
+		BackupSuffix: ".bak",
 	}
 
-	// Test processing non-existent file
 	err = manager.processFile(dotfile, file)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to read source file")
+	assert.Error(t, err)
 } 

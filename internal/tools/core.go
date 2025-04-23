@@ -3,10 +3,11 @@ package tools
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
@@ -21,7 +22,21 @@ type ToolCategory struct {
 
 // GetToolCategories returns all available tool categories
 func GetToolCategories() ([]ToolCategory, error) {
-	loader := config.NewConfigLoader("config")
+	// Create a temporary directory for extracted configs
+	tempDir, err := os.MkdirTemp("", "bootstrap-cli-config-*")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir) // Clean up on exit
+
+	// Extract embedded configs to the temp directory
+	err = internal.ExtractEmbeddedConfigs(tempDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract embedded configs: %w", err)
+	}
+
+	// Create config loader with the temp directory
+	loader := internal.NewConfigLoader(tempDir)
 	
 	// Load tools from each category
 	essentialTools, err := loader.GetToolsByCategory("tools", "essential")

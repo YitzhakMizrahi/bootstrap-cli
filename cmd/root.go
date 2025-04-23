@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	debug  bool
-	logger *log.Logger
+	debug      bool
+	logger     *log.Logger
+	configPath string
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -35,6 +36,11 @@ It helps you install and configure:
 		} else {
 			logger = log.New(log.InfoLevel)
 		}
+		
+		// Set config path in environment for child processes
+		if configPath != "" {
+			os.Setenv("BOOTSTRAP_CLI_CONFIG", configPath)
+		}
 	},
 }
 
@@ -48,12 +54,13 @@ func Execute() {
 }
 
 func init() {
-	// Add persistent flags that carry over to all commands
-	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
+	// Add flags
+	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug logging")
+	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "Path to config directory")
 
 	// Add commands
-	rootCmd.AddCommand(upcmd.NewUpCmd())
 	rootCmd.AddCommand(initcmd.NewInitCmd())
-	rootCmd.AddCommand(tools.NewToolsCmd())
 	rootCmd.AddCommand(packagecmd.NewPackageCmd())
+	rootCmd.AddCommand(tools.NewToolsCmd())
+	rootCmd.AddCommand(upcmd.NewUpCmd())
 } 

@@ -1,0 +1,34 @@
+name: lsd
+package_names:
+  apt: lsd
+  dnf: lsd
+  pacman: lsd
+  brew: lsd
+version: latest
+description: "The next gen ls command"
+category: modern-cli
+tags:
+  - ls
+  - file-listing
+  - modern-cli
+system_dependencies:
+  - cargo
+dependencies: []
+verify_command: "lsd --version"
+post_install:
+  - command: ""
+shell_config:
+  aliases:
+    - name: ls
+      value: lsd
+    - name: ll
+      value: ls -l
+    - name: la
+      value: ls -a
+    - name: lt
+      value: ls --tree
+  functions: {}
+  env: {}
+  path_additions: []
+config_files: []
+requires_restart: false 

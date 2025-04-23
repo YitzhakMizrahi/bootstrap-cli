@@ -1,4 +1,4 @@
-.PHONY: build test clean lint run deps build-lxc all release validate
+.PHONY: build test clean lint run deps build-lxc all release validate deploy-lxc
 
 # Build the application
 build:

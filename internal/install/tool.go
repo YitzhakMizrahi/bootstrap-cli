@@ -50,7 +50,7 @@ type Tool struct {
 	// ConfigFiles is a list of configuration files to create/symlink
 	ConfigFiles []ConfigFile
 	// ShellConfig is shell-specific configuration to add
-	ShellConfig *ShellConfig
+	ShellConfig interfaces.ShellConfig
 	// RequiresRestart indicates if a shell restart is needed after installation
 	RequiresRestart bool
 }
@@ -65,18 +65,6 @@ type ConfigFile struct {
 	Type string
 	// Permissions are the file permissions (e.g., "0644")
 	Permissions string
-}
-
-// ShellConfig represents shell-specific configuration
-type ShellConfig struct {
-	// Aliases are shell aliases to add
-	Aliases map[string]string
-	// Functions are shell functions to add
-	Functions map[string]string
-	// Environment variables to set
-	Env map[string]string
-	// Path additions
-	PathAdditions []string
 }
 
 // InstallError represents an installation error
@@ -249,7 +237,9 @@ func (i *Installer) Install(tool *Tool) error {
 	}
 
 	// Apply shell configuration
-	if tool.ShellConfig != nil {
+	if len(tool.ShellConfig.Exports) == 0 && len(tool.ShellConfig.Path) == 0 {
+		i.Logger.Info("No shell configuration needed for %s", tool.Name)
+	} else {
 		i.Logger.Info("Applying shell configuration for %s", tool.Name)
 		if err := i.applyShellConfig(tool); err != nil {
 			return &InstallError{
@@ -397,8 +387,11 @@ func (i *Installer) cleanup(packages []string) {
 
 // runPostInstall executes post-installation commands
 func (i *Installer) runPostInstall(tool *Tool) error {
+	if len(tool.PostInstall) == 0 {
+		return nil
+	}
+
 	for _, cmd := range tool.PostInstall {
-		i.Logger.Debug("Running post-install command: %s", cmd)
 		command := exec.Command("sh", "-c", cmd)
 		if output, err := command.CombinedOutput(); err != nil {
 			return fmt.Errorf("post-install command failed: %w\nOutput: %s", err, string(output))
@@ -409,73 +402,32 @@ func (i *Installer) runPostInstall(tool *Tool) error {
 
 // verifyInstallation checks if the tool was installed correctly
 func (i *Installer) verifyInstallation(tool *Tool) error {
-	i.Logger.Debug("Verifying installation of %s", tool.Name)
-	
-	// Add a longer delay to ensure the system has updated its PATH
-	time.Sleep(time.Second * 3)
-
-	// First check if the package is installed using the package manager
-	if !i.PackageManager.IsInstalled(tool.Name) {
-		return fmt.Errorf("package not installed")
-	}
-
-	// If there's a specific verify command, use that
-	if tool.VerifyCommand != "" {
-		cmd := exec.Command("sh", "-c", tool.VerifyCommand)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("verification failed: %w\nOutput: %s", err, string(output))
-		}
+	if tool.VerifyCommand == "" {
 		return nil
 	}
+
+	// Wait for PATH to be updated
+	time.Sleep(time.Second * 2)
 
 	// Try to find the binary in PATH
-	binaryPath, err := exec.LookPath(tool.Name)
-	if err == nil {
-		// If we found the binary, verify it works
-		cmd := exec.Command(binaryPath, "--version")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("verification failed: %w\nOutput: %s", err, string(output))
+	cmd := exec.Command("sh", "-c", tool.VerifyCommand)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		// If not found in PATH, check common locations
+		commonPaths := []string{
+			"/usr/bin/",
+			"/usr/local/bin/",
+			"/opt/homebrew/bin/",
 		}
-		return nil
-	}
 
-	// If we can't find the binary but the package is installed, try to find it in common locations
-	commonPaths := []string{
-		"/usr/bin/" + tool.Name,
-		"/usr/local/bin/" + tool.Name,
-		"/opt/homebrew/bin/" + tool.Name,
-		"/snap/bin/" + tool.Name,
-		"/usr/sbin/" + tool.Name,
-	}
-
-	for _, path := range commonPaths {
-		if _, err := os.Stat(path); err == nil {
-			cmd := exec.Command(path, "--version")
-			if err := cmd.Run(); err == nil {
+		for _, path := range commonPaths {
+			fullPath := filepath.Join(path, tool.Name)
+			if _, err := os.Stat(fullPath); err == nil {
 				return nil
 			}
 		}
-	}
 
-	// For packages that might have different binary names, try common variations
-	// This is useful for packages like 'bat' which might be installed as 'batcat' on some systems
-	commonVariations := []string{
-		tool.Name + "cat",  // For tools like bat -> batcat
-		tool.Name + "-bin", // For tools that might have -bin suffix
+		return fmt.Errorf("verification failed: %w\nOutput: %s", err, string(output))
 	}
-
-	for _, variation := range commonVariations {
-		binaryPath, err := exec.LookPath(variation)
-		if err == nil {
-			cmd := exec.Command(binaryPath, "--version")
-			if err := cmd.Run(); err == nil {
-				return nil
-			}
-		}
-	}
-
-	// If we still can't find the binary but the package is installed, consider it a success
-	// This handles meta-packages and packages that don't provide direct binaries
 	return nil
 }
 
@@ -535,17 +487,15 @@ func (i *Installer) setupConfigFiles(tool *Tool) error {
 
 // applyShellConfig applies shell-specific configuration
 func (i *Installer) applyShellConfig(tool *Tool) error {
-	if tool.ShellConfig == nil {
+	if len(tool.ShellConfig.Exports) == 0 && len(tool.ShellConfig.Path) == 0 {
 		return nil
 	}
 
-	// Get the current shell
 	shell, err := i.getCurrentShell()
 	if err != nil {
-		return fmt.Errorf("failed to get current shell: %w", err)
+		return err
 	}
 
-	// Apply configuration based on shell type
 	switch shell {
 	case "zsh":
 		return i.applyZshConfig(tool)
@@ -643,18 +593,40 @@ func (i *Installer) getCurrentShell() (string, error) {
 // applyZshConfig applies Zsh-specific configuration
 func (i *Installer) applyZshConfig(tool *Tool) error {
 	config := tool.ShellConfig
-	zshrc := filepath.Join(os.Getenv("HOME"), ".zshrc")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	zshrc := filepath.Join(homeDir, ".zshrc")
+	content := []string{}
+
+	// Add environment variables
+	if len(config.Exports) > 0 {
+		content = append(content, "\n# Environment variables")
+		for key, value := range config.Exports {
+			content = append(content, fmt.Sprintf("export %s=%s", key, value))
+		}
+	}
+
+	// Add PATH additions
+	if len(config.Path) > 0 {
+		content = append(content, "\n# PATH additions")
+		for _, path := range config.Path {
+			content = append(content, fmt.Sprintf("export PATH=%s:$PATH", path))
+		}
+	}
 
 	// Read existing .zshrc
-	content, err := os.ReadFile(zshrc)
+	existingContent, err := os.ReadFile(zshrc)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read .zshrc: %w", err)
 	}
 
 	// Prepare new content
 	var newContent strings.Builder
-	if len(content) > 0 {
-		newContent.Write(content)
+	if len(existingContent) > 0 {
+		newContent.Write(existingContent)
 		newContent.WriteString("\n\n")
 	}
 
@@ -662,9 +634,9 @@ func (i *Installer) applyZshConfig(tool *Tool) error {
 	newContent.WriteString(fmt.Sprintf("# Configuration for %s\n", tool.Name))
 
 	// Add aliases
-	if len(config.Aliases) > 0 {
+	if len(config.Exports) > 0 {
 		newContent.WriteString("\n# Aliases\n")
-		for alias, cmd := range config.Aliases {
+		for alias, cmd := range config.Exports {
 			newContent.WriteString(fmt.Sprintf("alias %s='%s'\n", alias, cmd))
 		}
 	}
@@ -674,22 +646,6 @@ func (i *Installer) applyZshConfig(tool *Tool) error {
 		newContent.WriteString("\n# Functions\n")
 		for name, body := range config.Functions {
 			newContent.WriteString(fmt.Sprintf("%s() {\n%s\n}\n", name, body))
-		}
-	}
-
-	// Add environment variables
-	if len(config.Env) > 0 {
-		newContent.WriteString("\n# Environment variables\n")
-		for key, value := range config.Env {
-			newContent.WriteString(fmt.Sprintf("export %s='%s'\n", key, value))
-		}
-	}
-
-	// Add PATH additions
-	if len(config.PathAdditions) > 0 {
-		newContent.WriteString("\n# PATH additions\n")
-		for _, path := range config.PathAdditions {
-			newContent.WriteString(fmt.Sprintf("export PATH=\"%s:$PATH\"\n", path))
 		}
 	}
 
@@ -704,18 +660,40 @@ func (i *Installer) applyZshConfig(tool *Tool) error {
 // applyBashConfig applies Bash-specific configuration
 func (i *Installer) applyBashConfig(tool *Tool) error {
 	config := tool.ShellConfig
-	bashrc := filepath.Join(os.Getenv("HOME"), ".bashrc")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	bashrc := filepath.Join(homeDir, ".bashrc")
+	content := []string{}
+
+	// Add environment variables
+	if len(config.Exports) > 0 {
+		content = append(content, "\n# Environment variables")
+		for key, value := range config.Exports {
+			content = append(content, fmt.Sprintf("export %s=%s", key, value))
+		}
+	}
+
+	// Add PATH additions
+	if len(config.Path) > 0 {
+		content = append(content, "\n# PATH additions")
+		for _, path := range config.Path {
+			content = append(content, fmt.Sprintf("export PATH=%s:$PATH", path))
+		}
+	}
 
 	// Read existing .bashrc
-	content, err := os.ReadFile(bashrc)
+	existingContent, err := os.ReadFile(bashrc)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read .bashrc: %w", err)
 	}
 
 	// Prepare new content
 	var newContent strings.Builder
-	if len(content) > 0 {
-		newContent.Write(content)
+	if len(existingContent) > 0 {
+		newContent.Write(existingContent)
 		newContent.WriteString("\n\n")
 	}
 
@@ -723,9 +701,9 @@ func (i *Installer) applyBashConfig(tool *Tool) error {
 	newContent.WriteString(fmt.Sprintf("# Configuration for %s\n", tool.Name))
 
 	// Add aliases
-	if len(config.Aliases) > 0 {
+	if len(config.Exports) > 0 {
 		newContent.WriteString("\n# Aliases\n")
-		for alias, cmd := range config.Aliases {
+		for alias, cmd := range config.Exports {
 			newContent.WriteString(fmt.Sprintf("alias %s='%s'\n", alias, cmd))
 		}
 	}
@@ -735,22 +713,6 @@ func (i *Installer) applyBashConfig(tool *Tool) error {
 		newContent.WriteString("\n# Functions\n")
 		for name, body := range config.Functions {
 			newContent.WriteString(fmt.Sprintf("%s() {\n%s\n}\n", name, body))
-		}
-	}
-
-	// Add environment variables
-	if len(config.Env) > 0 {
-		newContent.WriteString("\n# Environment variables\n")
-		for key, value := range config.Env {
-			newContent.WriteString(fmt.Sprintf("export %s='%s'\n", key, value))
-		}
-	}
-
-	// Add PATH additions
-	if len(config.PathAdditions) > 0 {
-		newContent.WriteString("\n# PATH additions\n")
-		for _, path := range config.PathAdditions {
-			newContent.WriteString(fmt.Sprintf("export PATH=\"%s:$PATH\"\n", path))
 		}
 	}
 
@@ -765,53 +727,64 @@ func (i *Installer) applyBashConfig(tool *Tool) error {
 // applyFishConfig applies Fish-specific configuration
 func (i *Installer) applyFishConfig(tool *Tool) error {
 	config := tool.ShellConfig
-	fishConfigDir := filepath.Join(os.Getenv("HOME"), ".config", "fish")
-	
-	// Create fish config directory if it doesn't exist
-	if err := os.MkdirAll(fishConfigDir, 0755); err != nil {
-		return fmt.Errorf("failed to create fish config directory: %w", err)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
 	}
 
-	// Create tool-specific config file
-	configFile := filepath.Join(fishConfigDir, "conf.d", tool.Name+".fish")
-	
-	var content strings.Builder
-	content.WriteString(fmt.Sprintf("# Configuration for %s\n", tool.Name))
+	fishConfig := filepath.Join(homeDir, ".config", "fish", "config.fish")
+	content := []string{}
+
+	// Add environment variables
+	if len(config.Exports) > 0 {
+		content = append(content, "\n# Environment variables")
+		for key, value := range config.Exports {
+			content = append(content, fmt.Sprintf("set -x %s %s", key, value))
+		}
+	}
+
+	// Add PATH additions
+	if len(config.Path) > 0 {
+		content = append(content, "\n# PATH additions")
+		for _, path := range config.Path {
+			content = append(content, fmt.Sprintf("fish_add_path %s", path))
+		}
+	}
+
+	// Read existing fish config
+	existingContent, err := os.ReadFile(fishConfig)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read fish config: %w", err)
+	}
+
+	// Prepare new content
+	var newContent strings.Builder
+	if len(existingContent) > 0 {
+		newContent.Write(existingContent)
+		newContent.WriteString("\n\n")
+	}
+
+	// Add configuration header
+	newContent.WriteString(fmt.Sprintf("# Configuration for %s\n", tool.Name))
 
 	// Add aliases
-	if len(config.Aliases) > 0 {
-		content.WriteString("\n# Aliases\n")
-		for alias, cmd := range config.Aliases {
-			content.WriteString(fmt.Sprintf("alias %s='%s'\n", alias, cmd))
+	if len(config.Exports) > 0 {
+		newContent.WriteString("\n# Aliases\n")
+		for alias, cmd := range config.Exports {
+			newContent.WriteString(fmt.Sprintf("alias %s='%s'\n", alias, cmd))
 		}
 	}
 
 	// Add functions
 	if len(config.Functions) > 0 {
-		content.WriteString("\n# Functions\n")
+		newContent.WriteString("\n# Functions\n")
 		for name, body := range config.Functions {
-			content.WriteString(fmt.Sprintf("function %s\n%s\nend\n", name, body))
+			newContent.WriteString(fmt.Sprintf("function %s\n%s\nend\n", name, body))
 		}
 	}
 
-	// Add environment variables
-	if len(config.Env) > 0 {
-		content.WriteString("\n# Environment variables\n")
-		for key, value := range config.Env {
-			content.WriteString(fmt.Sprintf("set -gx %s '%s'\n", key, value))
-		}
-	}
-
-	// Add PATH additions
-	if len(config.PathAdditions) > 0 {
-		content.WriteString("\n# PATH additions\n")
-		for _, path := range config.PathAdditions {
-			content.WriteString(fmt.Sprintf("fish_add_path %s\n", path))
-		}
-	}
-
-	// Write config file
-	if err := os.WriteFile(configFile, []byte(content.String()), 0644); err != nil {
+	// Write updated fish config
+	if err := os.WriteFile(fishConfig, []byte(newContent.String()), 0644); err != nil {
 		return fmt.Errorf("failed to write fish config: %w", err)
 	}
 

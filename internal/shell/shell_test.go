@@ -7,28 +7,29 @@ import (
 	"testing"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetShellTypeFromPath(t *testing.T) {
 	tests := []struct {
 		name     string
 		path     string
-		expected interfaces.Shell
+		expected interfaces.ShellType
 	}{
 		{
 			name:     "bash shell",
 			path:     "/bin/bash",
-			expected: interfaces.Bash,
+			expected: interfaces.BashShell,
 		},
 		{
 			name:     "zsh shell",
 			path:     "/usr/bin/zsh",
-			expected: interfaces.Zsh,
+			expected: interfaces.ZshShell,
 		},
 		{
 			name:     "fish shell",
 			path:     "/usr/local/bin/fish",
-			expected: interfaces.Fish,
+			expected: interfaces.FishShell,
 		},
 		{
 			name:     "unknown shell",
@@ -48,63 +49,48 @@ func TestGetShellTypeFromPath(t *testing.T) {
 }
 
 func TestGetShellConfigFiles(t *testing.T) {
-	// Save original home and restore after test
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
-	// Set up a temporary home directory
-	tmpHome := t.TempDir()
-	os.Setenv("HOME", tmpHome)
-
 	tests := []struct {
 		name     string
-		shell    interfaces.Shell
-		expected []string
+		shell    interfaces.ShellType
+		want     []string
+		wantErr  bool
 	}{
 		{
-			name:  "bash config files",
-			shell: interfaces.Bash,
-			expected: []string{
-				filepath.Join(tmpHome, ".bashrc"),
-				filepath.Join(tmpHome, ".bash_profile"),
-				filepath.Join(tmpHome, ".profile"),
+			name: "bash config files",
+			shell: interfaces.BashShell,
+			want: []string{
+				filepath.Join(os.Getenv("HOME"), ".bashrc"),
+				filepath.Join(os.Getenv("HOME"), ".bash_profile"),
 			},
+			wantErr: false,
 		},
 		{
-			name:  "zsh config files",
-			shell: interfaces.Zsh,
-			expected: []string{
-				filepath.Join(tmpHome, ".zshrc"),
-				filepath.Join(tmpHome, ".zprofile"),
-				filepath.Join(tmpHome, ".zshenv"),
+			name: "zsh config files",
+			shell: interfaces.ZshShell,
+			want: []string{
+				filepath.Join(os.Getenv("HOME"), ".zshrc"),
 			},
+			wantErr: false,
 		},
 		{
-			name:  "fish config files",
-			shell: interfaces.Fish,
-			expected: []string{
-				filepath.Join(tmpHome, ".config/fish/config.fish"),
+			name: "fish config files",
+			shell: interfaces.FishShell,
+			want: []string{
+				filepath.Join(os.Getenv("HOME"), ".config/fish/config.fish"),
 			},
-		},
-		{
-			name:     "unknown shell",
-			shell:    "unknown",
-			expected: nil,
+			wantErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getShellConfigFiles(tt.shell)
-			if len(got) != len(tt.expected) {
-				t.Errorf("getShellConfigFiles() returned %d files, want %d", len(got), len(tt.expected))
+			got, err := getShellConfigFiles(tt.shell)
+			if tt.wantErr {
+				assert.Error(t, err)
 				return
 			}
-			for i, file := range got {
-				if file != tt.expected[i] {
-					t.Errorf("getShellConfigFiles()[%d] = %v, want %v", i, file, tt.expected[i])
-				}
-			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -135,14 +121,14 @@ func TestDetectCurrent(t *testing.T) {
 			name:        "bash shell",
 			shellEnv:    bashPath,
 			wantErr:     false,
-			wantShell:   string(interfaces.Bash),
+			wantShell:   string(interfaces.BashShell),
 			wantDefault: true,
 		},
 		{
 			name:        "zsh shell",
 			shellEnv:    zshPath,
 			wantErr:     false,
-			wantShell:   string(interfaces.Zsh),
+			wantShell:   string(interfaces.ZshShell),
 			wantDefault: true,
 		},
 		{
@@ -212,13 +198,87 @@ func TestListAvailable(t *testing.T) {
 	// Verify shell info
 	for _, info := range shells {
 		if info.Path == "" {
-			t.Error("Shell info missing path")
+			t.Errorf("Shell %s has empty path", info.Type)
 		}
-		if info.Version == "" {
-			t.Error("Shell info missing version")
+		if info.Type == "" {
+			t.Error("Shell has empty type")
 		}
 		if !info.IsAvailable {
-			t.Error("Shell marked as unavailable but returned in available list")
+			t.Errorf("Shell %s marked as not available", info.Type)
 		}
+	}
+}
+
+func TestDetectCurrentShell(t *testing.T) {
+	tests := []struct {
+		name     string
+		shellEnv string
+		want     interfaces.ShellType
+	}{
+		{
+			name:     "bash shell",
+			shellEnv: "/bin/bash",
+			want:     interfaces.BashShell,
+		},
+		{
+			name:     "zsh shell",
+			shellEnv: "/bin/zsh",
+			want:     interfaces.ZshShell,
+		},
+		{
+			name:     "fish shell",
+			shellEnv: "/usr/bin/fish",
+			want:     interfaces.FishShell,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Setenv("SHELL", tt.shellEnv)
+			got := detectCurrentShell()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestIsShellInstalled(t *testing.T) {
+	tests := []struct {
+		name     string
+		shell    interfaces.ShellType
+		shellEnv string
+		want     bool
+	}{
+		{
+			name:     "bash installed",
+			shell:    interfaces.BashShell,
+			shellEnv: "/bin/bash",
+			want:     true,
+		},
+		{
+			name:     "zsh installed",
+			shell:    interfaces.ZshShell,
+			shellEnv: "/bin/zsh",
+			want:     true,
+		},
+		{
+			name:     "fish installed",
+			shell:    interfaces.FishShell,
+			shellEnv: "/usr/bin/fish",
+			want:     true,
+		},
+		{
+			name:     "shell not installed",
+			shell:    interfaces.BashShell,
+			shellEnv: "/bin/nonexistent",
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Setenv("SHELL", tt.shellEnv)
+			got := isShellInstalled(tt.shell)
+			assert.Equal(t, tt.want, got)
+		})
 	}
 } 

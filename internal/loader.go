@@ -1,12 +1,14 @@
-package config
+package internal
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
@@ -63,15 +65,17 @@ func (l *ConfigLoader) LoadLanguages() ([]*install.Language, error) {
 }
 
 // LoadDotfiles loads all dotfile configurations
-func (l *ConfigLoader) LoadDotfiles() ([]*install.Dotfile, error) {
+func (l *ConfigLoader) LoadDotfiles() ([]*interfaces.Dotfile, error) {
 	configs, err := l.loadConfigsFromDir("dotfiles")
 	if err != nil {
 		return nil, err
 	}
-	dotfiles, ok := configs.([]*install.Dotfile)
+
+	dotfiles, ok := configs.([]*interfaces.Dotfile)
 	if !ok {
-		return nil, fmt.Errorf("failed to convert configs to dotfiles")
+		return nil, fmt.Errorf("invalid dotfile configuration")
 	}
+
 	return dotfiles, nil
 }
 
@@ -145,7 +149,7 @@ func (l *ConfigLoader) loadConfigsFromDir(dir string) (interface{}, error) {
 		configs = languages
 
 	case "dotfiles":
-		dotfiles := make([]*install.Dotfile, 0)
+		dotfiles := make([]*interfaces.Dotfile, 0)
 		err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -357,46 +361,36 @@ func (l *ConfigLoader) loadLanguage(path string) (*install.Language, error) {
 	return &language, nil
 }
 
-// GetDotfiles loads all dotfile configurations
-func (l *ConfigLoader) GetDotfiles() ([]*install.Dotfile, error) {
-	dir := filepath.Join(l.baseDir, "dotfiles")
-	dotfiles := make([]*install.Dotfile, 0)
-
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() || filepath.Ext(path) != ".yaml" {
-			return nil
-		}
-
-		dotfile, err := l.loadDotfile(path)
-		if err != nil {
-			return fmt.Errorf("error loading dotfile from %s: %w", path, err)
-		}
-
-		dotfiles = append(dotfiles, dotfile)
-		return nil
-	})
-
+// GetDotfiles returns all dotfile configurations
+func (l *ConfigLoader) GetDotfiles() ([]*interfaces.Dotfile, error) {
+	dotfiles := make([]*interfaces.Dotfile, 0)
+	
+	files, err := filepath.Glob(filepath.Join(l.baseDir, "dotfiles", "*.yaml"))
 	if err != nil {
-		return nil, fmt.Errorf("error walking directory %s: %w", dir, err)
+		return nil, err
+	}
+
+	for _, file := range files {
+		dotfile, err := l.loadDotfile(file)
+		if err != nil {
+			return nil, err
+		}
+		dotfiles = append(dotfiles, dotfile)
 	}
 
 	return dotfiles, nil
 }
 
-// loadDotfile loads a single dotfile configuration from a YAML file
-func (l *ConfigLoader) loadDotfile(path string) (*install.Dotfile, error) {
-	data, err := os.ReadFile(path)
+// loadDotfile loads a single dotfile configuration
+func (l *ConfigLoader) loadDotfile(path string) (*interfaces.Dotfile, error) {
+	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("error reading file %s: %w", path, err)
+		return nil, err
 	}
 
-	var dotfile install.Dotfile
+	var dotfile interfaces.Dotfile
 	if err := yaml.Unmarshal(data, &dotfile); err != nil {
-		return nil, fmt.Errorf("error unmarshaling YAML from %s: %w", path, err)
+		return nil, err
 	}
 
 	return &dotfile, nil

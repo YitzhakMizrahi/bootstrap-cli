@@ -21,16 +21,4 @@ type Language struct {
 	Install     []string `yaml:"install"`
 	Verify      []string `yaml:"verify"`
 	Env         map[string]string `yaml:"env"`
-}
-
-// Dotfile represents a dotfile configuration
-type Dotfile struct {
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description"`
-	Category    string   `yaml:"category"`
-	Tags        []string `yaml:"tags"`
-	Source      string   `yaml:"source"`
-	Target      string   `yaml:"target"`
-	Install     []string `yaml:"install"`
-	Verify      []string `yaml:"verify"`
 } 

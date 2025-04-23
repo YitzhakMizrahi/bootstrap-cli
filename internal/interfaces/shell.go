@@ -1,13 +1,23 @@
 package interfaces
 
-// Shell represents a shell type
-type Shell string
+import "errors"
+
+// ShellType represents a shell type
+type ShellType string
 
 const (
-	// Supported shell types
-	Bash Shell = "bash"
-	Zsh  Shell = "zsh"
-	Fish Shell = "fish"
+	// Bash shell
+	BashShell ShellType = "bash"
+	// Zsh shell
+	ZshShell ShellType = "zsh"
+	// Fish shell
+	FishShell ShellType = "fish"
+)
+
+// Error variables
+var (
+	ErrHomeDirNotFound   = errors.New("home directory not found")
+	ErrUnsupportedShell  = errors.New("unsupported shell type")
 )
 
 // ShellInfo contains information about a shell
@@ -23,15 +33,43 @@ type ShellInfo struct {
 	ConfigFiles []string // Configuration files for this shell
 }
 
-// ShellType represents supported shell types
-type ShellType string
+// ShellManager defines the interface for shell management operations
+type ShellManager interface {
+	// DetectCurrent detects the current user's shell
+	DetectCurrent() (*ShellInfo, error)
+	// ListAvailable returns a list of available shells
+	ListAvailable() ([]*ShellInfo, error)
+	// IsInstalled checks if a specific shell is installed
+	IsInstalled(shell ShellType) bool
+	// GetInfo returns detailed information about a specific shell
+	GetInfo(shell ShellType) (*ShellInfo, error)
+	// ConfigureShell configures a shell with the specified configuration
+	ConfigureShell(config *ShellConfig) error
+}
 
-const (
-	// Shell types
-	BashShell ShellType = "bash"
-	ZshShell  ShellType = "zsh"
-	FishShell ShellType = "fish"
-)
+// ShellConfig represents shell configuration
+type ShellConfig struct {
+	// Aliases are shell aliases to add
+	Aliases map[string]string `yaml:"aliases"`
+	// Exports are environment variables to export
+	Exports map[string]string `yaml:"exports"`
+	// Functions are shell functions to add
+	Functions map[string]string `yaml:"functions"`
+	// Path contains paths to add to PATH
+	Path []string `yaml:"path"`
+	// Source contains files to source
+	Source []string `yaml:"source"`
+}
+
+// FileConfig represents a file configuration
+type FileConfig struct {
+	// Source is the source path of the file
+	Source string `yaml:"source"`
+	// Destination is the destination path of the file
+	Destination string `yaml:"destination"`
+	// Content is the content of the file
+	Content string `yaml:"content"`
+}
 
 // IsValidShell checks if a shell type is supported
 func IsValidShell(shell string) bool {
@@ -41,20 +79,6 @@ func IsValidShell(shell string) bool {
 	default:
 		return false
 	}
-}
-
-// ShellManager handles shell detection and operations
-type ShellManager interface {
-	// DetectCurrent detects the current user's shell
-	DetectCurrent() (*ShellInfo, error)
-	// ListAvailable returns a list of available shells
-	ListAvailable() ([]*ShellInfo, error)
-	// IsInstalled checks if a specific shell is installed
-	IsInstalled(shell Shell) bool
-	// GetInfo returns detailed information about a specific shell
-	GetInfo(shell Shell) (*ShellInfo, error)
-	// ConfigureShell configures a shell with the specified type
-	ConfigureShell(shellType string) error
 }
 
 // DotfilesStrategy defines how to handle existing dotfiles
@@ -81,52 +105,4 @@ type ShellConfigWriter interface {
 	AddAlias(name, command string) error
 	// HasConfig checks if a configuration exists
 	HasConfig(config string) bool
-}
-
-// Dotfile represents a shell configuration file
-type Dotfile struct {
-	Name            string
-	Description     string
-	Category        string
-	Tags            []string
-	Files           []FileConfig
-	Dependencies    []string
-	ShellConfig     ShellConfig
-	PostInstall     []string
-	RequiresRestart bool
-	// New fields for centralized management
-	SourceRepo      string   // Optional: GitHub repo URL for user's dotfiles
-	BaseDir         string   // Base directory for dotfiles (default: ~/.dotfiles)
-	SymlinkStrategy SymlinkStrategy
-}
-
-// SymlinkStrategy defines how to handle dotfile symlinks
-type SymlinkStrategy int
-
-const (
-	// SymlinkToHome creates symlinks from ~/.dotfiles to ~/
-	SymlinkToHome SymlinkStrategy = iota
-	// SymlinkToDotfiles creates symlinks from user's repo to ~/.dotfiles
-	SymlinkToDotfiles
-	// CopyToHome copies files directly to home directory
-	CopyToHome
-)
-
-// FileConfig represents a file configuration
-type FileConfig struct {
-	Source         string
-	Destination    string
-	Type           string
-	Permissions    string
-	Backup         bool
-	BackupSuffix   string
-	SymlinkTarget  string // The target path for symlinks (relative to BaseDir)
-	CreateParents  bool   // Whether to create parent directories
-}
-
-// ShellConfig represents shell-specific configuration
-type ShellConfig struct {
-	Env           map[string]string
-	PathAdditions []string
-	InitScripts   []string // Scripts to run on shell initialization
 } 

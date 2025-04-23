@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/shell"
@@ -82,8 +83,18 @@ func runUp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to handle shell selection: %w", err)
 	}
 	if selectedShell != "" {
+		// Create shell config from selection
+		config := &interfaces.ShellConfig{
+			// Add default configuration for the selected shell
+			Aliases: make(map[string]string),
+			Exports: make(map[string]string),
+			Functions: make(map[string]string),
+			Path: []string{},
+			Source: []string{},
+		}
+		
 		// Configure the selected shell
-		if err := shellMgr.ConfigureShell(selectedShell); err != nil {
+		if err := shellMgr.ConfigureShell(config); err != nil {
 			return fmt.Errorf("failed to configure shell: %w", err)
 		}
 		fmt.Printf("Shell configured: %s\n", selectedShell)

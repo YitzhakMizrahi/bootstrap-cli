@@ -60,10 +60,28 @@ func essentialTools() []install.Tool {
 			VerifyCommand: "wget --version",
 		},
 		{
-			Name:        "tmux",
-			PackageName: "tmux",
-			Description: "Terminal multiplexer",
-			VerifyCommand: "tmux -V",
+			Name:        "build-essential",
+			PackageName: "build-essential",
+			Description: "Basic build tools and libraries",
+			PackageNames: &install.PackageMapping{
+				Default: "build-essential",
+				APT:     "build-essential",
+				DNF:     "gcc-c++ make",
+				Pacman:  "base-devel",
+			},
+			VerifyCommand: "gcc --version",
+		},
+		{
+			Name:        "vim",
+			PackageName: "vim",
+			Description: "Improved vi editor",
+			VerifyCommand: "vim --version",
+		},
+		{
+			Name:        "nano",
+			PackageName: "nano",
+			Description: "Simple text editor",
+			VerifyCommand: "nano --version",
 		},
 	}
 }
@@ -89,10 +107,16 @@ func modernCliTools() []install.Tool {
 			VerifyCommand: "fzf --version",
 		},
 		{
-			Name:        "exa",
-			PackageName: "exa",
-			Description: "Modern replacement for ls",
-			VerifyCommand: "exa --version",
+			Name:        "lsd",
+			PackageName: "lsd",
+			Description: "Modern ls alternative",
+			VerifyCommand: "lsd --version",
+		},
+		{
+			Name:        "zoxide",
+			PackageName: "zoxide",
+			Description: "Smarter cd command",
+			VerifyCommand: "zoxide --version",
 		},
 	}
 }

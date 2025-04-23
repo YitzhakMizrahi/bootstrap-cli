@@ -2,6 +2,8 @@ package up
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
@@ -93,17 +95,25 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	// Step 8: Install Progress
 	logger := log.New(log.InfoLevel)
+
+	// Check for root privileges before proceeding with installation
+	if !system.IsRoot() {
+		logger.Warn("Tool installation requires root privileges.")
+		fmt.Printf("\nPlease re-run with sudo: sudo %s\n\n", strings.Join(os.Args, " "))
+		return fmt.Errorf("root privileges required for installation")
+	}
+
 	pm, err := packages.DetectPackageManager()
 	if err != nil {
 		return fmt.Errorf("failed to detect package manager: %w", err)
 	}
 
 	installer := install.NewInstaller(pm)
-	installer.Logger = logger // Assign the existing logger
+	installer.Logger = logger
 
 	// Convert selected tool names back to install.Tool objects
 	var toolsToInstall []*install.Tool
-	allToolCategories := tools.GetToolCategories() // Get all defined tools
+	allToolCategories := tools.GetToolCategories()
 	for _, selectedName := range selectedTools {
 		found := false
 		for _, category := range allToolCategories {
@@ -120,11 +130,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if !found {
-			// Handle case where a selected tool name doesn't match any known tool
-			// For now, just log a warning, but maybe create a basic Tool object
 			logger.Warn("Selected tool '%s' not found in defined categories.", selectedName)
-			// Optionally, create a basic install.Tool if you want to attempt installation anyway
-			// toolsToInstall = append(toolsToInstall, &install.Tool{Name: selectedName, PackageName: selectedName})
 		}
 	}
 
@@ -133,21 +139,32 @@ func runUp(cmd *cobra.Command, args []string) error {
 	for _, tool := range toolsToInstall {
 		logger.Info("Installing %s...", tool.Name)
 		if err := installer.Install(tool); err != nil {
-			// Decide if one tool failing should stop the whole process
 			logger.Error("Failed to install tool %s: %v. Continuing...", tool.Name, err)
-			// return fmt.Errorf("failed to install tool %s: %w", tool.Name, err) // Uncomment to stop on first error
 		}
 	}
 	logger.Success("Selected tools installation process finished.")
 
-	// TODO: Install selected language runtimes
+	// Install JetBrains Mono Nerd Font if selected
+	if installFonts {
+		logger.Info("Installing JetBrains Mono Nerd Font...")
+		fontInstaller := install.NewFontInstaller(logger)
+		if err := fontInstaller.InstallJetBrainsMono(); err != nil {
+			logger.Error("Failed to install JetBrains Mono font: %v", err)
+		} else {
+			logger.Success("JetBrains Mono font installed successfully.")
+		}
+	}
+
+	// Install selected language runtimes
 	logger.Info("Installing selected language runtimes...")
+	runtimeInstaller := install.NewRuntimeInstaller(pm, logger)
 	for _, runtime := range runtimes {
-		// Placeholder: Need actual installation logic for runtimes
-		// This might involve a similar pattern: looking up runtime details
-		// and calling an appropriate install function.
-		logger.Info("Attempting to install %s...", runtime)
-		// runtimeInstaller.Install(runtimeInfo) // Example
+		logger.Info("Installing %s...", runtime)
+		if err := runtimeInstaller.Install(runtime); err != nil {
+			logger.Error("Failed to install runtime %s: %v. Continuing...", runtime, err)
+		} else {
+			logger.Success("Successfully installed %s.", runtime)
+		}
 	}
 	logger.Success("Language runtime installation process finished.")
 

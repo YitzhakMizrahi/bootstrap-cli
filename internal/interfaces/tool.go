@@ -9,40 +9,42 @@ import (
 
 // Tool represents a development tool that can be installed
 type Tool struct {
-	Name        string
-	Description string
-	Category    string
-	Tags        []string
+	Name        string   `yaml:"name"`
+	Description string   `yaml:"description"`
+	Category    string   `yaml:"category"`
+	Tags        []string `yaml:"tags"`
 	
 	// Package management
-	PackageName string  // Package name for the default package manager
+	PackageName string  `yaml:"package_name"` // Package name for the default package manager
 	PackageNames struct {
 		APT    string `yaml:"apt"`
 		Brew   string `yaml:"brew"`
 		DNF    string `yaml:"dnf"`
 		Pacman string `yaml:"pacman"`
-	}
+	} `yaml:"package_names"`
 
-	Version string
-	VerifyCommand string
+	Version string `yaml:"version"`
+	VerifyCommand string `yaml:"verify_command"`
+	SystemDependencies []string `yaml:"system_dependencies"`
+	Dependencies []string `yaml:"dependencies"`
 	PostInstall []struct {
-		Command string
-		Description string
-	}
+		Command string `yaml:"command"`
+		Description string `yaml:"description"`
+	} `yaml:"post_install"`
 
 	ShellConfig struct {
-		Aliases   map[string]string
-		Functions map[string]string
-		Env       map[string]string
-	}
+		Aliases   map[string]string `yaml:"aliases"`
+		Functions map[string]string `yaml:"functions"`
+		Env       map[string]string `yaml:"env"`
+	} `yaml:"shell_config"`
 
 	Files []struct {
-		Source      string
-		Destination string
-		Type        string
-		Permissions int
-		Content     string
-	}
+		Source      string `yaml:"source"`
+		Destination string `yaml:"destination"`
+		Type        string `yaml:"type"`
+		Permissions int    `yaml:"permissions"`
+		Content     string `yaml:"content"`
+	} `yaml:"files"`
 }
 
 // ToolInstaller represents a tool installation service

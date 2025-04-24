@@ -125,8 +125,8 @@ func (i *Installer) getPackageWithVersion(pkg, version string) string {
 }
 
 // getSystemPackageName returns the appropriate package name for the current system
-func (i *Installer) getSystemPackageName(pkg string) string {
-	if pkg == "" {
+func (i *Installer) getSystemPackageName(tool *Tool) string {
+	if tool == nil {
 		return ""
 	}
 
@@ -134,17 +134,26 @@ func (i *Installer) getSystemPackageName(pkg string) string {
 	if i.PackageManager != nil {
 		switch i.PackageManager.GetName() {
 		case "apt":
-			return pkg + "-apt"
+			if tool.PackageNames.APT != "" {
+				return tool.PackageNames.APT
+			}
 		case "dnf":
-			return pkg + "-dnf"
+			if tool.PackageNames.DNF != "" {
+				return tool.PackageNames.DNF
+			}
 		case "pacman":
-			return pkg + "-pacman"
+			if tool.PackageNames.Pacman != "" {
+				return tool.PackageNames.Pacman
+			}
 		case "brew":
-			return pkg + "-brew"
+			if tool.PackageNames.Brew != "" {
+				return tool.PackageNames.Brew
+			}
 		}
 	}
 
-	return pkg
+	// Fall back to default package name
+	return tool.PackageName
 }
 
 // InstallResult represents the result of an installation attempt
@@ -159,7 +168,7 @@ func (i *Installer) Install(tool *Tool) error {
 	i.Logger.Info("Starting installation of %s", tool.Name)
 
 	// Get the appropriate package name for the current system
-	pkg := i.getSystemPackageName(tool.PackageName)
+	pkg := i.getSystemPackageName(tool)
 	if pkg == "" {
 		return &InstallError{
 			Tool:    tool.Name,
@@ -170,7 +179,7 @@ func (i *Installer) Install(tool *Tool) error {
 
 	// Add version if specified
 	pkgWithVersion := i.getPackageWithVersion(pkg, tool.Version)
-	i.Logger.Info("Installing %s version", pkgWithVersion)
+	i.Logger.Info("Installing %s version %s", pkg, tool.Version)
 
 	// Install system dependencies first
 	if len(tool.SystemDependencies) > 0 {

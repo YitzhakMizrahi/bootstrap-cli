@@ -10,6 +10,7 @@ import (
 //go:embed defaults/tools/schema.yaml
 //go:embed defaults/tools/modern/*.yaml
 //go:embed defaults/dotfiles/shell/*.yaml
+//go:embed defaults/languages/*.yaml
 var configFS embed.FS
 
 // ExtractEmbeddedConfigs extracts embedded configurations to the loader's base directory

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
@@ -166,8 +167,15 @@ func PromptToolSelection() ([]string, error) {
 
 // PromptLanguageRuntimes prompts for language runtime installation
 func PromptLanguageRuntimes() ([]string, error) {
+	// Create config loader with a temporary directory for embedded configs
+	tmpDir, err := os.MkdirTemp("", "bootstrap-cli-*")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir) // Clean up temp directory when done
+
 	// Create config loader
-	loader := config.NewConfigLoader("")
+	loader := config.NewConfigLoader(tmpDir)
 
 	// Load all languages
 	availableLanguages, err := loader.LoadLanguages()

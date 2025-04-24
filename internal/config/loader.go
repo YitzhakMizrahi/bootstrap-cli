@@ -15,6 +15,7 @@ import (
 //go:embed defaults/tools/modern/*.yaml
 //go:embed defaults/tools/schema.yaml
 //go:embed defaults/dotfiles/shell/*.yaml
+//go:embed defaults/languages/*.yaml
 var defaultConfigs embed.FS
 
 // ConfigLoader handles loading and parsing configuration files

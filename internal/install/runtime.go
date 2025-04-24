@@ -48,13 +48,13 @@ func (r *RuntimeInstaller) Install(runtime string) error {
 	}()
 
 	switch runtime {
-	case "Node.js (nvm)":
+	case "Node.js":
 		return r.installNVM()
-	case "Python (pyenv)":
+	case "Python":
 		return r.installPyenv()
-	case "Go (goenv)":
+	case "Go":
 		return r.installGoenv()
-	case "Rust (rustup)":
+	case "Rust":
 		return r.installRustup()
 	default:
 		return fmt.Errorf("unknown runtime: %s", runtime)

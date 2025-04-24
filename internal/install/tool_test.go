@@ -146,7 +146,9 @@ func TestInstaller(t *testing.T) {
 				PackageName:  "test-package",
 				Version:      "1.0.0",
 				Dependencies: []string{"dep1", "dep2"},
-				PostInstall:  []string{"echo 'test'"},
+				PostInstall: []PostInstallCommand{
+					{Command: "echo 'test'", Description: "Test command"},
+				},
 			},
 			maxRetries:      3,
 			maxFail:         0,
@@ -223,7 +225,9 @@ func TestInstaller(t *testing.T) {
 				Name:         "post-fail-tool",
 				PackageName:  "post-fail-package",
 				Dependencies: []string{"dep1"},
-				PostInstall:  []string{"exit 1"}, // This command will fail
+				PostInstall: []PostInstallCommand{
+					{Command: "exit 1", Description: "Failing command"},
+				},
 			},
 			maxRetries:      3,
 			maxFail:         0,

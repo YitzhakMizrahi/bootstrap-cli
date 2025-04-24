@@ -78,12 +78,13 @@ func validateTool(tool *Tool) error {
 
 	// Validate PostInstall commands
 	for i, cmd := range tool.PostInstall {
-		if cmd == "" {
+		if cmd.Command == "" {
 			errors = append(errors, (&ValidationError{
-				Field:   fmt.Sprintf("PostInstall[%d]", i),
+				Field:   fmt.Sprintf("PostInstall[%d].Command", i),
 				Message: "cannot be empty",
 			}).Error())
 		}
+		// Description is optional, so we don't validate it
 	}
 
 	if len(errors) > 0 {

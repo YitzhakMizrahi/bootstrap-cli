@@ -10,11 +10,15 @@ package_names:
   pacman: lsd
 
 version: "latest"
-system_dependencies: []
+system_dependencies:
+  - cargo  # Required for installation via cargo if package not found
+
 dependencies: []
 verify_command: "lsd --version"
 
 post_install:
+  - command: "if ! command -v lsd >/dev/null; then cargo install lsd; fi"
+    description: "Install lsd via cargo if package not found"
   - command: "mkdir -p ~/.config/lsd"
     description: "Create lsd config directory"
 

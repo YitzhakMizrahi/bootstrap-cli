@@ -38,7 +38,7 @@ type Tool struct {
 	// SystemDependencies is a list of system-level dependencies required
 	SystemDependencies []string
 	// PostInstall is a list of commands to run after installation
-	PostInstall []string
+	PostInstall []PostInstallCommand
 	// VerifyCommand is the command to verify the installation
 	VerifyCommand string
 	// Description is a brief description of the tool
@@ -65,6 +65,12 @@ type ConfigFile struct {
 	Type string
 	// Permissions are the file permissions (e.g., "0644")
 	Permissions string
+}
+
+// PostInstallCommand represents a post-installation command
+type PostInstallCommand struct {
+	Command     string
+	Description string
 }
 
 // InstallError represents an installation error
@@ -237,31 +243,45 @@ func (i *Installer) Install(tool *Tool) error {
 		}
 	}
 
-	// Apply shell configuration
-	if len(tool.ShellConfig.Exports) == 0 && len(tool.ShellConfig.Path) == 0 {
-		i.Logger.Info("No shell configuration needed for %s", tool.Name)
-	} else {
-		i.Logger.Info("Applying shell configuration for %s", tool.Name)
-		if err := i.applyShellConfig(tool); err != nil {
-			return &InstallError{
-				Tool:    tool.Name,
-				Phase:   "shell configuration",
-				Message: "failed to apply shell configuration",
-				Err:     err,
+	// Run post-install commands
+	if len(tool.PostInstall) > 0 {
+		i.Logger.Info("Running post-install commands for %s", tool.Name)
+		for _, cmd := range tool.PostInstall {
+			if err := i.runPostInstall(cmd); err != nil {
+				return &InstallError{
+					Tool:    tool.Name,
+					Phase:   "post-install",
+					Message: fmt.Sprintf("failed to run post-install command: %s", cmd.Command),
+					Err:     err,
+				}
 			}
 		}
 	}
 
-	// Run post-install commands
-	if len(tool.PostInstall) > 0 {
-		i.Logger.Info("Running post-install commands for %s", tool.Name)
-		if err := i.runPostInstall(tool); err != nil {
-			return &InstallError{
-				Tool:    tool.Name,
-				Phase:   "post-install",
-				Message: "failed to run post-install commands",
-				Err:     err,
-			}
+	// Apply shell configuration
+	i.Logger.Info("Applying shell configuration for %s", tool.Name)
+	if err := i.applyShellConfig(tool); err != nil {
+		return &InstallError{
+			Tool:    tool.Name,
+			Phase:   "shell configuration",
+			Message: "failed to apply shell configuration",
+			Err:     err,
+		}
+	}
+
+	// Reload shell configuration
+	i.Logger.Info("Reloading shell configuration")
+	shell, err := i.getCurrentShell()
+	if err == nil {
+		reloadCmd := PostInstallCommand{
+			Command: fmt.Sprintf("source ~/.%src", shell),
+			Description: "Reload shell configuration",
+		}
+		if shell == "fish" {
+			reloadCmd.Command = "source ~/.config/fish/config.fish"
+		}
+		if err := i.runPostInstall(reloadCmd); err != nil {
+			i.Logger.Warn("Failed to reload shell configuration: %v", err)
 		}
 	}
 
@@ -387,16 +407,14 @@ func (i *Installer) cleanup(packages []string) {
 }
 
 // runPostInstall executes post-installation commands
-func (i *Installer) runPostInstall(tool *Tool) error {
-	if len(tool.PostInstall) == 0 {
+func (i *Installer) runPostInstall(cmd PostInstallCommand) error {
+	if cmd.Command == "" {
 		return nil
 	}
 
-	for _, cmd := range tool.PostInstall {
-		command := exec.Command("sh", "-c", cmd)
-		if output, err := command.CombinedOutput(); err != nil {
-			return fmt.Errorf("post-install command failed: %w\nOutput: %s", err, string(output))
-		}
+	command := exec.Command("sh", "-c", cmd.Command)
+	if output, err := command.CombinedOutput(); err != nil {
+		return fmt.Errorf("post-install command failed: %w\nOutput: %s", err, string(output))
 	}
 	return nil
 }
@@ -455,12 +473,14 @@ func (i *Installer) retryOperation(op func() error) error {
 
 // runCommand executes a shell command
 func (i *Installer) runCommand(cmd string) error {
-	i.Logger.Debug("Running command: %s", cmd)
-	shell := exec.Command("sh", "-c", cmd)
-	shell.Stdout = os.Stdout
-	shell.Stderr = os.Stderr
+	if cmd == "" {
+		return nil
+	}
 
-	return shell.Run()
+	return i.runPostInstall(PostInstallCommand{
+		Command: cmd,
+		Description: "Run shell command",
+	})
 }
 
 // setupConfigFiles creates or symlinks configuration files
@@ -582,13 +602,23 @@ func (i *Installer) writeContent(content, destination, permissions string) error
 	return nil
 }
 
-// getCurrentShell returns the current shell
+// getCurrentShell returns the current shell name (zsh, bash, fish)
 func (i *Installer) getCurrentShell() (string, error) {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		return "", fmt.Errorf("SHELL environment variable not set")
 	}
-	return filepath.Base(shell), nil
+
+	switch {
+	case strings.Contains(shell, "zsh"):
+		return "zsh", nil
+	case strings.Contains(shell, "bash"):
+		return "bash", nil
+	case strings.Contains(shell, "fish"):
+		return "fish", nil
+	default:
+		return "", fmt.Errorf("unsupported shell: %s", shell)
+	}
 }
 
 // applyZshConfig applies Zsh-specific configuration

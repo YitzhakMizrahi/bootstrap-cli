@@ -19,7 +19,9 @@ func TestValidateTool(t *testing.T) {
 				PackageName:  "test-package",
 				Version:      "1.0.0",
 				Dependencies: []string{"dep1", "dep2"},
-				PostInstall:  []string{"echo 'test'"},
+				PostInstall: []PostInstallCommand{
+					{Command: "echo 'test'", Description: "Test command"},
+				},
 			},
 			wantErr: false,
 		},
@@ -75,10 +77,12 @@ func TestValidateTool(t *testing.T) {
 			tool: &Tool{
 				Name:        "test-tool",
 				PackageName: "test-package",
-				PostInstall: []string{""},
+				PostInstall: []PostInstallCommand{
+					{Command: "", Description: "Empty command"},
+				},
 			},
 			wantErr: true,
-			errMsg:  "PostInstall[0]: cannot be empty",
+			errMsg:  "PostInstall[0].Command: cannot be empty",
 		},
 	}
 

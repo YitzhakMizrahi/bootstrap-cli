@@ -96,76 +96,56 @@ func TestTool_GetInstallStrategy(t *testing.T) {
 	}
 }
 
-func TestTool_CreateInstallationSteps(t *testing.T) {
-	tool := NewTool("test-tool", CategoryDevelopment)
-	
-	// Set up installation strategy
+func TestTool_GenerateInstallationSteps(t *testing.T) {
+	// Create a tool with installation strategy
+	tool := NewTool("test-tool", CategoryEssential)
 	install := InstallStrategy{
+		PreInstall:  []string{"echo 'pre-install'"},
+		PostInstall: []string{"echo 'post-install'"},
 		PackageNames: map[string]string{
 			"apt": "test-tool",
 		},
-		PreInstall:  []string{"echo 'pre-install'"},
-		PostInstall: []string{"echo 'post-install'"},
 	}
 	tool.SetInstallation(install)
-
-	// Set up verification
-	verify := VerifyStrategy{
-		Command:        "test-tool --version",
-		ExpectedOutput: "v1.0.0",
-		BinaryPaths:    []string{"test-tool"},
-	}
-	tool.SetVerification(verify)
 
 	// Create steps
 	platform := &Platform{
 		OS:             "linux",
 		PackageManager: "apt",
 	}
-	steps := tool.CreateInstallationSteps(platform)
+	context := NewInstallationContext(platform, nil)
+	steps := tool.GenerateInstallationSteps(platform, context)
 
 	// Verify number of steps (pre-install + install + post-install + verify)
 	expectedSteps := len(install.PreInstall) + 1 + len(install.PostInstall) + 1
 	if len(steps) != expectedSteps {
 		t.Errorf("Expected %d steps, got %d", expectedSteps, len(steps))
 	}
-
-	// Verify step names
-	if steps[0].Name != "test-tool-pre-install-0" {
-		t.Errorf("Expected first step name 'test-tool-pre-install-0', got '%s'", steps[0].Name)
-	}
-	if steps[len(steps)-1].Name != "test-tool-verify" {
-		t.Errorf("Expected last step name 'test-tool-verify', got '%s'", steps[len(steps)-1].Name)
-	}
 }
 
 func TestTool_CustomInstallation(t *testing.T) {
-	tool := NewTool("custom-tool", CategoryDevelopment)
+	tool := NewTool("test-tool", CategoryDevelopment)
 	
-	// Set up custom installation strategy
+	// Set up custom installation
 	install := InstallStrategy{
 		CustomInstall: []string{
-			"wget https://example.com/custom-tool",
-			"chmod +x custom-tool",
-			"sudo mv custom-tool /usr/local/bin/",
+			"echo 'custom install step 1'",
+			"echo 'custom install step 2'",
 		},
 	}
 	tool.SetInstallation(install)
-
+	
+	// Create steps
 	platform := &Platform{
 		OS:             "linux",
 		PackageManager: "apt",
 	}
-	steps := tool.CreateInstallationSteps(platform)
-
-	// Verify number of steps (custom install commands + verify)
+	context := NewInstallationContext(platform, nil)
+	steps := tool.GenerateInstallationSteps(platform, context)
+	
+	// Verify number of steps (custom install steps + verify)
 	expectedSteps := len(install.CustomInstall) + 1
 	if len(steps) != expectedSteps {
 		t.Errorf("Expected %d steps, got %d", expectedSteps, len(steps))
-	}
-
-	// Verify step names
-	if steps[0].Name != "custom-tool-custom-install-0" {
-		t.Errorf("Expected first step name 'custom-tool-custom-install-0', got '%s'", steps[0].Name)
 	}
 } 

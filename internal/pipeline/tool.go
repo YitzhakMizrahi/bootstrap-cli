@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/utils"
 )
 
 // ToolCategory represents the category of a tool
@@ -56,6 +58,9 @@ type Tool struct {
 	// Dependencies required by this tool
 	Dependencies []Dependency
 
+	// System dependencies required by this tool
+	SystemDependencies []string
+
 	// Installation strategy
 	Install InstallStrategy
 
@@ -64,6 +69,9 @@ type Tool struct {
 
 	// Platform-specific configuration
 	PlatformConfig map[string]InstallStrategy
+	
+	// Command executor for running commands
+	cmdExecutor *utils.CommandExecutor
 }
 
 // NewTool creates a new tool configuration
@@ -73,7 +81,15 @@ func NewTool(name string, category ToolCategory) *Tool {
 		Category:       category,
 		Dependencies:   make([]Dependency, 0),
 		PlatformConfig: make(map[string]InstallStrategy),
+		cmdExecutor:    utils.NewCommandExecutor(&defaultLogger{}),
 	}
+}
+
+// defaultLogger implements the utils.Logger interface
+type defaultLogger struct{}
+
+func (l *defaultLogger) Printf(format string, args ...interface{}) {
+	fmt.Printf(format+"\n", args...)
 }
 
 // AddDependency adds a dependency to the tool
@@ -124,31 +140,74 @@ func (t *Tool) VerifyInstallation() error {
 	// Run verification command if specified
 	if t.Verify.Command != "" {
 		cmd := exec.Command("sh", "-c", t.Verify.Command)
-		output, err := cmd.Output()
+		output, err := t.cmdExecutor.ExecuteWithOutput(cmd, 0, 0)
 		if err != nil {
 			return fmt.Errorf("verification command failed: %v", err)
 		}
 
 		// Check expected output if specified
-		if t.Verify.ExpectedOutput != "" && !strings.Contains(string(output), t.Verify.ExpectedOutput) {
-			return fmt.Errorf("unexpected verification output: %s", string(output))
+		if t.Verify.ExpectedOutput != "" && !strings.Contains(output, t.Verify.ExpectedOutput) {
+			return fmt.Errorf("unexpected verification output: %s", output)
 		}
 	}
 
 	return nil
 }
 
-// CreateInstallationSteps creates installation steps for the pipeline
-func (t *Tool) CreateInstallationSteps(platform *Platform) []InstallationStep {
+// GenerateInstallationSteps creates installation steps for the pipeline
+func (t *Tool) GenerateInstallationSteps(platform *Platform, context *InstallationContext) []InstallationStep {
 	strategy := t.GetInstallStrategy(platform)
 	var steps []InstallationStep
+
+	// Add package manager update step
+	steps = append(steps, InstallationStep{
+		Name: fmt.Sprintf("%s-update-package-lists", t.Name),
+		Action: func() error {
+			var cmd *exec.Cmd
+			switch platform.PackageManager {
+			case "apt":
+				cmd = exec.Command("sudo", "apt-get", "update")
+			case "brew":
+				cmd = exec.Command("brew", "update")
+			case "pacman":
+				cmd = exec.Command("sudo", "pacman", "-Sy")
+			default:
+				return fmt.Errorf("unsupported package manager: %s", platform.PackageManager)
+			}
+			return t.cmdExecutor.ExecuteWithRetry(cmd, context.RetryCount, context.RetryDelay)
+		},
+	})
+
+	// Add system dependencies installation step
+	if len(t.SystemDependencies) > 0 {
+		steps = append(steps, InstallationStep{
+			Name: fmt.Sprintf("%s-system-dependencies", t.Name),
+			Action: func() error {
+				var cmd *exec.Cmd
+				switch platform.PackageManager {
+				case "apt":
+					args := append([]string{"apt-get", "install", "-y"}, t.SystemDependencies...)
+					cmd = exec.Command("sudo", args...)
+				case "brew":
+					args := append([]string{"install"}, t.SystemDependencies...)
+					cmd = exec.Command("brew", args...)
+				case "pacman":
+					args := append([]string{"pacman", "-S", "--noconfirm"}, t.SystemDependencies...)
+					cmd = exec.Command("sudo", args...)
+				default:
+					return fmt.Errorf("unsupported package manager: %s", platform.PackageManager)
+				}
+				return t.cmdExecutor.ExecuteWithRetry(cmd, context.RetryCount, context.RetryDelay)
+			},
+		})
+	}
 
 	// Add pre-install steps
 	for _, cmd := range strategy.PreInstall {
 		steps = append(steps, InstallationStep{
 			Name: fmt.Sprintf("%s-pre-install-%d", t.Name, len(steps)),
 			Action: func() error {
-				return exec.Command("sh", "-c", cmd).Run()
+				return t.cmdExecutor.ExecuteWithRetry(exec.Command("sh", "-c", cmd), context.RetryCount, context.RetryDelay)
 			},
 		})
 	}
@@ -169,7 +228,7 @@ func (t *Tool) CreateInstallationSteps(platform *Platform) []InstallationStep {
 				default:
 					return fmt.Errorf("unsupported package manager: %s", platform.PackageManager)
 				}
-				return cmd.Run()
+				return t.cmdExecutor.ExecuteWithRetry(cmd, context.RetryCount, context.RetryDelay)
 			},
 		})
 	} else if len(strategy.CustomInstall) > 0 {
@@ -178,7 +237,7 @@ func (t *Tool) CreateInstallationSteps(platform *Platform) []InstallationStep {
 			steps = append(steps, InstallationStep{
 				Name: fmt.Sprintf("%s-custom-install-%d", t.Name, len(steps)),
 				Action: func() error {
-					return exec.Command("sh", "-c", cmd).Run()
+					return t.cmdExecutor.ExecuteWithRetry(exec.Command("sh", "-c", cmd), context.RetryCount, context.RetryDelay)
 				},
 			})
 		}
@@ -189,10 +248,18 @@ func (t *Tool) CreateInstallationSteps(platform *Platform) []InstallationStep {
 		steps = append(steps, InstallationStep{
 			Name: fmt.Sprintf("%s-post-install-%d", t.Name, len(steps)),
 			Action: func() error {
-				return exec.Command("sh", "-c", cmd).Run()
+				return t.cmdExecutor.ExecuteWithRetry(exec.Command("sh", "-c", cmd), context.RetryCount, context.RetryDelay)
 			},
 		})
 	}
+
+	// Add PATH update step
+	steps = append(steps, InstallationStep{
+		Name: fmt.Sprintf("%s-update-path", t.Name),
+		Action: func() error {
+			return context.UpdatePath()
+		},
+	})
 
 	// Add verification step
 	steps = append(steps, InstallationStep{

@@ -3,6 +3,7 @@ package pipeline
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -127,4 +128,58 @@ func (c *InstallationContext) ExecutePostInstall(tool *Tool) error {
 	}
 
 	return nil
+}
+
+// UpdatePath updates the PATH environment variable with installed binary paths
+func (c *InstallationContext) UpdatePath() error {
+	// Get the current PATH
+	path := os.Getenv("PATH")
+	if path == "" {
+		path = "/usr/local/bin:/usr/bin:/bin"
+	}
+
+	// Add common binary paths
+	paths := []string{
+		"/usr/local/bin",
+		"/usr/bin",
+		"/bin",
+		"/usr/local/go/bin",
+		os.ExpandEnv("$HOME/.local/bin"),
+		os.ExpandEnv("$HOME/go/bin"),
+		os.ExpandEnv("$HOME/.cargo/bin"),
+	}
+
+	// Add paths to PATH if they don't exist
+	for _, p := range paths {
+		if !strings.Contains(path, p) {
+			path = p + ":" + path
+		}
+	}
+
+	// Set the new PATH
+	if err := os.Setenv("PATH", path); err != nil {
+		return fmt.Errorf("failed to update PATH: %w", err)
+	}
+
+	// Reload shell configuration
+	if err := c.reloadShellConfig(); err != nil {
+		return fmt.Errorf("failed to reload shell configuration: %w", err)
+	}
+
+	return nil
+}
+
+// reloadShellConfig reloads the shell configuration
+func (c *InstallationContext) reloadShellConfig() error {
+	shell := c.Platform.Shell
+	switch shell {
+	case "bash":
+		return exec.Command("source", os.ExpandEnv("$HOME/.bashrc")).Run()
+	case "zsh":
+		return exec.Command("source", os.ExpandEnv("$HOME/.zshrc")).Run()
+	case "fish":
+		return exec.Command("source", os.ExpandEnv("$HOME/.config/fish/config.fish")).Run()
+	default:
+		return fmt.Errorf("unsupported shell: %s", shell)
+	}
 } 

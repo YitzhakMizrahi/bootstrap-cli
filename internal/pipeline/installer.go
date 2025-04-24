@@ -3,6 +3,8 @@ package pipeline
 import (
 	"fmt"
 	"log"
+	"os/exec"
+	"time"
 )
 
 // Installer manages the installation of tools using a pipeline-based approach
@@ -29,7 +31,7 @@ func (i *Installer) Install(tool *Tool) error {
 	i.Logger.Printf("Starting installation of %s", tool.Name)
 	
 	// Create installation steps
-	steps := tool.CreateInstallationSteps(i.Context.Platform)
+	steps := tool.GenerateInstallationSteps(i.Context.Platform, i.Context)
 	
 	// Add steps to pipeline
 	for _, step := range steps {
@@ -133,4 +135,19 @@ func (i *Installer) GetStatus(tool *Tool) string {
 // GetProgress returns the current progress of the installation pipeline
 func (i *Installer) GetProgress() string {
 	return i.Pipeline.GetProgress()
+}
+
+// executeWithRetry executes a command with retries
+func executeWithRetry(cmd *exec.Cmd, retries int, delay time.Duration) error {
+	var err error
+	for i := 0; i < retries; i++ {
+		err = cmd.Run()
+		if err == nil {
+			return nil
+		}
+		if i < retries-1 {
+			time.Sleep(delay)
+		}
+	}
+	return fmt.Errorf("failed after %d retries: %w", retries, err)
 } 

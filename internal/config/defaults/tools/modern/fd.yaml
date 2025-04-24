@@ -12,21 +12,21 @@ package_names:
 version: "latest"
 system_dependencies: []
 dependencies: []
-verify_command: "fd --version"
+verify_command: "fd-find --version || fd --version"
 
 shell_config:
   aliases:
-    find: "fd"  # Replace find with fd
-    fdh: "fd --hidden"  # Include hidden files
-    fdd: "fd --type d"  # Only directories
-    fdf: "fd --type f"  # Only files
-    fdl: "fd --type l"  # Only symlinks
+    find: "fd-find || fd"  # Replace find with fd
+    fdh: "fd-find --hidden || fd --hidden"  # Include hidden files
+    fdd: "fd-find --type d || fd --type d"  # Only directories
+    fdf: "fd-find --type f || fd --type f"  # Only files
+    fdl: "fd-find --type l || fd --type l"  # Only symlinks
 
   env:
     FD_OPTIONS: "--follow --exclude .git --exclude node_modules"  # Default options
 
   functions:
     fdsize: |
-      fd --type f --exec du -sh {}  # Find files with their sizes
+      fd-find --type f --exec du -sh {} || fd --type f --exec du -sh {}  # Find files with their sizes
     fdnewer: |
-      fd --type f --changed-within ${1:-1d}  # Find files newer than specified time (default 1 day) 
+      fd-find --type f --changed-within ${1:-1d} || fd --type f --changed-within ${1:-1d}  # Find files newer than specified time (default 1 day) 

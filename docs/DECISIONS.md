@@ -56,6 +56,29 @@ This doc captures high-level technical and strategic decisions made during the p
 - All installable items should be registered through centralized metadata or schema (e.g., a `tools.yaml` or Go struct registry)
 - Encourages scalability and lowers barrier to contribution or user customization
 
+### ✅ 12. Pipeline-Based Installation Architecture
+- Adopted a pipeline-based approach for tool installation and configuration
+- Each tool installation is broken down into discrete, verifiable steps
+- Key components:
+  - `Tool` struct with platform-specific installation strategies
+  - `InstallationContext` for managing state and environment
+  - `VerifyStrategy` for robust post-install verification
+  - `InstallStrategy` for flexible, platform-aware installation steps
+- Benefits:
+  - Better error handling and recovery
+  - Platform-specific installation paths
+  - Consistent verification across tools
+  - Modular and testable installation steps
+  - Clear separation between tool definition and installation logic
+
+### ✅ 13. Shell Configuration Management
+- Shell configuration is treated as a first-class concern
+- Structured approach using `ShellConfig` type:
+  - Aliases
+  - Functions
+  - Environment variables
+- Enables consistent shell setup across different shells and platforms
+
 ---
 
 ### 🟡 Pending Decisions

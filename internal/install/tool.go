@@ -216,26 +216,20 @@ func (i *Installer) Install(tool *Tool) error {
 		}
 	}
 
+	// Try to set up special package if needed (e.g., adding PPAs)
+	if err := i.PackageManager.SetupSpecialPackage(pkg); err != nil {
+		i.Logger.Warn("Failed to set up special package %s: %v", pkg, err)
+		// Continue with installation even if setup fails
+	}
+
 	// Install package
 	i.Logger.Info("Installing %s version %s", tool.Name, tool.Version)
-	if err := i.PackageManager.Install(tool.PackageName); err != nil {
-		// Try to set up special package if regular installation fails
-		if err := i.PackageManager.SetupSpecialPackage(tool.PackageName); err != nil {
-			return &InstallError{
-				Tool:    tool.Name,
-				Phase:   "package installation",
-				Message: fmt.Sprintf("failed to install package %s", tool.PackageName),
-				Err:     err,
-			}
-		}
-		// Try installation again after setting up special package
-		if err := i.PackageManager.Install(tool.PackageName); err != nil {
-			return &InstallError{
-				Tool:    tool.Name,
-				Phase:   "package installation",
-				Message: fmt.Sprintf("failed to install package %s", tool.PackageName),
-				Err:     err,
-			}
+	if err := i.PackageManager.Install(pkg); err != nil {
+		return &InstallError{
+			Tool:    tool.Name,
+			Phase:   "package installation",
+			Message: fmt.Sprintf("failed to install package %s", pkg),
+			Err:     err,
 		}
 	}
 
@@ -281,27 +275,21 @@ func (i *Installer) Install(tool *Tool) error {
 	// Reload shell configuration
 	i.Logger.Info("Reloading shell configuration")
 	shell, err := i.getCurrentShell()
-	if err == nil {
-		var reloadCmd PostInstallCommand
-		switch shell {
-		case "zsh":
-			reloadCmd = PostInstallCommand{
-				Command:     "zsh -c 'source ~/.zshrc'",
-				Description: "Reload zsh configuration",
-			}
-		case "bash":
-			reloadCmd = PostInstallCommand{
-				Command:     "bash -c 'source ~/.bashrc'",
-				Description: "Reload bash configuration",
-			}
-		case "fish":
-			reloadCmd = PostInstallCommand{
-				Command:     "fish -c 'source ~/.config/fish/config.fish'",
-				Description: "Reload fish configuration",
-			}
+	if err != nil {
+		return &InstallError{
+			Tool:    tool.Name,
+			Phase:   "shell reload",
+			Message: "failed to get current shell",
+			Err:     err,
 		}
-		if err := i.runPostInstall(reloadCmd); err != nil {
-			i.Logger.Warn("Failed to reload shell configuration: %v", err)
+	}
+
+	if err := i.reloadShellConfig(shell); err != nil {
+		return &InstallError{
+			Tool:    tool.Name,
+			Phase:   "shell reload",
+			Message: "failed to reload shell configuration",
+			Err:     err,
 		}
 	}
 
@@ -316,7 +304,6 @@ func (i *Installer) Install(tool *Tool) error {
 		}
 	}
 
-	i.Logger.Success("Successfully installed %s", tool.Name)
 	return nil
 }
 
@@ -840,4 +827,29 @@ func (i *Installer) applyFishConfig(tool *Tool) error {
 	}
 
 	return nil
+}
+
+// reloadShellConfig reloads the shell configuration for the given shell
+func (i *Installer) reloadShellConfig(shell string) error {
+	var reloadCmd PostInstallCommand
+	switch shell {
+	case "zsh":
+		reloadCmd = PostInstallCommand{
+			Command:     "zsh -c 'source ~/.zshrc'",
+			Description: "Reload zsh configuration",
+		}
+	case "bash":
+		reloadCmd = PostInstallCommand{
+			Command:     "bash -c 'source ~/.bashrc'",
+			Description: "Reload bash configuration",
+		}
+	case "fish":
+		reloadCmd = PostInstallCommand{
+			Command:     "fish -c 'source ~/.config/fish/config.fish'",
+			Description: "Reload fish configuration",
+		}
+	default:
+		return fmt.Errorf("unsupported shell: %s", shell)
+	}
+	return i.runPostInstall(reloadCmd)
 } 

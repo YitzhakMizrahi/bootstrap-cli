@@ -1,5 +1,5 @@
 name: Wget
-description: "Network utility to retrieve files from the web"
+description: "Command-line utility for downloading files"
 category: "essential"
 tags: ["network", "download", "essential"]
 package_names:
@@ -11,4 +11,8 @@ version: "latest"
 system_dependencies: []
 dependencies: []
 verify_command: "wget --version"
-post_install: [] 
+post_install: []
+shell_config:
+  aliases: {}
+  functions: {}
+  env: {} 

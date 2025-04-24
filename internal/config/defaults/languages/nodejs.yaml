@@ -1,0 +1,24 @@
+name: Node.js
+description: JavaScript runtime built on Chrome's V8 JavaScript engine
+category: language
+tags: ["javascript", "runtime", "nvm"]
+version: lts
+installer: nvm
+verify_command: node --version
+
+package_names:
+  apt: nodejs
+  brew: node
+  dnf: nodejs
+  pacman: nodejs
+
+post_install:
+  - command: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+    description: Install nvm (Node Version Manager)
+
+shell_config:
+  env:
+    NVM_DIR: "$HOME/.nvm"
+  source:
+    - "$HOME/.nvm/nvm.sh"
+    - "$HOME/.nvm/bash_completion" 

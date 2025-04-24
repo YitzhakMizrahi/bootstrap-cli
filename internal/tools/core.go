@@ -47,11 +47,6 @@ func GetToolCategories() ([]ToolCategory, error) {
 			Description: "Modern alternatives to traditional command-line tools",
 			Tools:       categories["modern"],
 		},
-		{
-			Name:        "System Tools",
-			Description: "System monitoring and management utilities",
-			Tools:       categories["system"],
-		},
 	}
 
 	return result, nil
@@ -66,100 +61,35 @@ type CoreTool struct {
 	PostInstallCommands []string
 }
 
-// CoreTools returns a list of core development tools
+// CoreTools returns the list of core tools from configuration
 func CoreTools() []*CoreTool {
-	return []*CoreTool{
-		{
-			Tool: &interfaces.Tool{
-				Name:        "Git",
-				PackageName: "git",
-				Description: "Version control system",
-			},
-			VerifyCommand: "git --version",
-		},
-		{
-			Tool: &interfaces.Tool{
-				Name:        "Curl",
-				PackageName: "curl",
-				Description: "Command-line tool for transferring data",
-			},
-			VerifyCommand: "curl --version",
-		},
-		{
-			Tool: &interfaces.Tool{
-				Name:        "Wget",
-				PackageName: "wget",
-				Description: "Command-line utility for downloading files",
-			},
-			VerifyCommand: "wget --version",
-		},
-		{
-			Tool: &interfaces.Tool{
-				Name:        "Build Essentials",
-				PackageName: "build-essential",
-				Description: "Basic build tools and libraries",
-				PackageNames: struct {
-					APT    string `yaml:"apt"`
-					Brew   string `yaml:"brew"`
-					DNF    string `yaml:"dnf"`
-					Pacman string `yaml:"pacman"`
-				}{
-					APT:    "build-essential",
-					DNF:    "gcc-c++ make",
-					Pacman: "base-devel",
-				},
-			},
-			VerifyCommand: "gcc --version",
-		},
-		{
-			Tool: &interfaces.Tool{
-				Name:        "ZIP",
-				PackageName: "zip",
-				Description: "Compression and file packaging utility",
-			},
-			VerifyCommand: "zip --version",
-		},
-		{
-			Tool: &interfaces.Tool{
-				Name:        "Unzip",
-				PackageName: "unzip",
-				Description: "Decompression utility",
-			},
-			VerifyCommand: "unzip --version",
-		},
-		{
-			Tool: &interfaces.Tool{
-				Name:        "Tar",
-				PackageName: "tar",
-				Description: "Tape archiver",
-			},
-			VerifyCommand: "tar --version",
-		},
-		{
-			Tool: &interfaces.Tool{
-				Name:        "Vim",
-				PackageName: "vim",
-				Description: "Text editor",
-			},
-			VerifyCommand: "vim --version",
-		},
-		{
-			Tool: &interfaces.Tool{
-				Name:        "Nano",
-				PackageName: "nano",
-				Description: "Simple text editor",
-			},
-			VerifyCommand: "nano --version",
-		},
-		{
-			Tool: &interfaces.Tool{
-				Name:        "Htop",
-				PackageName: "htop",
-				Description: "Interactive process viewer",
-			},
-			VerifyCommand: "htop --version",
-		},
+	loader := config.NewConfigLoader("")
+	tools, err := loader.LoadTools()
+	if err != nil {
+		// Log error and return empty list
+		fmt.Printf("Warning: Failed to load core tools: %v\n", err)
+		return []*CoreTool{}
 	}
+
+	// Convert tools to CoreTools
+	coreTools := make([]*CoreTool, 0, len(tools))
+	for _, tool := range tools {
+		if tool.Category == "essential" {
+			// Convert PostInstall to PostInstallCommands
+			commands := make([]string, 0, len(tool.PostInstall))
+			for _, cmd := range tool.PostInstall {
+				commands = append(commands, cmd.Command)
+			}
+			
+			coreTools = append(coreTools, &CoreTool{
+				Tool: tool,
+				VerifyCommand: tool.VerifyCommand,
+				PostInstallCommands: commands,
+			})
+		}
+	}
+
+	return coreTools
 }
 
 // InstallEssentialTools installs all essential development tools

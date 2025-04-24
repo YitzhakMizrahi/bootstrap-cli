@@ -20,15 +20,11 @@ post_install:
     description: "Set merge as default pull strategy"
 shell_config:
   aliases:
-    - name: g
-      command: "git"
-    - name: ga
-      command: "git add"
-    - name: gc
-      command: "git commit"
-    - name: gp
-      command: "git push"
-    - name: gl
-      command: "git pull"
-    - name: gs
-      command: "git status" 
+    g: "git"
+    ga: "git add"
+    gc: "git commit"
+    gp: "git push"
+    gl: "git pull"
+    gs: "git status"
+  functions: {}
+  env: {} 

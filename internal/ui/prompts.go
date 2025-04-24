@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/detector"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
@@ -128,9 +129,19 @@ func PromptFontInstallation() (bool, error) {
 
 // PromptToolSelection prompts for tool selection
 func PromptToolSelection() ([]string, error) {
-	tools := []string{
-		"git", "curl", "bat", "lsd", "fzf", "zoxide",
-		"vim", "nano", "htop", "build-essential",
+	// Create config loader
+	loader := config.NewConfigLoader("")
+
+	// Load all tools
+	availableTools, err := loader.LoadTools()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load tool configurations: %w", err)
+	}
+
+	// Extract tool names
+	var tools []string
+	for _, tool := range availableTools {
+		tools = append(tools, tool.Name)
 	}
 
 	selector := NewToolSelector(tools)
@@ -155,11 +166,19 @@ func PromptToolSelection() ([]string, error) {
 
 // PromptLanguageRuntimes prompts for language runtime installation
 func PromptLanguageRuntimes() ([]string, error) {
-	runtimes := []string{
-		"Node.js (nvm)",
-		"Python (pyenv)",
-		"Go (goenv)",
-		"Rust (rustup)",
+	// Create config loader
+	loader := config.NewConfigLoader("")
+
+	// Load all languages
+	availableLanguages, err := loader.LoadLanguages()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load language configurations: %w", err)
+	}
+
+	// Extract language names
+	var runtimes []string
+	for _, lang := range availableLanguages {
+		runtimes = append(runtimes, lang.Name)
 	}
 
 	selector := NewToolSelector(runtimes)

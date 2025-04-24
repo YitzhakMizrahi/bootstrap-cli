@@ -15,7 +15,7 @@ properties:
     description: Description of the tool
   category:
     type: string
-    description: Category of the tool (e.g., modern, traditional)
+    description: Category of the tool (e.g., modern, essential)
   tags:
     type: array
     items:
@@ -58,30 +58,45 @@ properties:
           type: string
         description:
           type: string
+      required:
+        - command
+        - description
     description: Commands to run after installation
   shell_config:
     type: object
     description: Shell configuration for the tool
     properties:
       aliases:
-        type: array
-        items:
-          type: object
-          properties:
-            name:
-              type: string
-            command:
-              type: string
+        type: object
+        additionalProperties:
+          type: string
+        description: Shell aliases for the tool
+      functions:
+        type: object
+        additionalProperties:
+          type: string
+        description: Shell functions for the tool
       env:
-        type: array
-        items:
-          type: object
-          properties:
-            name:
-              type: string
-            value:
-              type: string
-      path_append:
-        type: array
-        items:
-          type: string 
+        type: object
+        additionalProperties:
+          type: string
+        description: Environment variables for the tool
+  files:
+    type: array
+    items:
+      type: object
+      properties:
+        source:
+          type: string
+        destination:
+          type: string
+        type:
+          type: string
+        permissions:
+          type: integer
+        content:
+          type: string
+      required:
+        - source
+        - destination
+    description: Files to be created or copied 

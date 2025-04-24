@@ -21,14 +21,24 @@ var defaultConfigs embed.FS
 type ConfigLoader struct {
 	baseDir     string // User config directory
 	defaultsDir string // Embedded defaults directory
+	configFS    embed.FS
 }
 
 // NewConfigLoader creates a new configuration loader
 func NewConfigLoader(baseDir string) *ConfigLoader {
-	return &ConfigLoader{
+	loader := &ConfigLoader{
 		baseDir:     baseDir,
 		defaultsDir: "defaults",
+		configFS:    defaultConfigs,
 	}
+	
+	// Extract embedded configs on initialization
+	if err := loader.ExtractEmbeddedConfigs(); err != nil {
+		// Log error but don't fail - we'll try to use user configs as fallback
+		fmt.Printf("Warning: Failed to extract embedded configs: %v\n", err)
+	}
+	
+	return loader
 }
 
 // mergeConfigs merges user config into default config
@@ -139,7 +149,7 @@ func (l *ConfigLoader) loadConfigsFromDir(dir string) (interface{}, error) {
 // loadDefaultConfigs loads configurations from embedded defaults
 func (l *ConfigLoader) loadDefaultConfigs(dir string) (interface{}, error) {
 	defaultDir := filepath.Join(l.defaultsDir, dir)
-	entries, err := defaultConfigs.ReadDir(defaultDir)
+	entries, err := l.configFS.ReadDir(defaultDir)
 	if err != nil {
 		return nil, fmt.Errorf("error reading default directory %s: %w", defaultDir, err)
 	}
@@ -149,22 +159,75 @@ func (l *ConfigLoader) loadDefaultConfigs(dir string) (interface{}, error) {
 	case "tools":
 		tools := make([]*interfaces.Tool, 0)
 		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
-				continue
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yaml") {
+				path := filepath.Join(defaultDir, entry.Name())
+				data, err := l.configFS.ReadFile(path)
+				if err != nil {
+					return nil, fmt.Errorf("error reading default file %s: %w", path, err)
+				}
+				
+				var tool interfaces.Tool
+				if err := yaml.Unmarshal(data, &tool); err != nil {
+					return nil, fmt.Errorf("error parsing tool %s: %w", path, err)
+				}
+				tools = append(tools, &tool)
 			}
-			path := filepath.Join(defaultDir, entry.Name())
-			data, err := defaultConfigs.ReadFile(path)
-			if err != nil {
-				return nil, fmt.Errorf("error reading default file %s: %w", path, err)
-			}
-			var tool interfaces.Tool
-			if err := yaml.Unmarshal(data, &tool); err != nil {
-				return nil, fmt.Errorf("error unmarshaling default YAML from %s: %w", path, err)
-			}
-			tools = append(tools, &tool)
 		}
 		configs = tools
-	// Similar cases for fonts, languages, and dotfiles...
+	case "fonts":
+		fonts := make([]*install.Font, 0)
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yaml") {
+				path := filepath.Join(defaultDir, entry.Name())
+				data, err := l.configFS.ReadFile(path)
+				if err != nil {
+					return nil, fmt.Errorf("error reading default file %s: %w", path, err)
+				}
+				
+				var font install.Font
+				if err := yaml.Unmarshal(data, &font); err != nil {
+					return nil, fmt.Errorf("error parsing font %s: %w", path, err)
+				}
+				fonts = append(fonts, &font)
+			}
+		}
+		configs = fonts
+	case "languages":
+		languages := make([]*install.Language, 0)
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yaml") {
+				path := filepath.Join(defaultDir, entry.Name())
+				data, err := l.configFS.ReadFile(path)
+				if err != nil {
+					return nil, fmt.Errorf("error reading default file %s: %w", path, err)
+				}
+				
+				var language install.Language
+				if err := yaml.Unmarshal(data, &language); err != nil {
+					return nil, fmt.Errorf("error parsing language %s: %w", path, err)
+				}
+				languages = append(languages, &language)
+			}
+		}
+		configs = languages
+	case "dotfiles":
+		dotfiles := make([]*interfaces.Dotfile, 0)
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yaml") {
+				path := filepath.Join(defaultDir, entry.Name())
+				data, err := l.configFS.ReadFile(path)
+				if err != nil {
+					return nil, fmt.Errorf("error reading default file %s: %w", path, err)
+				}
+				
+				var dotfile interfaces.Dotfile
+				if err := yaml.Unmarshal(data, &dotfile); err != nil {
+					return nil, fmt.Errorf("error parsing dotfile %s: %w", path, err)
+				}
+				dotfiles = append(dotfiles, &dotfile)
+			}
+		}
+		configs = dotfiles
 	}
 	
 	return configs, nil
@@ -199,7 +262,66 @@ func (l *ConfigLoader) loadUserConfigs(dir string) (interface{}, error) {
 			return nil, fmt.Errorf("error walking directory %s: %w", userDir, err)
 		}
 		configs = tools
-	// Similar cases for fonts, languages, and dotfiles...
+	case "fonts":
+		fonts := make([]*install.Font, 0)
+		err := filepath.Walk(userDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() || !strings.HasSuffix(info.Name(), ".yaml") {
+				return nil
+			}
+			font, err := l.loadFont(path)
+			if err != nil {
+				return fmt.Errorf("error loading %s: %w", path, err)
+			}
+			fonts = append(fonts, font)
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error walking directory %s: %w", userDir, err)
+		}
+		configs = fonts
+	case "languages":
+		languages := make([]*install.Language, 0)
+		err := filepath.Walk(userDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() || !strings.HasSuffix(info.Name(), ".yaml") {
+				return nil
+			}
+			language, err := l.loadLanguage(path)
+			if err != nil {
+				return fmt.Errorf("error loading %s: %w", path, err)
+			}
+			languages = append(languages, language)
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error walking directory %s: %w", userDir, err)
+		}
+		configs = languages
+	case "dotfiles":
+		dotfiles := make([]*interfaces.Dotfile, 0)
+		err := filepath.Walk(userDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() || !strings.HasSuffix(info.Name(), ".yaml") {
+				return nil
+			}
+			dotfile, err := l.loadDotfile(path)
+			if err != nil {
+				return fmt.Errorf("error loading %s: %w", path, err)
+			}
+			dotfiles = append(dotfiles, dotfile)
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error walking directory %s: %w", userDir, err)
+		}
+		configs = dotfiles
 	}
 	
 	return configs, nil
@@ -527,15 +649,13 @@ func (l *ConfigLoader) GetDotfiles() ([]*interfaces.Dotfile, error) {
 
 // loadDotfile loads a single dotfile configuration from a YAML file
 func (l *ConfigLoader) loadDotfile(path string) (*interfaces.Dotfile, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("error reading file %s: %w", path, err)
-	}
-
 	var dotfile interfaces.Dotfile
-	if err := yaml.Unmarshal(data, &dotfile); err != nil {
-		return nil, fmt.Errorf("error unmarshaling YAML from %s: %w", path, err)
+	data, err := l.configFS.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading dotfile %s: %w", path, err)
 	}
-
+	if err := yaml.Unmarshal(data, &dotfile); err != nil {
+		return nil, fmt.Errorf("error parsing dotfile %s: %w", path, err)
+	}
 	return &dotfile, nil
 } 

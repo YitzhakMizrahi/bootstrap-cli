@@ -1,0 +1,19 @@
+name: vim
+description: Highly configurable text editor built to make creating and changing any kind of text very efficient
+category: essential
+tags: ["editor", "text", "terminal"]
+version: latest
+verify_command: vim --version
+
+package_names:
+  apt: vim
+  brew: vim
+  dnf: vim
+  pacman: vim
+
+shell_config:
+  aliases:
+    vi: vim
+  env:
+    EDITOR: vim
+    VISUAL: vim 

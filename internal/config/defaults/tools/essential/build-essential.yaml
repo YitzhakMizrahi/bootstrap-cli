@@ -1,0 +1,12 @@
+name: build-essential
+description: Meta-package containing essential build tools like gcc, g++, make, etc.
+category: essential
+tags: ["build", "compiler", "development"]
+version: latest
+verify_command: gcc --version
+
+package_names:
+  apt: build-essential
+  brew: gcc
+  dnf: "@development-tools"
+  pacman: base-devel 

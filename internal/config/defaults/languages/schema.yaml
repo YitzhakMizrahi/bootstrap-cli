@@ -1,0 +1,81 @@
+type: object
+required:
+  - name
+  - description
+  - category
+  - tags
+  - version
+  - installer
+  - verify_command
+  - package_names
+properties:
+  name:
+    type: string
+    description: The name of the language runtime
+  description:
+    type: string
+    description: A brief description of the language runtime
+  category:
+    type: string
+    description: The category of the language runtime (e.g., language)
+  tags:
+    type: array
+    items:
+      type: string
+    description: Keywords for searching and filtering
+  version:
+    type: string
+    description: The desired version of the language runtime
+  installer:
+    type: string
+    description: The version manager or installer to use (e.g., nvm, pyenv)
+  verify_command:
+    type: string
+    description: The command to verify the installation
+  package_names:
+    type: object
+    properties:
+      apt:
+        type: string
+        description: Package name for APT package manager
+      brew:
+        type: string
+        description: Package name for Homebrew package manager
+      dnf:
+        type: string
+        description: Package name for DNF package manager
+      pacman:
+        type: string
+        description: Package name for Pacman package manager
+    required:
+      - apt
+      - brew
+      - dnf
+      - pacman
+  post_install:
+    type: array
+    items:
+      type: object
+      properties:
+        command:
+          type: string
+          description: The command to run after installation
+        description:
+          type: string
+          description: A description of what the command does
+      required:
+        - command
+        - description
+  shell_config:
+    type: object
+    properties:
+      env:
+        type: object
+        additionalProperties:
+          type: string
+        description: Environment variables to set
+      source:
+        type: array
+        items:
+          type: string
+        description: Files or commands to source 

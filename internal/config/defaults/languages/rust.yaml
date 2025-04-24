@@ -1,0 +1,24 @@
+name: Rust
+description: Rust programming language with rustup toolchain manager
+category: language
+tags: ["rust", "runtime", "rustup"]
+version: stable
+installer: rustup
+verify_command: rustc --version
+
+package_names:
+  apt: rustc
+  brew: rust
+  dnf: rust
+  pacman: rust
+
+post_install:
+  - command: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    description: Install rustup (Rust Toolchain Manager)
+
+shell_config:
+  env:
+    CARGO_HOME: "$HOME/.cargo"
+    PATH: "$HOME/.cargo/bin:$PATH"
+  source:
+    - "$HOME/.cargo/env" 

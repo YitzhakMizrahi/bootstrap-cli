@@ -1,0 +1,25 @@
+name: Python
+description: Python programming language with pyenv version manager
+category: language
+tags: ["python", "runtime", "pyenv"]
+version: "3.11"
+installer: pyenv
+verify_command: python --version
+
+package_names:
+  apt: python3
+  brew: python
+  dnf: python3
+  pacman: python
+
+post_install:
+  - command: curl https://pyenv.run | bash
+    description: Install pyenv (Python Version Manager)
+
+shell_config:
+  env:
+    PYENV_ROOT: "$HOME/.pyenv"
+    PATH: "$PYENV_ROOT/bin:$PATH"
+  source:
+    - "eval \"$(pyenv init -)\""
+    - "eval \"$(pyenv virtualenv-init -)\"" 

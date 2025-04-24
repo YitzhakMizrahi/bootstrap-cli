@@ -1,0 +1,12 @@
+name: htop
+description: Interactive process viewer and system monitor
+category: essential
+tags: ["monitor", "process", "system"]
+version: latest
+verify_command: htop --version
+
+package_names:
+  apt: htop
+  brew: htop
+  dnf: htop
+  pacman: htop 

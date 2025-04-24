@@ -1,0 +1,12 @@
+name: nano
+description: Simple, modeless text editor for the command line
+category: essential
+tags: ["editor", "text", "terminal"]
+version: latest
+verify_command: nano --version
+
+package_names:
+  apt: nano
+  brew: nano
+  dnf: nano
+  pacman: nano 

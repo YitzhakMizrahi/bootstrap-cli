@@ -1,0 +1,24 @@
+name: Go
+description: Go programming language with goenv version manager
+category: language
+tags: ["go", "runtime", "goenv"]
+version: latest
+installer: goenv
+verify_command: go version
+
+package_names:
+  apt: golang
+  brew: go
+  dnf: golang
+  pacman: go
+
+post_install:
+  - command: git clone https://github.com/syndbg/goenv.git ~/.goenv
+    description: Install goenv (Go Version Manager)
+
+shell_config:
+  env:
+    GOENV_ROOT: "$HOME/.goenv"
+    PATH: "$GOENV_ROOT/bin:$PATH"
+  source:
+    - "eval \"$(goenv init -)\"" 

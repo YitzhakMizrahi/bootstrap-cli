@@ -1,7 +1,7 @@
-name: cURL
-description: "Command line tool for transferring data with URLs"
+name: Curl
+description: "Command-line tool for transferring data"
 category: "essential"
-tags: ["network", "download", "essential"]
+tags: ["network", "http", "essential"]
 package_names:
   apt: curl
   brew: curl
@@ -13,9 +13,9 @@ dependencies: []
 verify_command: "curl --version"
 post_install: []
 shell_config:
-  aliases:
-    curljson: "curl -H 'Content-Type: application/json'"
-    curltime: "curl -w '@$HOME/.dotfiles/network/curl-format' -o /dev/null -s"
+  aliases: {}
+  functions: {}
+  env: {}
 
 files:
   - source: network/curl-format

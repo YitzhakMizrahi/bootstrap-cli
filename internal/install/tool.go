@@ -184,7 +184,6 @@ func (i *Installer) Install(tool *Tool) error {
 	}
 
 	// Add version if specified
-	pkgWithVersion := i.getPackageWithVersion(pkg, tool.Version)
 	i.Logger.Info("Installing %s version %s", pkg, tool.Version)
 
 	// Install system dependencies first
@@ -217,16 +216,26 @@ func (i *Installer) Install(tool *Tool) error {
 		}
 	}
 
-	// Install the main package
-	result := i.installWithRetry(pkgWithVersion)
-	if result.Error != nil {
-		// Clean up dependencies if main package installation failed
-		i.cleanup(tool.Dependencies)
-		return &InstallError{
-			Tool:    tool.Name,
-			Phase:   "package installation",
-			Message: fmt.Sprintf("failed to install package %s", pkgWithVersion),
-			Err:     result.Error,
+	// Install package
+	i.Logger.Info("Installing %s version %s", tool.Name, tool.Version)
+	if err := i.PackageManager.Install(tool.PackageName); err != nil {
+		// Try to set up special package if regular installation fails
+		if err := i.PackageManager.SetupSpecialPackage(tool.PackageName); err != nil {
+			return &InstallError{
+				Tool:    tool.Name,
+				Phase:   "package installation",
+				Message: fmt.Sprintf("failed to install package %s", tool.PackageName),
+				Err:     err,
+			}
+		}
+		// Try installation again after setting up special package
+		if err := i.PackageManager.Install(tool.PackageName); err != nil {
+			return &InstallError{
+				Tool:    tool.Name,
+				Phase:   "package installation",
+				Message: fmt.Sprintf("failed to install package %s", tool.PackageName),
+				Err:     err,
+			}
 		}
 	}
 
@@ -273,12 +282,23 @@ func (i *Installer) Install(tool *Tool) error {
 	i.Logger.Info("Reloading shell configuration")
 	shell, err := i.getCurrentShell()
 	if err == nil {
-		reloadCmd := PostInstallCommand{
-			Command: fmt.Sprintf("source ~/.%src", shell),
-			Description: "Reload shell configuration",
-		}
-		if shell == "fish" {
-			reloadCmd.Command = "source ~/.config/fish/config.fish"
+		var reloadCmd PostInstallCommand
+		switch shell {
+		case "zsh":
+			reloadCmd = PostInstallCommand{
+				Command:     "zsh -c 'source ~/.zshrc'",
+				Description: "Reload zsh configuration",
+			}
+		case "bash":
+			reloadCmd = PostInstallCommand{
+				Command:     "bash -c 'source ~/.bashrc'",
+				Description: "Reload bash configuration",
+			}
+		case "fish":
+			reloadCmd = PostInstallCommand{
+				Command:     "fish -c 'source ~/.config/fish/config.fish'",
+				Description: "Reload fish configuration",
+			}
 		}
 		if err := i.runPostInstall(reloadCmd); err != nil {
 			i.Logger.Warn("Failed to reload shell configuration: %v", err)

@@ -22,4 +22,5 @@ func (m *MockPackageManager) Upgrade() error                     { return nil }
 func (m *MockPackageManager) IsInstalled(pkg string) bool        { return true }
 func (m *MockPackageManager) Remove(pkg string) error            { return nil }
 func (m *MockPackageManager) GetVersion(pkg string) (string, error) { return "", nil }
-func (m *MockPackageManager) ListInstalled() ([]string, error)   { return nil, nil } 
+func (m *MockPackageManager) ListInstalled() ([]string, error)   { return nil, nil }
+func (m *MockPackageManager) SetupSpecialPackage(pkg string) error { return nil } 

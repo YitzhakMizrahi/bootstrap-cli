@@ -22,6 +22,7 @@ func (m *mockPackageManager) IsInstalled(pkg string) bool        { return true }
 func (m *mockPackageManager) Remove(pkg string) error            { return nil }
 func (m *mockPackageManager) GetVersion(pkg string) (string, error) { return "", nil }
 func (m *mockPackageManager) ListInstalled() ([]string, error)   { return nil, nil }
+func (m *mockPackageManager) SetupSpecialPackage(pkg string) error { return nil }
 
 // testConfigWriter creates a DefaultConfigWriter for testing
 func testConfigWriter(t *testing.T, shell interfaces.ShellType) (*DefaultConfigWriter, string, func()) {

@@ -179,4 +179,8 @@ func (m *mockPackageManager) GetName() string {
 
 func (m *mockPackageManager) Upgrade() error {
 	return nil
+}
+
+func (m *mockPackageManager) SetupSpecialPackage(pkg string) error {
+	return nil
 } 

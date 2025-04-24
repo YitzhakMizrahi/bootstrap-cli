@@ -28,6 +28,9 @@ type PackageManager interface {
 
 	// ListInstalled returns a list of installed packages
 	ListInstalled() ([]string, error)
+
+	// SetupSpecialPackage sets up a special package
+	SetupSpecialPackage(packageName string) error
 }
 
 // PackageManagerType represents the type of package manager

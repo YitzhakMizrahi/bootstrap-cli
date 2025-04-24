@@ -66,6 +66,10 @@ func (m *mockPackagesManager) ListInstalled() ([]string, error) {
 	return packages, nil
 }
 
+func (m *mockPackagesManager) SetupSpecialPackage(pkg string) error {
+	return nil
+}
+
 // testInstallEssentialTools is a helper function for testing InstallEssentialTools
 func testInstallEssentialTools(t *testing.T, pm interfaces.PackageManager, logger *log.Logger) error {
 	// Create a logger that captures output

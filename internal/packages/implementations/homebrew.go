@@ -124,4 +124,17 @@ func (h *HomebrewPackageManager) ListInstalled() ([]string, error) {
 // GetName returns the name of the package manager
 func (h *HomebrewPackageManager) GetName() string {
 	return string(interfaces.Homebrew)
+}
+
+// SetupSpecialPackage sets up a special package that requires additional setup
+func (h *HomebrewPackageManager) SetupSpecialPackage(pkg string) error {
+	// For Homebrew, most packages don't require special setup
+	// If a package needs special setup, we can add it here
+	switch pkg {
+	case "lsd":
+		// lsd is available directly from Homebrew, no special setup needed
+		return nil
+	default:
+		return fmt.Errorf("unsupported special package: %s", pkg)
+	}
 } 

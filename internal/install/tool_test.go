@@ -127,6 +127,11 @@ func (m *MockPackageManager) ListInstalled() ([]string, error) {
 	return packages, nil
 }
 
+func (m *MockPackageManager) SetupSpecialPackage(pkg string) error {
+	// For testing purposes, we'll simulate that we can set up any package
+	return nil
+}
+
 func TestInstaller(t *testing.T) {
 	tests := []struct {
 		name            string

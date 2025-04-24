@@ -25,4 +25,6 @@ type PackageManager interface {
 	Update() error
 	// SetupSpecialPackage handles special package installation requirements
 	SetupSpecialPackage(pkg string) error
+	// IsPackageAvailable checks if a package is available in the package manager's repositories
+	IsPackageAvailable(pkg string) bool
 } 

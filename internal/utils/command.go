@@ -13,16 +13,11 @@ type CommandExecutor struct {
 	// Default delay between retries
 	DefaultDelay time.Duration
 	// Logger for command execution
-	Logger Logger
-}
-
-// Logger interface for command execution logging
-type Logger interface {
-	Printf(format string, args ...interface{})
+	Logger *InstallLogger
 }
 
 // NewCommandExecutor creates a new command executor
-func NewCommandExecutor(logger Logger) *CommandExecutor {
+func NewCommandExecutor(logger *InstallLogger) *CommandExecutor {
 	return &CommandExecutor{
 		DefaultRetries: 3,
 		DefaultDelay:   time.Second * 2,
@@ -41,18 +36,21 @@ func (e *CommandExecutor) ExecuteWithRetry(cmd *exec.Cmd, retries int, delay tim
 
 	var err error
 	for i := 0; i < retries; i++ {
-		e.Logger.Printf("Executing command: %s (attempt %d/%d)", cmd.String(), i+1, retries)
+		start := time.Now()
+		e.Logger.CommandStart(cmd.String(), i+1, retries)
 		
 		err = cmd.Run()
+		duration := time.Since(start)
+		
 		if err == nil {
-			e.Logger.Printf("Command executed successfully: %s", cmd.String())
+			e.Logger.CommandSuccess(cmd.String(), duration)
 			return nil
 		}
 		
-		e.Logger.Printf("Command failed: %s (error: %v)", cmd.String(), err)
+		e.Logger.CommandError(cmd.String(), err, i+1, retries)
 		
 		if i < retries-1 {
-			e.Logger.Printf("Retrying in %v...", delay)
+			e.Logger.Debug("Waiting %v before retry...", delay)
 			time.Sleep(delay)
 		}
 	}
@@ -73,18 +71,21 @@ func (e *CommandExecutor) ExecuteWithOutput(cmd *exec.Cmd, retries int, delay ti
 	var err error
 	
 	for i := 0; i < retries; i++ {
-		e.Logger.Printf("Executing command: %s (attempt %d/%d)", cmd.String(), i+1, retries)
+		start := time.Now()
+		e.Logger.CommandStart(cmd.String(), i+1, retries)
 		
 		output, err = cmd.Output()
+		duration := time.Since(start)
+		
 		if err == nil {
-			e.Logger.Printf("Command executed successfully: %s", cmd.String())
+			e.Logger.CommandSuccess(cmd.String(), duration)
 			return string(output), nil
 		}
 		
-		e.Logger.Printf("Command failed: %s (error: %v)", cmd.String(), err)
+		e.Logger.CommandError(cmd.String(), err, i+1, retries)
 		
 		if i < retries-1 {
-			e.Logger.Printf("Retrying in %v...", delay)
+			e.Logger.Debug("Waiting %v before retry...", delay)
 			time.Sleep(delay)
 		}
 	}

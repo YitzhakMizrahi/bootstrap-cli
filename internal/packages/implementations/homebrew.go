@@ -137,4 +137,14 @@ func (h *HomebrewPackageManager) SetupSpecialPackage(pkg string) error {
 	default:
 		return fmt.Errorf("unsupported special package: %s", pkg)
 	}
+}
+
+// IsPackageAvailable checks if a package is available in the package manager's repositories
+func (h *HomebrewPackageManager) IsPackageAvailable(pkg string) bool {
+	cmd := exec.Command(h.brewPath, "search", pkg)
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(output), pkg)
 } 

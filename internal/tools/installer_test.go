@@ -70,6 +70,11 @@ func (m *mockPackagesManager) SetupSpecialPackage(pkg string) error {
 	return nil
 }
 
+func (m *mockPackagesManager) IsPackageAvailable(pkg string) bool {
+	// For testing purposes, assume all packages are available
+	return true
+}
+
 // testInstallEssentialTools is a helper function for testing InstallEssentialTools
 func testInstallEssentialTools(t *testing.T, pm interfaces.PackageManager, logger *log.Logger) error {
 	// Create a logger that captures output

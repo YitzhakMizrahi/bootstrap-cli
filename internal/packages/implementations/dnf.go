@@ -149,4 +149,14 @@ func (d *DnfPackageManager) Upgrade() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// IsPackageAvailable checks if a package is available in the package manager's repositories
+func (d *DnfPackageManager) IsPackageAvailable(pkg string) bool {
+	cmd := exec.Command("dnf", "list", "available", pkg)
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(output), pkg)
 } 

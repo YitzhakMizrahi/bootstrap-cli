@@ -177,4 +177,14 @@ func (p *PacmanPackageManager) Upgrade() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// IsPackageAvailable checks if a package is available in the package manager's repositories
+func (p *PacmanPackageManager) IsPackageAvailable(pkg string) bool {
+	cmd := exec.Command("pacman", "-Ss", "^" + pkg + "$")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return len(output) > 0
 } 

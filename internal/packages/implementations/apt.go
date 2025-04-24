@@ -179,3 +179,10 @@ func (a *APTManager) Upgrade() error {
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
+
+// IsPackageAvailable checks if a package is available in the package manager's repositories
+func (a *APTManager) IsPackageAvailable(pkg string) bool {
+	cmd := exec.Command("apt-cache", "show", pkg)
+	err := cmd.Run()
+	return err == nil
+}

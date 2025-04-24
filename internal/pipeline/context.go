@@ -18,6 +18,7 @@ type InstallationContext struct {
 	Timeout       time.Duration
 	RetryCount    int
 	RetryDelay    time.Duration
+	tools         map[string]*Tool
 }
 
 // NewInstallationContext creates a new installation context
@@ -30,7 +31,18 @@ func NewInstallationContext(platform *Platform, pkgManager PackageManager) *Inst
 		Timeout:       5 * time.Minute,
 		RetryCount:    3,
 		RetryDelay:    time.Second,
+		tools:         make(map[string]*Tool),
 	}
+}
+
+// GetTool returns a tool by name
+func (c *InstallationContext) GetTool(name string) *Tool {
+	return c.tools[name]
+}
+
+// AddTool adds a tool to the context
+func (c *InstallationContext) AddTool(tool *Tool) {
+	c.tools[tool.Name] = tool
 }
 
 // VerifyInstallation verifies that a tool is properly installed

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/utils"
 )
@@ -81,15 +82,47 @@ func NewTool(name string, category ToolCategory) *Tool {
 		Category:       category,
 		Dependencies:   make([]Dependency, 0),
 		PlatformConfig: make(map[string]InstallStrategy),
-		cmdExecutor:    utils.NewCommandExecutor(&defaultLogger{}),
+		cmdExecutor:    utils.NewCommandExecutor(utils.NewDefaultLogger()),
 	}
 }
 
-// defaultLogger implements the utils.Logger interface
-type defaultLogger struct{}
+// defaultLogger implements the utils.InstallLogger interface
+type defaultLogger struct {
+	DebugEnabled bool
+}
 
-func (l *defaultLogger) Printf(format string, args ...interface{}) {
-	fmt.Printf(format+"\n", args...)
+func (l *defaultLogger) CommandStart(cmd string, attempt, maxAttempts int) {
+	if maxAttempts > 1 {
+		fmt.Printf("Executing command (attempt %d/%d): %s\n", attempt, maxAttempts, cmd)
+	} else {
+		fmt.Printf("Executing command: %s\n", cmd)
+	}
+}
+
+func (l *defaultLogger) CommandSuccess(cmd string, duration time.Duration) {
+	fmt.Printf("Command completed successfully in %v: %s\n", duration, cmd)
+}
+
+func (l *defaultLogger) CommandError(cmd string, err error, attempt, maxAttempts int) {
+	fmt.Printf("Command failed (attempt %d/%d): %s\nError: %v\n", attempt, maxAttempts, cmd, err)
+}
+
+func (l *defaultLogger) Debug(format string, args ...interface{}) {
+	if l.DebugEnabled {
+		fmt.Printf("[DEBUG] "+format+"\n", args...)
+	}
+}
+
+func (l *defaultLogger) Info(format string, args ...interface{}) {
+	fmt.Printf("[INFO] "+format+"\n", args...)
+}
+
+func (l *defaultLogger) Warn(format string, args ...interface{}) {
+	fmt.Printf("[WARN] "+format+"\n", args...)
+}
+
+func (l *defaultLogger) Error(format string, args ...interface{}) {
+	fmt.Printf("[ERROR] "+format+"\n", args...)
 }
 
 // AddDependency adds a dependency to the tool
@@ -159,7 +192,18 @@ func (t *Tool) GenerateInstallationSteps(platform *Platform, context *Installati
 	strategy := t.GetInstallStrategy(platform)
 	var steps []InstallationStep
 
-	// Add package manager update step
+	// First, handle dependencies
+	for _, dep := range t.Dependencies {
+		depTool := context.GetTool(dep.Name)
+		if depTool == nil {
+			context.Logger.Printf("Warning: Dependency %s not found", dep.Name)
+			continue
+		}
+		depSteps := depTool.GenerateInstallationSteps(platform, context)
+		steps = append(steps, depSteps...)
+	}
+
+	// Add package manager update step with better error handling
 	steps = append(steps, InstallationStep{
 		Name: fmt.Sprintf("%s-update-package-lists", t.Name),
 		Action: func() error {
@@ -174,15 +218,25 @@ func (t *Tool) GenerateInstallationSteps(platform *Platform, context *Installati
 			default:
 				return fmt.Errorf("unsupported package manager: %s", platform.PackageManager)
 			}
-			return t.cmdExecutor.ExecuteWithRetry(cmd, context.RetryCount, context.RetryDelay)
+			if err := t.cmdExecutor.ExecuteWithRetry(cmd, context.RetryCount, context.RetryDelay); err != nil {
+				return fmt.Errorf("failed to update package lists: %w", err)
+			}
+			return nil
 		},
 	})
 
-	// Add system dependencies installation step
+	// Add system dependencies installation step with validation
 	if len(t.SystemDependencies) > 0 {
 		steps = append(steps, InstallationStep{
 			Name: fmt.Sprintf("%s-system-dependencies", t.Name),
 			Action: func() error {
+				// Validate package names first
+				for _, pkg := range t.SystemDependencies {
+					if !context.PackageManager.IsPackageAvailable(pkg) {
+						return fmt.Errorf("system dependency %s is not available", pkg)
+					}
+				}
+
 				var cmd *exec.Cmd
 				switch platform.PackageManager {
 				case "apt":
@@ -197,26 +251,37 @@ func (t *Tool) GenerateInstallationSteps(platform *Platform, context *Installati
 				default:
 					return fmt.Errorf("unsupported package manager: %s", platform.PackageManager)
 				}
-				return t.cmdExecutor.ExecuteWithRetry(cmd, context.RetryCount, context.RetryDelay)
+				if err := t.cmdExecutor.ExecuteWithRetry(cmd, context.RetryCount, context.RetryDelay); err != nil {
+					return fmt.Errorf("failed to install system dependencies: %w", err)
+				}
+				return nil
 			},
 		})
 	}
 
-	// Add pre-install steps
-	for _, cmd := range strategy.PreInstall {
+	// Add pre-install steps with better error context
+	for i, cmd := range strategy.PreInstall {
 		steps = append(steps, InstallationStep{
-			Name: fmt.Sprintf("%s-pre-install-%d", t.Name, len(steps)),
+			Name: fmt.Sprintf("%s-pre-install-%d", t.Name, i),
 			Action: func() error {
-				return t.cmdExecutor.ExecuteWithRetry(exec.Command("sh", "-c", cmd), context.RetryCount, context.RetryDelay)
+				if err := t.cmdExecutor.ExecuteWithRetry(exec.Command("sh", "-c", cmd), context.RetryCount, context.RetryDelay); err != nil {
+					return fmt.Errorf("pre-install step %d failed: %w", i, err)
+				}
+				return nil
 			},
 		})
 	}
 
-	// Add main installation step
+	// Add main installation step with package validation
 	if pkgName, ok := strategy.PackageNames[platform.PackageManager]; ok {
 		steps = append(steps, InstallationStep{
 			Name: fmt.Sprintf("%s-install", t.Name),
 			Action: func() error {
+				// Validate package name
+				if !context.PackageManager.IsPackageAvailable(pkgName) {
+					return fmt.Errorf("package %s is not available", pkgName)
+				}
+
 				var cmd *exec.Cmd
 				switch platform.PackageManager {
 				case "apt":
@@ -228,44 +293,52 @@ func (t *Tool) GenerateInstallationSteps(platform *Platform, context *Installati
 				default:
 					return fmt.Errorf("unsupported package manager: %s", platform.PackageManager)
 				}
-				return t.cmdExecutor.ExecuteWithRetry(cmd, context.RetryCount, context.RetryDelay)
+				if err := t.cmdExecutor.ExecuteWithRetry(cmd, context.RetryCount, context.RetryDelay); err != nil {
+					return fmt.Errorf("failed to install %s: %w", t.Name, err)
+				}
+				return nil
 			},
 		})
 	} else if len(strategy.CustomInstall) > 0 {
-		// Use custom installation commands
-		for _, cmd := range strategy.CustomInstall {
+		// Use custom installation commands with better error context
+		for i, cmd := range strategy.CustomInstall {
 			steps = append(steps, InstallationStep{
-				Name: fmt.Sprintf("%s-custom-install-%d", t.Name, len(steps)),
+				Name: fmt.Sprintf("%s-custom-install-%d", t.Name, i),
 				Action: func() error {
-					return t.cmdExecutor.ExecuteWithRetry(exec.Command("sh", "-c", cmd), context.RetryCount, context.RetryDelay)
+					if err := t.cmdExecutor.ExecuteWithRetry(exec.Command("sh", "-c", cmd), context.RetryCount, context.RetryDelay); err != nil {
+						return fmt.Errorf("custom install step %d failed: %w", i, err)
+					}
+					return nil
 				},
 			})
 		}
 	}
 
-	// Add post-install steps
-	for _, cmd := range strategy.PostInstall {
+	// Add post-install steps with delay and better error context
+	for i, cmd := range strategy.PostInstall {
 		steps = append(steps, InstallationStep{
-			Name: fmt.Sprintf("%s-post-install-%d", t.Name, len(steps)),
+			Name: fmt.Sprintf("%s-post-install-%d", t.Name, i),
 			Action: func() error {
-				return t.cmdExecutor.ExecuteWithRetry(exec.Command("sh", "-c", cmd), context.RetryCount, context.RetryDelay)
+				// Add a small delay to ensure the installation is complete
+				time.Sleep(2 * time.Second)
+				if err := t.cmdExecutor.ExecuteWithRetry(exec.Command("sh", "-c", cmd), context.RetryCount, context.RetryDelay); err != nil {
+					return fmt.Errorf("post-install step %d failed: %w", i, err)
+				}
+				return nil
 			},
 		})
 	}
 
-	// Add PATH update step
-	steps = append(steps, InstallationStep{
-		Name: fmt.Sprintf("%s-update-path", t.Name),
-		Action: func() error {
-			return context.UpdatePath()
-		},
-	})
-
-	// Add verification step
+	// Add verification step with delay
 	steps = append(steps, InstallationStep{
 		Name: fmt.Sprintf("%s-verify", t.Name),
 		Action: func() error {
-			return t.VerifyInstallation()
+			// Add a delay to ensure all installation steps are complete
+			time.Sleep(5 * time.Second)
+			if err := t.VerifyInstallation(); err != nil {
+				return fmt.Errorf("verification failed: %w", err)
+			}
+			return nil
 		},
 	})
 

@@ -1,10 +1,10 @@
 name: fd
-description: "A simple, fast and user-friendly alternative to find"
+description: "A simple, fast and user-friendly alternative to 'find'"
 category: "modern"
-tags: ["modern", "search", "find", "files"]
+tags: ["modern", "search", "file", "find"]
 
 package_names:
-  apt: fd-find
+  apt: fd-find  # Ubuntu/Debian package name is fd-find
   brew: fd
   dnf: fd-find
   pacman: fd
@@ -12,15 +12,22 @@ package_names:
 version: "latest"
 system_dependencies: []
 dependencies: []
-verify_command: "fd-find --version || fd --version"
+verify_command: "which fd && fd --version"
+
+post_install:
+  - command: "mkdir -p ~/.local/bin"
+    description: "Create local bin directory if it doesn't exist"
+  - command: "ln -sf $(which fdfind) ~/.local/bin/fd"
+    description: "Create symlink from fdfind to fd"
+  - command: "echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.bashrc"
+    description: "Add local bin to PATH if not already there"
 
 shell_config:
   aliases:
-    find: "fd-find || fd"  # Replace find with fd
-    fdh: "fd-find --hidden || fd --hidden"  # Include hidden files
-    fdd: "fd-find --type d || fd --type d"  # Only directories
-    fdf: "fd-find --type f || fd --type f"  # Only files
-    fdl: "fd-find --type l || fd --type l"  # Only symlinks
+    find: "fd"  # Replace find with fd
+    fdi: "fd -i"  # Case-insensitive search
+    fdh: "fd -H"  # Include hidden files
+    fde: "fd -e"  # Filter by extension
 
   env:
     FD_OPTIONS: "--follow --exclude .git --exclude node_modules"  # Default options

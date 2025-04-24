@@ -1,7 +1,7 @@
 name: lsd
-description: "Modern ls command with colors and icons"
+description: "The next gen ls command"
 category: "modern"
-tags: ["modern", "ls", "files", "icons"]
+tags: ["modern", "file", "ls"]
 
 package_names:
   apt: lsd
@@ -11,23 +11,41 @@ package_names:
 
 version: "latest"
 system_dependencies:
-  - cargo  # Required for installation via cargo if package not found
-
+  - unzip  # Required for font installation
+  - curl   # Required for downloading fonts
 dependencies: []
-verify_command: "lsd --version"
+verify_command: "which lsd && lsd --version"
 
 post_install:
-  - command: "if ! command -v lsd >/dev/null; then cargo install lsd; fi"
-    description: "Install lsd via cargo if package not found"
-  - command: "mkdir -p ~/.config/lsd"
-    description: "Create lsd config directory"
+  - command: "mkdir -p ~/.local/share/fonts"
+    description: "Create fonts directory"
+  - command: |
+      if ! command -v lsd &> /dev/null; then
+        echo "lsd not found in PATH, attempting binary installation..."
+        LATEST_RELEASE=$(curl -s https://api.github.com/repos/Peltoche/lsd/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "x86_64" ]; then
+          ARCH="amd64"
+        elif [ "$ARCH" = "aarch64" ]; then
+          ARCH="arm64"
+        else
+          echo "Unsupported architecture: $ARCH"
+          exit 1
+        fi
+        DOWNLOAD_URL="https://github.com/Peltoche/lsd/releases/download/${LATEST_RELEASE}/lsd_${LATEST_RELEASE}_${ARCH}.deb"
+        echo "Downloading lsd from ${DOWNLOAD_URL}..."
+        curl -L "${DOWNLOAD_URL}" -o /tmp/lsd.deb
+        sudo dpkg -i /tmp/lsd.deb || sudo apt-get install -f
+        rm /tmp/lsd.deb
+      fi
+    description: "Install lsd binary if package installation failed"
 
 shell_config:
   aliases:
     ls: "lsd"  # Replace ls with lsd
-    ll: "lsd -l"  # Long format
-    la: "lsd -la"  # Long format including hidden files
-    lt: "lsd --tree"  # Tree view
+    ll: "lsd -l"  # List files with details
+    la: "lsd -la"  # List all files including hidden ones
+    lt: "lsd --tree"  # Show directory tree
     lta: "lsd --tree -a"  # Tree view with hidden files
     lld: "lsd -l --group-dirs first"  # List with directories first
     llz: "lsd -l --total-size"  # List with total size

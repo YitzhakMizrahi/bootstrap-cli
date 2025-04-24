@@ -102,20 +102,8 @@ func (a *APTManager) installPrerequisites() error {
 
 // SetupSpecialPackage handles special package installations that require repository setup
 func (a *APTManager) SetupSpecialPackage(pkg string) error {
-	switch pkg {
-	case "lsd":
-		// Try to add the repository for lsd
-		if err := a.addRepository("ppa:asilosenior/lsd"); err != nil {
-			return fmt.Errorf("failed to set up lsd repository: %w", err)
-		}
-	case "bat":
-		// Try to add the repository for bat
-		if err := a.addRepository("ppa:asilosenior/bat"); err != nil {
-			return fmt.Errorf("failed to set up bat repository: %w", err)
-		}
-	default:
-		return nil
-	}
+	// No special setup needed for lsd and bat anymore as we're using direct package installation
+	// This method is kept for other packages that might need special repository setup
 	return nil
 }
 

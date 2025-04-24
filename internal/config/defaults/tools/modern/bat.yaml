@@ -10,13 +10,25 @@ package_names:
   pacman: bat
 
 version: "latest"
-system_dependencies: []
+system_dependencies:
+  - unzip  # Required for theme installation
+  - curl   # Required for downloading themes
 dependencies: []
-verify_command: "bat --version"
+verify_command: "which bat && bat --version || which batcat && batcat --version"
 
 post_install:
-  - command: "mkdir -p ~/.config/bat"
-    description: "Create bat config directory"
+  - command: "mkdir -p ~/.config/bat/themes"
+    description: "Create bat config and themes directories"
+  - command: "curl -L https://github.com/sharkdp/bat/raw/master/assets/themes/Dracula.tmTheme -o ~/.config/bat/themes/Dracula.tmTheme"
+    description: "Download Dracula theme"
+  - command: |
+      if command -v batcat &> /dev/null && ! command -v bat &> /dev/null; then
+        echo "Creating symlink from batcat to bat..."
+        mkdir -p ~/.local/bin
+        ln -sf $(which batcat) ~/.local/bin/bat
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+      fi
+    description: "Create symlink from batcat to bat if needed"
 
 shell_config:
   aliases:

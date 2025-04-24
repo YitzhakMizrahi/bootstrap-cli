@@ -1,7 +1,7 @@
 name: ripgrep
-description: "Recursively searches directories for a regex pattern while respecting gitignore rules"
+description: "A search tool that combines the usability of The Silver Searcher with the raw speed of grep"
 category: "modern"
-tags: ["modern", "search", "grep", "regex"]
+tags: ["modern", "search", "grep", "text"]
 
 package_names:
   apt: ripgrep
@@ -12,19 +12,32 @@ package_names:
 version: "latest"
 system_dependencies: []
 dependencies: []
-verify_command: "rg --version"
+verify_command: "which rg && rg --version"
 
 post_install:
   - command: "mkdir -p ~/.config/ripgrep"
     description: "Create ripgrep config directory"
+  - command: |
+      cat > ~/.config/ripgrep/config << 'EOF'
+      --smart-case
+      --hidden
+      --glob=!.git/*
+      --glob=!node_modules/*
+      --glob=!target/*
+      --glob=!dist/*
+      --glob=!build/*
+      --glob=!vendor/*
+      --glob=!*.min.js
+      --glob=!*.min.css
+      EOF
+    description: "Create ripgrep configuration file"
 
 shell_config:
   aliases:
-    grep: "rg"  # Replace grep with ripgrep
-    rgh: "rg --hidden"  # Search hidden files
-    rgi: "rg -i"  # Case insensitive search
-    rgf: "rg -F"  # Fixed-string search (no regex)
-    rgc: "rg --count"  # Count matches only
+    rg: "rg --smart-case"  # Enable smart case by default
+    rgi: "rg -i"          # Case-insensitive search
+    rgf: "rg --files"     # List files
+    rgw: "rg --word-regexp"  # Word-regexp search
 
   env:
     RIPGREP_CONFIG_PATH: "$HOME/.config/ripgrep/config"  # Set config file location

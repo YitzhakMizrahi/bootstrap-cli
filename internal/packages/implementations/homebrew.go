@@ -129,14 +129,8 @@ func (h *HomebrewPackageManager) GetName() string {
 // SetupSpecialPackage sets up a special package that requires additional setup
 func (h *HomebrewPackageManager) SetupSpecialPackage(pkg string) error {
 	// For Homebrew, most packages don't require special setup
-	// If a package needs special setup, we can add it here
-	switch pkg {
-	case "lsd":
-		// lsd is available directly from Homebrew, no special setup needed
-		return nil
-	default:
-		return fmt.Errorf("unsupported special package: %s", pkg)
-	}
+	// This method is kept for other packages that might need special repository setup
+	return nil
 }
 
 // IsPackageAvailable checks if a package is available in the package manager's repositories

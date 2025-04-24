@@ -10,12 +10,15 @@ package_names:
   pacman: fzf
 
 version: "latest"
-system_dependencies: []
+system_dependencies:
+  - git  # Required for shell integration scripts
 dependencies: []
-verify_command: "fzf --version"
+verify_command: "which fzf && fzf --version"
 
 post_install:
-  - command: "$(which fzf)/install --all"
+  - command: "git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf"
+    description: "Clone fzf repository for shell integration"
+  - command: "~/.fzf/install --key-bindings --completion --no-update-rc"
     description: "Install fzf shell integration scripts"
 
 shell_config:

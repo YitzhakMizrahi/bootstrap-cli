@@ -1,4 +1,45 @@
-# 🧮 PROJECT_STRUCTURE.md – Bootstrap CLI
+# 📁 Project Structure
+
+```
+bootstrap-cli/
+├── cmd/                # Command implementations
+│   ├── init/          # Initialization command
+│   └── up/            # Update command
+├── internal/          # Internal packages
+│   ├── config/        # Configuration management
+│   │   ├── defaults/  # Default configurations
+│   │   └── loader.go  # Configuration loader
+│   ├── interfaces/    # Shared interfaces (ShellManager...)
+│   ├── install/       # Installation logic
+│   ├── pipeline/      # Pipeline-based installation
+│   ├── packages/      # Package manager implementations
+│   ├── ui/            # User interface components
+│   └── utils/         # Utility functions
+├── docs/              # Documentation
+├── test/              # Test files
+└── main.go            # Entry point
+```
+
+## Key Components
+
+### Command Packages
+- `cmd/init`: Handles system initialization
+- `cmd/up`: Manages system updates
+
+### Internal Packages
+- `config`: Configuration management and loading
+- `interfaces`: Shared interfaces and types
+- `install`: Installation logic and tools
+- `pipeline`: Pipeline-based installation system
+- `packages`: Package manager implementations
+- `ui`: User interface components
+- `utils`: Utility functions
+
+### Documentation
+- `docs/`: Project documentation
+  - `INTERFACES.md`: Interface documentation
+  - `IMPLEMENTATION.md`: Implementation details
+  - `DECISIONS.md`: Architecture decisions
 
 ## 🧱 High-Level Directory Layout
 ```

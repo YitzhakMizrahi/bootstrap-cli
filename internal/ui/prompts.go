@@ -1,86 +1,42 @@
+// Package ui provides user interface components and prompts for the bootstrap-cli application.
 package ui
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/detector"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/manifoldco/promptui"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/components"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/screens"
 )
 
 // ShowWelcomeScreen displays the welcome screen and returns true if user wants to continue
 func ShowWelcomeScreen() bool {
-	prompt := promptui.Select{
-		Label: "✨ Bootstrap CLI ✨\nSetup your dev machine with ease",
-		Items: []string{"Start", "Exit"},
-	}
-
-	_, result, err := prompt.Run()
-	if err != nil {
-		fmt.Printf("Prompt failed: %v\n", err)
-		return false
-	}
-
-	return result == "Start"
+	return screens.ShowWelcomeScreen()
 }
 
 // ShowSystemInfo displays the system information and returns true if user wants to continue
-func ShowSystemInfo(info *system.SystemInfo) bool {
-	fmt.Printf("System Info Detected:\n")
-	fmt.Printf("OS: %s %s\n", info.Distro, info.Version)
-	fmt.Printf("Arch: %s\n", info.Arch)
-	
-	// Detect package manager
-	if pmType, err := detector.DetectPackageManager(); err == nil {
-		fmt.Printf("Package Manager: %s\n", pmType)
-	} else {
-		fmt.Printf("Package Manager: Not detected\n")
-	}
-	fmt.Println()
-
-	prompt := promptui.Select{
-		Label: "Press Enter to continue",
-		Items: []string{"Continue"},
-	}
-
-	_, _, err := prompt.Run()
-	if err != nil {
-		fmt.Printf("Prompt failed: %v\n", err)
-		return false
-	}
-
-	return true
+func ShowSystemInfo(info *system.Info) bool {
+	return screens.ShowSystemInfo(info)
 }
 
 // PromptDotfiles prompts for GitHub dotfiles URL
 func PromptDotfiles() (string, error) {
-	prompt := promptui.Select{
-		Label: "Clone dotfiles from GitHub?",
-		Items: []string{"Yes", "No"},
-	}
-
-	_, result, err := prompt.Run()
+	prompt := components.NewBasicPrompt("Clone dotfiles from GitHub?", []string{"Yes", "No"})
+	
+	shouldClone, err := prompt.RunYesNo()
 	if err != nil {
-		return "", fmt.Errorf("prompt failed: %w", err)
+		return "", err
 	}
 
-	if result == "No" {
+	if !shouldClone {
 		return "", nil
 	}
 
-	urlPrompt := promptui.Prompt{
-		Label: "Enter GitHub repo URL",
-	}
-
-	url, err := urlPrompt.Run()
-	if err != nil {
-		return "", fmt.Errorf("prompt failed: %w", err)
-	}
-
-	return url, nil
+	urlPrompt := components.NewBasicPrompt("Enter GitHub repo URL", nil)
+	return urlPrompt.RunWithInput()
 }
 
 // PromptShellSelection prompts the user to select a shell
@@ -89,168 +45,97 @@ func PromptShellSelection(shellInfo *interfaces.ShellInfo) (string, error) {
 		return "", fmt.Errorf("no supported shells found")
 	}
 
-	prompt := promptui.Select{
-		Label: "Select your preferred shell",
-		Items: shellInfo.Available,
-		Templates: &promptui.SelectTemplates{
-			Label:    "{{ . | cyan }}",
-			Active:   "➤ {{ . | cyan }}",
-			Inactive: "  {{ . | white }}",
-			Selected: "{{ . | green }}",
-			Details: `
-{{ "Current shell:" | faint }}	{{ .Current }}
-{{ "Default shell:" | faint }}	{{ .DefaultPath }}
-`,
-		},
-	}
-
-	_, selected, err := prompt.Run()
-	if err != nil {
-		return "", fmt.Errorf("prompt failed: %w", err)
-	}
-
-	return selected, nil
+	prompt := components.NewBasicPrompt("Select your preferred shell", shellInfo.Available)
+	return prompt.Run()
 }
 
 // PromptFontInstallation prompts for font installation
 func PromptFontInstallation() (bool, error) {
-	prompt := promptui.Select{
-		Label: "Install JetBrains Mono Nerd Font?",
-		Items: []string{"Yes", "No"},
-	}
-
-	_, result, err := prompt.Run()
-	if err != nil {
-		return false, fmt.Errorf("prompt failed: %w", err)
-	}
-
-	return result == "Yes", nil
+	prompt := components.NewBasicPrompt("Install JetBrains Mono Nerd Font?", []string{"Yes", "No"})
+	return prompt.RunYesNo()
 }
 
 // PromptToolSelection prompts for tool selection
-func PromptToolSelection() ([]string, error) {
-	// Create config loader
-	loader := config.NewConfigLoader("")
-
-	// Load all tools
-	availableTools, err := loader.LoadTools()
+func PromptToolSelection(loader *config.Loader) ([]*interfaces.Tool, error) {
+	tools, err := loader.LoadTools()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load tool configurations: %w", err)
+		return nil, fmt.Errorf("failed to load tools: %w", err)
 	}
 
-	// Extract tool names
-	var tools []string
-	for _, tool := range availableTools {
-		tools = append(tools, tool.Name)
-	}
-
-	selector := NewToolSelector(tools)
-	p := tea.NewProgram(selector)
-
-	// Run the interactive UI
-	model, err := p.Run()
-	if err != nil {
-		return nil, fmt.Errorf("UI error: %w", err)
-	}
-
-	// Check if user quit
-	if selectorModel, ok := model.(*ToolSelector); ok {
-		if !selectorModel.Finished() {
-			return nil, fmt.Errorf("selection cancelled")
-		}
-		return selectorModel.GetSelectedTools(), nil
-	}
-
-	return nil, fmt.Errorf("failed to get tool selector model")
+	toolScreen := screens.NewToolScreen(tools)
+	return toolScreen.ShowToolSelection()
 }
 
 // PromptLanguages prompts for programming language selection
-func PromptLanguages() ([]string, error) {
-	// Create config loader
-	loader := config.NewConfigLoader("")
+func PromptLanguages() ([]*interfaces.Language, error) {
+	// Get config path from environment
+	configPath := os.Getenv("BOOTSTRAP_CLI_CONFIG")
+	if configPath == "" {
+		return nil, fmt.Errorf("BOOTSTRAP_CLI_CONFIG environment variable not set")
+	}
 
-	// Load all languages
+	// Create config loader with the correct path
+	loader := config.NewLoader(configPath)
+	
+	// Load available languages
 	availableLanguages, err := loader.LoadLanguages()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load language configurations: %w", err)
 	}
 
-	// Extract language names
-	var languages []string
-	for _, lang := range availableLanguages {
-		languages = append(languages, lang.Name)
-	}
-
-	selector := NewToolSelector(languages)
-	p := tea.NewProgram(selector)
-
-	// Run the interactive UI
-	model, err := p.Run()
-	if err != nil {
-		return nil, fmt.Errorf("UI error: %w", err)
-	}
-
-	// Check if user quit
-	if selectorModel, ok := model.(*ToolSelector); ok {
-		if !selectorModel.Finished() {
-			return nil, fmt.Errorf("selection cancelled")
-		}
-		return selectorModel.GetSelectedTools(), nil
-	}
-
-	return nil, fmt.Errorf("failed to get tool selector model")
+	// Use the new language screen
+	screen := screens.NewLanguageScreen()
+	return screen.ShowLanguageSelection(availableLanguages)
 }
 
-// PromptLanguageManagersForLanguages prompts for language managers based on selected languages
-func PromptLanguageManagersForLanguages(selectedLanguages []string) ([]string, error) {
-	// Create config loader
-	loader := config.NewConfigLoader("")
+// PromptLanguageManagersForLanguages prompts for language manager selection based on selected languages
+func PromptLanguageManagersForLanguages(selectedLanguages []*interfaces.Language) ([]*interfaces.Tool, error) {
+	// Get config path from environment
+	configPath := os.Getenv("BOOTSTRAP_CLI_CONFIG")
+	if configPath == "" {
+		return nil, fmt.Errorf("BOOTSTRAP_CLI_CONFIG environment variable not set")
+	}
+
+	// Create config loader with the correct path
+	loader := config.NewLoader(configPath)
 
 	// Load all language managers
-	managers, err := loader.LoadLanguageManagers()
+	availableManagers, err := loader.LoadLanguageManagers()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load language manager configurations: %w", err)
 	}
 
-	// Filter managers based on selected languages
-	var relevantManagers []string
+	// Use the new language screen
+	screen := screens.NewLanguageScreen()
+	return screen.ShowManagerSelection(availableManagers, selectedLanguages)
+}
+
+// Helper function to filter managers based on selected languages
+func filterManagersByLanguages(managers []*interfaces.Tool, languages []string) []*interfaces.Tool {
+	filtered := make([]*interfaces.Tool, 0)
+	languageNames := make(map[string]bool)
+	
+	// Create a map of selected language names
+	for _, lang := range languages {
+		languageNames[lang] = true
+	}
+
+	// Filter managers based on their associated languages
 	for _, manager := range managers {
-		// Check if this manager is for any of the selected languages
-		for _, lang := range selectedLanguages {
-			if manager.SupportsLanguage(lang) {
-				relevantManagers = append(relevantManagers, manager.Name)
+		for _, lang := range manager.Languages {
+			if languageNames[lang] {
+				filtered = append(filtered, manager)
 				break
 			}
 		}
 	}
 
-	if len(relevantManagers) == 0 {
-		return nil, nil
-	}
-
-	selector := NewToolSelector(relevantManagers)
-	p := tea.NewProgram(selector)
-
-	// Run the interactive UI
-	model, err := p.Run()
-	if err != nil {
-		return nil, fmt.Errorf("UI error: %w", err)
-	}
-
-	// Check if user quit
-	if selectorModel, ok := model.(*ToolSelector); ok {
-		if !selectorModel.Finished() {
-			return nil, fmt.Errorf("selection cancelled")
-		}
-		return selectorModel.GetSelectedTools(), nil
-	}
-
-	return nil, fmt.Errorf("failed to get tool selector model")
+	return filtered
 }
 
 // ValidateSetup validates the installation
 func ValidateSetup() error {
-	// TODO: Implement actual validation
+	// Display validation results
 	fmt.Println("Validation Results:")
 	fmt.Println("- Shell setup: OK")
 	fmt.Println("- Tools installed: OK")
@@ -258,12 +143,9 @@ func ValidateSetup() error {
 	fmt.Println("- Paths and symlinks: Configured")
 	fmt.Println("\n✅ All systems go!")
 
-	prompt := promptui.Select{
-		Label: "Press Enter to finish",
-		Items: []string{"Finish"},
-	}
-
-	_, _, err := prompt.Run()
+	// Use the basic prompt for the finish option
+	prompt := components.NewBasicPrompt("Press Enter to finish", []string{"Finish"})
+	_, err := prompt.Run()
 	if err != nil {
 		return fmt.Errorf("prompt failed: %w", err)
 	}

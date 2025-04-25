@@ -12,11 +12,10 @@ type Tool struct {
 	Name        string   `yaml:"name"`
 	Description string   `yaml:"description"`
 	Category    string   `yaml:"category"`
-	Tags        []string `yaml:"tags"`
-	Languages   []string `yaml:"languages"`  // List of supported languages
+	Tags        []string `yaml:"tags,omitempty"`
+	Languages   []string `yaml:"languages,omitempty"`  // List of supported languages
 	
 	// Package management
-	PackageName string  `yaml:"package_name"` // Package name for the default package manager
 	PackageNames struct {
 		APT    string `yaml:"apt"`
 		Brew   string `yaml:"brew"`
@@ -24,97 +23,34 @@ type Tool struct {
 		Pacman string `yaml:"pacman"`
 	} `yaml:"package_names"`
 
-	Version string `yaml:"version"`
+	Version            string   `yaml:"version"`
+	SystemDependencies []string `yaml:"system_dependencies,omitempty"`
+	Dependencies       []struct {
+		Name     string `yaml:"name"`
+		Type     string `yaml:"type"`
+		Optional bool   `yaml:"optional,omitempty"`
+	} `yaml:"dependencies,omitempty"`
 	VerifyCommand string `yaml:"verify_command"`
-	SystemDependencies []string `yaml:"system_dependencies"`
-	Dependencies []string `yaml:"dependencies"`
-	PostInstall []struct {
-		Command string `yaml:"command"`
+	PostInstall   []struct {
+		Command     string `yaml:"command"`
 		Description string `yaml:"description"`
-	} `yaml:"post_install"`
+	} `yaml:"post_install,omitempty"`
 
 	ShellConfig struct {
-		Aliases   map[string]string `yaml:"aliases"`
-		Functions map[string]string `yaml:"functions"`
-		Env       map[string]string `yaml:"env"`
-	} `yaml:"shell_config"`
+		Aliases   map[string]string `yaml:"aliases,omitempty"`
+		Env       map[string]string `yaml:"env,omitempty"`
+		Path      []string         `yaml:"path,omitempty"`
+		Functions map[string]string `yaml:"functions,omitempty"`
+	} `yaml:"shell_config,omitempty"`
 
-	Files []struct {
+	RequiresRestart bool   `yaml:"requires_restart,omitempty"`
+	InstallPath     string `yaml:"install_path,omitempty"`
+	ConfigFiles     []struct {
 		Source      string `yaml:"source"`
 		Destination string `yaml:"destination"`
-		Type        string `yaml:"type"`
-		Permissions int    `yaml:"permissions"`
-		Content     string `yaml:"content"`
-	} `yaml:"files"`
-}
-
-// ToolInstaller represents a tool installation service
-type ToolInstaller interface {
-	Install(tool *Tool) error
-	Verify(tool *Tool) error
-	IsInstalled(tool *Tool) bool
-}
-
-// NewInstaller creates a new tool installer
-func NewInstaller(pm PackageManager) ToolInstaller {
-	return &toolInstaller{
-		pm: pm,
-	}
-}
-
-type toolInstaller struct {
-	pm PackageManager
-}
-
-func (i *toolInstaller) Install(tool *Tool) error {
-	// Try package-manager specific package name first
-	var packageName string
-	switch i.pm.GetName() {
-	case "apt":
-		packageName = tool.PackageNames.APT
-	case "brew":
-		packageName = tool.PackageNames.Brew
-	case "dnf":
-		packageName = tool.PackageNames.DNF
-	case "pacman":
-		packageName = tool.PackageNames.Pacman
-	}
-
-	// Fall back to default package name if specific one not found
-	if packageName == "" {
-		packageName = tool.PackageName
-	}
-
-	return i.pm.Install(packageName)
-}
-
-func (i *toolInstaller) Verify(tool *Tool) error {
-	if tool.VerifyCommand == "" {
-		return nil
-	}
-	return runCommand(tool.VerifyCommand)
-}
-
-func (i *toolInstaller) IsInstalled(tool *Tool) bool {
-	// Try package-manager specific package name first
-	var packageName string
-	switch i.pm.GetName() {
-	case "apt":
-		packageName = tool.PackageNames.APT
-	case "brew":
-		packageName = tool.PackageNames.Brew
-	case "dnf":
-		packageName = tool.PackageNames.DNF
-	case "pacman":
-		packageName = tool.PackageNames.Pacman
-	}
-
-	// Fall back to default package name if specific one not found
-	if packageName == "" {
-		packageName = tool.PackageName
-	}
-
-	return i.pm.IsInstalled(packageName)
+		Template    bool   `yaml:"template,omitempty"`
+		Mode        string `yaml:"mode,omitempty"`
+	} `yaml:"config_files,omitempty"`
 }
 
 // runCommand executes a shell command
@@ -143,11 +79,11 @@ func runCommand(cmd string) error {
 
 // SupportsLanguage checks if the tool supports a given language
 func (t *Tool) SupportsLanguage(language string) bool {
-	if t == nil || len(t.Languages) == 0 {
+	if t.Languages == nil {
 		return false
 	}
 	for _, lang := range t.Languages {
-		if strings.EqualFold(lang, language) {
+		if lang == language {
 			return true
 		}
 	}

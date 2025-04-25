@@ -1,3 +1,6 @@
+// Package utils provides utility functions and types for common operations
+// throughout the bootstrap-cli, including command execution with retries
+// and error handling.
 package utils
 
 import (

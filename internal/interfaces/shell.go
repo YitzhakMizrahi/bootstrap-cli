@@ -6,11 +6,11 @@ import "errors"
 type ShellType string
 
 const (
-	// Bash shell
+	// BashShell represents the Bash shell
 	BashShell ShellType = "bash"
-	// Zsh shell
+	// ZshShell represents the Zsh shell
 	ZshShell ShellType = "zsh"
-	// Fish shell
+	// FishShell represents the Fish shell
 	FishShell ShellType = "fish"
 )
 

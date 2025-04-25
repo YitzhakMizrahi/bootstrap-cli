@@ -127,7 +127,7 @@ func (h *HomebrewPackageManager) GetName() string {
 }
 
 // SetupSpecialPackage sets up a special package that requires additional setup
-func (h *HomebrewPackageManager) SetupSpecialPackage(pkg string) error {
+func (h *HomebrewPackageManager) SetupSpecialPackage(_ string) error {
 	// For Homebrew, most packages don't require special setup
 	// This method is kept for other packages that might need special repository setup
 	return nil

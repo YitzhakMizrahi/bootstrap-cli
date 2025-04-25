@@ -1,0 +1,121 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: Language Manager Configuration Schema
+description: Schema for language manager configuration files in bootstrap-cli
+type: object
+
+required:
+  - name
+  - description
+  - languages
+  - version
+  - verify
+
+properties:
+  name:
+    type: string
+    description: Name of the language manager
+    minLength: 1
+
+  description:
+    type: string
+    description: Brief description of the language manager
+    minLength: 1
+
+  languages:
+    type: array
+    description: List of languages supported by this manager
+    minItems: 1
+    items:
+      type: string
+
+  version:
+    type: string
+    description: Version of the language manager to install
+
+  package_name:
+    type: string
+    description: Default package name
+
+  package_names:
+    type: object
+    description: Package names for different package managers
+    properties:
+      apt:
+        type: string
+      brew:
+        type: string
+      dnf:
+        type: string
+      pacman:
+        type: string
+
+  dependencies:
+    type: array
+    description: List of system dependencies
+    items:
+      type: string
+
+  post_install:
+    type: array
+    description: Commands to run after installation
+    items:
+      type: object
+      required:
+        - command
+        - description
+      properties:
+        command:
+          type: string
+          description: Command to execute
+        description:
+          type: string
+          description: Description of what the command does
+
+  shell_config:
+    type: object
+    description: Shell configuration settings
+    properties:
+      exports:
+        type: object
+        description: Environment variables to export
+        additionalProperties:
+          type: string
+      path:
+        type: array
+        description: Paths to add to PATH
+        items:
+          type: string
+      functions:
+        type: object
+        description: Shell functions to define
+        additionalProperties:
+          type: string
+
+  verify:
+    type: object
+    description: Verification configuration
+    required:
+      - command
+      - expected_output
+    properties:
+      command:
+        type: object
+        required:
+          - command
+        properties:
+          command:
+            type: string
+            description: Command to verify installation
+      expected_output:
+        type: string
+        description: Expected output string to verify against
+      binary_paths:
+        type: array
+        description: List of binary paths that should exist
+        items:
+          type: string
+      required_files:
+        type: array
+        description: List of files that should exist
+        items:
+          type: string 

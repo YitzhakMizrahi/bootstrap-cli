@@ -1,3 +1,4 @@
+// Package log provides mock implementations for testing
 package log
 
 import (
@@ -29,36 +30,39 @@ func NewMockLogger() *MockLogger {
 }
 
 // Debug logs a debug message
-func (m *MockLogger) Debug(format string, args ...interface{}) {
+func (m *MockLogger) Debug(format string, _ ...interface{}) {
 	m.DebugMessages = append(m.DebugMessages, format)
 }
 
 // Info logs an info message
-func (m *MockLogger) Info(format string, args ...interface{}) {
+func (m *MockLogger) Info(format string, _ ...interface{}) {
 	m.InfoMessages = append(m.InfoMessages, format)
 }
 
 // Warn logs a warning message
-func (m *MockLogger) Warn(format string, args ...interface{}) {
+func (m *MockLogger) Warn(format string, _ ...interface{}) {
 	m.WarnMessages = append(m.WarnMessages, format)
 }
 
 // Error logs an error message
-func (m *MockLogger) Error(format string, args ...interface{}) {
+func (m *MockLogger) Error(format string, _ ...interface{}) {
 	m.ErrorMessages = append(m.ErrorMessages, format)
 }
 
 // CommandStart logs the start of a command execution
-func (m *MockLogger) CommandStart(cmd string, attempt, maxAttempts int) {
+func (m *MockLogger) CommandStart(cmd string, _ int, _ int) {
 	m.CommandStarts = append(m.CommandStarts, cmd)
 }
 
 // CommandSuccess logs the successful completion of a command
-func (m *MockLogger) CommandSuccess(cmd string, duration time.Duration) {
+func (m *MockLogger) CommandSuccess(cmd string, _ time.Duration) {
 	m.CommandSuccesses = append(m.CommandSuccesses, cmd)
 }
 
 // CommandError logs a command execution error
-func (m *MockLogger) CommandError(cmd string, err error, attempt, maxAttempts int) {
+func (m *MockLogger) CommandError(cmd string, _ error, _ int, _ int) {
 	m.CommandErrors = append(m.CommandErrors, cmd)
-} 
+}
+
+// SetLevel sets the log level
+func (m *MockLogger) SetLevel(_ Level) {} 

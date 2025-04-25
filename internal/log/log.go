@@ -11,12 +11,12 @@ import (
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 )
 
-// LogLevel defines the level of logging
-type LogLevel int
+// Level defines the level of logging
+type Level int
 
 const (
 	// DebugLevel logs everything
-	DebugLevel LogLevel = iota
+	DebugLevel Level = iota
 	// InfoLevel logs informational messages
 	InfoLevel
 	// WarnLevel logs warnings
@@ -27,7 +27,7 @@ const (
 	FatalLevel
 )
 
-func (l LogLevel) String() string {
+func (l Level) String() string {
 	switch l {
 	case DebugLevel:
 		return "DEBUG"
@@ -47,7 +47,7 @@ func (l LogLevel) String() string {
 // Logger is a wrapper around the standard log package with enhanced functionality
 type Logger struct {
 	logger    *log.Logger
-	level     LogLevel
+	level     Level
 	metadata  map[string]string
 	component string
 }
@@ -77,7 +77,7 @@ func WithOutput(w io.Writer) LoggerOption {
 }
 
 // New creates a new logger with the specified level and options
-func New(level LogLevel, opts ...LoggerOption) *Logger {
+func New(level Level, opts ...LoggerOption) *Logger {
 	l := &Logger{
 		logger:    log.New(os.Stderr, "", log.Ldate|log.Ltime),
 		level:     level,
@@ -98,7 +98,7 @@ func (l *Logger) SetOutput(w io.Writer) {
 }
 
 // SetLevel sets the minimum logging level
-func (l *Logger) SetLevel(level LogLevel) {
+func (l *Logger) SetLevel(level Level) {
 	l.level = level
 }
 
@@ -113,7 +113,7 @@ func (l *Logger) AddMetadata(key, value string) {
 }
 
 // formatMessage formats a log message with metadata
-func (l *Logger) formatMessage(level LogLevel, format string, args ...interface{}) string {
+func (l *Logger) formatMessage(level Level, format string, args ...interface{}) string {
 	// Format the base message
 	msg := fmt.Sprintf(format, args...)
 

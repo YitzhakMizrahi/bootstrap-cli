@@ -1,3 +1,6 @@
+// Package dotfiles provides functionality for managing dotfiles in the bootstrap-cli,
+// including initialization, cloning repositories, applying configurations, and
+// managing shell-specific settings.
 package dotfiles
 
 import (
@@ -6,13 +9,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
+
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 )
 
 // Manager handles dotfiles operations
 type Manager struct {
-	configLoader *internal.ConfigLoader
+	configLoader *config.Loader
 	baseDir     string
 }
 
@@ -24,7 +28,7 @@ func NewManager() *Manager {
 	}
 	
 	return &Manager{
-		configLoader: internal.NewConfigLoader("config"),
+		configLoader: config.NewLoader("config"),
 		baseDir:     filepath.Join(homeDir, ".dotfiles"),
 	}
 }
@@ -48,7 +52,7 @@ func (m *Manager) Initialize() error {
 }
 
 // CloneUserRepo clones a user's dotfiles repository
-func (m *Manager) CloneUserRepo(repoURL string) error {
+func (m *Manager) CloneUserRepo(_ string) error {
 	// TODO: Implement git clone logic
 	return nil
 }
@@ -160,7 +164,7 @@ func (m *Manager) BackupFile(path, suffix string) error {
 }
 
 // ApplyShellConfig applies shell-specific configuration
-func (m *Manager) ApplyShellConfig(config *interfaces.ShellConfig) error {
+func (m *Manager) ApplyShellConfig(_ *interfaces.ShellConfig) error {
 	// TODO: Implement shell configuration application
 	return nil
 } 

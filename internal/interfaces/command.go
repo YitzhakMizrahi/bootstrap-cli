@@ -1,3 +1,6 @@
+// Package interfaces defines common interfaces and types used throughout
+// the bootstrap-cli, providing abstractions for package management,
+// command execution, and system configuration.
 package interfaces
 
 import (

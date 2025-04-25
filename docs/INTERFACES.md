@@ -71,31 +71,38 @@ type Tool struct {
 }
 ```
 
-### ToolInstaller Interface
-```go
-type ToolInstaller interface {
-    Install(tool *Tool) error
-    Verify(tool *Tool) error
-    IsInstalled(tool *Tool) bool
-}
-```
+### Pipeline Installer
+The tool installation process is handled by the pipeline-based installer in the `pipeline` package. This provides advanced features like:
 
-**Purpose**: Manages tool installation, verification, and configuration.
+- Dependency resolution and management
+- Retry and timeout mechanisms
+- Rollback support for failed installations
+- Platform-specific configuration handling
+- Multiple installation methods (package manager, binary, custom)
+- Improved error handling and logging
+- Step-by-step installation process with proper state tracking
+
+For more details, see the `pipeline` package documentation.
 
 ## 🐚 Shell Management
 
 ### ShellManager Interface
 ```go
 type ShellManager interface {
-    DetectCurrent() (*ShellInfo, error)
-    ListAvailable() ([]*ShellInfo, error)
-    IsInstalled(shell ShellType) bool
-    GetInfo(shell ShellType) (*ShellInfo, error)
-    ConfigureShell(config *ShellConfig) error
+    GetCurrentShell() (string, error)
+    GetShellConfig() (*ShellConfig, error)
+    ApplyShellConfig(config *ShellConfig) error
+    ReloadShellConfig() error
 }
 ```
 
-**Purpose**: Handles shell detection, configuration, and management.
+**Purpose**: Manages shell configuration and environment setup.
+
+**Methods**:
+- `GetCurrentShell`: Returns the current shell name
+- `GetShellConfig`: Gets the current shell configuration
+- `ApplyShellConfig`: Applies a new shell configuration
+- `ReloadShellConfig`: Reloads the shell configuration
 
 ### ShellInfo Struct
 ```go

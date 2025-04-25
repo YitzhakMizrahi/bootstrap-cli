@@ -19,7 +19,7 @@ func TestValidateTool(t *testing.T) {
 				PackageName:  "test-package",
 				Version:      "1.0.0",
 				Dependencies: []string{"dep1", "dep2"},
-				PostInstall: []PostInstallCommand{
+				PostInstall: []Command{
 					{Command: "echo 'test'", Description: "Test command"},
 				},
 			},
@@ -77,7 +77,7 @@ func TestValidateTool(t *testing.T) {
 			tool: &Tool{
 				Name:        "test-tool",
 				PackageName: "test-package",
-				PostInstall: []PostInstallCommand{
+				PostInstall: []Command{
 					{Command: "", Description: "Empty command"},
 				},
 			},

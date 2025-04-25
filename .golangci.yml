@@ -1,7 +1,7 @@
 linters:
   enable:
     - gofmt
-    - golint
+    - revive
     - govet
     - errcheck
     - staticcheck
@@ -32,7 +32,7 @@ issues:
 linters-settings:
   gocyclo:
     min-complexity: 15
-  golint:
+  revive:
     min-confidence: 0.8
   gosec:
     excludes:

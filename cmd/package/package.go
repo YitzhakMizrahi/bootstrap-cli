@@ -1,3 +1,6 @@
+// Package packagecmd provides command-line functionality for managing system packages,
+// including installation, removal, listing, updating, and upgrading packages through
+// the system's native package manager.
 package packagecmd
 
 import (
@@ -20,7 +23,7 @@ func NewPackageCmd() *cobra.Command {
 		Use:   "package",
 		Short: "Manage system packages",
 		Long: `Manage system packages using the system's package manager.`,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 			logger = log.New(log.InfoLevel)
 			if debug, _ := cmd.Flags().GetBool("debug"); debug {
 				logger.SetLevel(log.DebugLevel)
@@ -49,7 +52,7 @@ func newInstallCmd() *cobra.Command {
 		Short: "Install packages",
 		Long:  `Install packages using the system's package manager.`,
 		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			f := factory.NewPackageManagerFactory()
 			pm, err := f.GetPackageManager()
 			if err != nil {
@@ -74,7 +77,7 @@ func newRemoveCmd() *cobra.Command {
 		Short: "Remove packages",
 		Long:  `Remove packages using the system's package manager.`,
 		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			f := factory.NewPackageManagerFactory()
 			pm, err := f.GetPackageManager()
 			if err != nil {
@@ -102,7 +105,7 @@ func newListCmd() *cobra.Command {
 	}
 }
 
-func runList(cmd *cobra.Command, args []string) error {
+func runList(_ *cobra.Command, args []string) error {
 	logger.Info("Listing installed packages...")
 
 	// Get package manager
@@ -129,7 +132,7 @@ func newUpdateCmd() *cobra.Command {
 		Use:   "update",
 		Short: "Update package list",
 		Long:  `Update the package list using the system's package manager.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			f := factory.NewPackageManagerFactory()
 			pm, err := f.GetPackageManager()
 			if err != nil {
@@ -151,7 +154,7 @@ func newUpgradeCmd() *cobra.Command {
 		Use:   "upgrade",
 		Short: "Upgrade all packages",
 		Long:  `Upgrade all installed packages using the system's package manager.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			f := factory.NewPackageManagerFactory()
 			pm, err := f.GetPackageManager()
 			if err != nil {

@@ -1,3 +1,6 @@
+// Package detector provides functionality for detecting and identifying
+// the system's package manager type by checking for the presence of common
+// package management tools.
 package detector
 
 import (

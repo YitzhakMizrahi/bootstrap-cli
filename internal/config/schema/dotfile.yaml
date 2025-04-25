@@ -1,0 +1,109 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: Dotfile Configuration Schema
+description: Schema for dotfile configuration files in bootstrap-cli
+type: object
+
+required:
+  - name
+  - description
+  - category
+  - files
+
+properties:
+  name:
+    type: string
+    description: Name of the dotfile configuration
+    minLength: 1
+
+  description:
+    type: string
+    description: Brief description of the dotfile configuration
+    minLength: 1
+
+  category:
+    type: string
+    description: Category of the dotfile (e.g., shell, network)
+    minLength: 1
+
+  tags:
+    type: array
+    description: Tags for categorizing and searching
+    items:
+      type: string
+    uniqueItems: true
+
+  files:
+    type: array
+    description: List of files to manage
+    minItems: 1
+    items:
+      type: object
+      required:
+        - source
+        - destination
+        - type
+      properties:
+        source:
+          type: string
+          description: Source path of the file or directory
+        destination:
+          type: string
+          description: Destination path where the file should be linked
+        type:
+          type: string
+          enum: ["file", "directory"]
+        content:
+          type: string
+          description: Content of the file if type is 'file'
+
+  dependencies:
+    type: array
+    description: List of system dependencies
+    items:
+      type: string
+
+  shell_config:
+    type: object
+    description: Shell configuration settings
+    properties:
+      env:
+        type: array
+        description: Environment variables to set
+        items:
+          type: object
+          required:
+            - name
+            - value
+          properties:
+            name:
+              type: string
+              description: Name of the environment variable
+            value:
+              type: string
+              description: Value of the environment variable
+      path_append:
+        type: array
+        description: Paths to append to PATH
+        items:
+          type: string
+
+  post_install:
+    type: array
+    description: Commands to run after installation
+    items:
+      type: object
+      required:
+        - command
+        - description
+      properties:
+        command:
+          type: string
+          description: Command to execute
+        description:
+          type: string
+          description: Description of what the command does
+
+  requires_restart:
+    type: boolean
+    description: Whether the system needs to be restarted after installation
+    default: false 

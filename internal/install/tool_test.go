@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 )
 
@@ -127,7 +128,7 @@ func (m *MockPackageManager) ListInstalled() ([]string, error) {
 	return packages, nil
 }
 
-func (m *MockPackageManager) SetupSpecialPackage(pkg string) error {
+func (m *MockPackageManager) SetupSpecialPackage(_ string) error {
 	// For testing purposes, we'll simulate that we can set up any package
 	return nil
 }
@@ -135,7 +136,7 @@ func (m *MockPackageManager) SetupSpecialPackage(pkg string) error {
 func TestInstaller(t *testing.T) {
 	tests := []struct {
 		name            string
-		tool            *Tool
+		tool            *interfaces.Tool
 		maxRetries      int
 		maxFail         int
 		pmName          string
@@ -146,28 +147,47 @@ func TestInstaller(t *testing.T) {
 	}{
 		{
 			name: "successful install",
-			tool: &Tool{
+			tool: &interfaces.Tool{
 				Name:         "test-tool",
-				PackageName:  "test-package",
+				Description:  "Test tool",
 				Version:      "1.0.0",
-				Dependencies: []string{"dep1", "dep2"},
-				PostInstall: []PostInstallCommand{
-					{Command: "echo 'test'", Description: "Test command"},
+				Dependencies: []struct {
+					Name     string `yaml:"name"`
+					Type     string `yaml:"type"`
+					Optional bool   `yaml:"optional,omitempty"`
+				}{
+					{Name: "dep1", Type: "package"},
+					{Name: "dep2", Type: "package"},
+				},
+				PostInstall: []struct {
+					Command     string `yaml:"command"`
+					Description string `yaml:"description"`
+				}{
+					{
+						Command:     "echo 'test'",
+						Description: "Test command",
+					},
 				},
 			},
 			maxRetries:      3,
 			maxFail:         0,
 			pmName:          "apt",
 			wantErr:         false,
-			expectedPkgName: "test-package=1.0.0",
+			expectedPkgName: "test-tool=1.0.0",
 			expectCleanup:   false,
 		},
 		{
 			name: "retry success",
-			tool: &Tool{
+			tool: &interfaces.Tool{
 				Name:         "retry-tool",
-				PackageName:  "retry-package",
-				Dependencies: []string{"dep1"},
+				Description:  "Retry tool",
+				Dependencies: []struct {
+					Name     string `yaml:"name"`
+					Type     string `yaml:"type"`
+					Optional bool   `yaml:"optional,omitempty"`
+				}{
+					{Name: "dep1", Type: "package"},
+				},
 			},
 			maxRetries:     3,
 			maxFail:        2,
@@ -177,10 +197,16 @@ func TestInstaller(t *testing.T) {
 		},
 		{
 			name: "retry failure",
-			tool: &Tool{
+			tool: &interfaces.Tool{
 				Name:         "fail-tool",
-				PackageName:  "fail-package",
-				Dependencies: []string{"dep1"},
+				Description:  "Fail tool",
+				Dependencies: []struct {
+					Name     string `yaml:"name"`
+					Type     string `yaml:"type"`
+					Optional bool   `yaml:"optional,omitempty"`
+				}{
+					{Name: "dep1", Type: "package"},
+				},
 			},
 			maxRetries:      3,
 			maxFail:        4,
@@ -191,15 +217,19 @@ func TestInstaller(t *testing.T) {
 		},
 		{
 			name: "system specific package name",
-			tool: &Tool{
+			tool: &interfaces.Tool{
 				Name:        "system-tool",
-				PackageName: "default-package",
-				PackageNames: &PackageMapping{
-					Default: "default-package",
-					APT:     "apt-package",
-					DNF:     "dnf-package",
-					Pacman:  "pacman-package",
-					Brew:    "brew-package",
+				Description: "System tool",
+				PackageNames: struct {
+					APT    string `yaml:"apt"`
+					Brew   string `yaml:"brew"`
+					DNF    string `yaml:"dnf"`
+					Pacman string `yaml:"pacman"`
+				}{
+					APT:    "apt-package",
+					DNF:    "dnf-package",
+					Pacman: "pacman-package",
+					Brew:   "brew-package",
 				},
 				Version: "2.0.0",
 			},
@@ -212,9 +242,9 @@ func TestInstaller(t *testing.T) {
 		},
 		{
 			name: "homebrew version format",
-			tool: &Tool{
+			tool: &interfaces.Tool{
 				Name:        "brew-tool",
-				PackageName: "brew-package",
+				Description: "Brew tool",
 				Version:     "3.0.0",
 			},
 			maxRetries:      3,
@@ -226,12 +256,24 @@ func TestInstaller(t *testing.T) {
 		},
 		{
 			name: "post-install failure cleanup",
-			tool: &Tool{
+			tool: &interfaces.Tool{
 				Name:         "post-fail-tool",
-				PackageName:  "post-fail-package",
-				Dependencies: []string{"dep1"},
-				PostInstall: []PostInstallCommand{
-					{Command: "exit 1", Description: "Failing command"},
+				Description:  "Post fail tool",
+				Dependencies: []struct {
+					Name     string `yaml:"name"`
+					Type     string `yaml:"type"`
+					Optional bool   `yaml:"optional,omitempty"`
+				}{
+					{Name: "dep1", Type: "package"},
+				},
+				PostInstall: []struct {
+					Command     string `yaml:"command"`
+					Description string `yaml:"description"`
+				}{
+					{
+						Command:     "exit 1",
+						Description: "Failing command",
+					},
 				},
 			},
 			maxRetries:      3,
@@ -239,7 +281,7 @@ func TestInstaller(t *testing.T) {
 			pmName:         "apt",
 			wantErr:        true,
 			expectCleanup:  true,
-			cleanupPackages: []string{"dep1", "post-fail-package"},
+			cleanupPackages: []string{"dep1", "post-fail-tool"},
 		},
 	}
 
@@ -295,5 +337,43 @@ func TestInstaller(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestTool_Install(t *testing.T) {
+	tool := &interfaces.Tool{
+		Name:        "test-tool",
+		Description: "Test tool",
+		PostInstall: []struct {
+			Command     string `yaml:"command"`
+			Description string `yaml:"description"`
+		}{
+			{
+				Command:     "echo 'test'",
+				Description: "Test command",
+			},
+		},
+	}
+
+	// Create a mock package manager
+	mockPM := NewMockPackageManager(0, "apt")
+
+	// Create an installer with the mock package manager
+	installer := &Installer{
+		PackageManager: mockPM,
+		Logger:        log.New(log.InfoLevel),
+		MaxRetries:    3,
+		RetryDelay:    time.Millisecond, // Use short delay for tests
+	}
+
+	// Install the tool
+	err := installer.Install(tool)
+	if err != nil {
+		t.Errorf("Install() error = %v, wantErr false", err)
+	}
+
+	// Verify the tool was installed
+	if !mockPM.IsInstalled(tool.Name) {
+		t.Errorf("Expected package %s to be installed", tool.Name)
 	}
 } 

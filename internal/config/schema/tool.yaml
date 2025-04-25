@@ -1,0 +1,174 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: Tool Configuration Schema
+description: Schema for tool configuration files in bootstrap-cli
+type: object
+
+required:
+  - name
+  - description
+  - category
+  - package_names
+  - verify_command
+
+properties:
+  name:
+    type: string
+    description: Name of the tool
+    minLength: 1
+
+  description:
+    type: string
+    description: Brief description of the tool's functionality and purpose
+    minLength: 1
+
+  category:
+    type: string
+    description: Category of the tool (must match the directory structure)
+    enum: ["essential", "modern"]
+    minLength: 1
+
+  tags:
+    type: array
+    description: Tags for categorizing and searching
+    items:
+      type: string
+    uniqueItems: true
+
+  package_names:
+    type: object
+    description: Package names for different package managers
+    required:
+      - apt
+      - brew
+      - dnf
+      - pacman
+    properties:
+      apt:
+        type: string
+        description: Package name for apt (Debian/Ubuntu)
+      brew:
+        type: string
+        description: Package name for Homebrew (macOS)
+      dnf:
+        type: string
+        description: Package name for DNF (Fedora/RHEL)
+      pacman:
+        type: string
+        description: Package name for pacman (Arch Linux)
+
+  version:
+    type: string
+    description: Version of the tool to install (use 'latest' for latest version)
+    default: "latest"
+
+  system_dependencies:
+    type: array
+    description: List of system packages required for installation
+    items:
+      type: string
+      description: Name of the required system package
+
+  dependencies:
+    type: array
+    description: List of other tools that must be installed first
+    items:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: Name of the dependency
+        type:
+          type: string
+          enum: ["package", "tool"]
+          description: Type of dependency (package for system packages, tool for other tools)
+        optional:
+          type: boolean
+          description: Whether this dependency is optional
+          default: false
+
+  verify_command:
+    type: string
+    description: Command to verify successful installation (should return 0 on success)
+    minLength: 1
+
+  post_install:
+    type: array
+    description: Commands to run after installation
+    items:
+      type: object
+      required:
+        - command
+        - description
+      properties:
+        command:
+          type: string
+          description: Command to execute
+        description:
+          type: string
+          description: Description of what the command does
+
+  shell_config:
+    type: object
+    description: Shell configuration settings
+    properties:
+      aliases:
+        type: object
+        description: Command aliases to define
+        additionalProperties:
+          type: string
+          description: Command to alias to
+      env:
+        type: object
+        description: Environment variables to set
+        additionalProperties:
+          type: string
+          description: Value of the environment variable
+      path:
+        type: array
+        description: Paths to add to PATH
+        items:
+          type: string
+          description: Path to add
+      functions:
+        type: object
+        description: Shell functions to define
+        additionalProperties:
+          type: string
+          description: Function body
+
+  requires_restart:
+    type: boolean
+    description: Whether the system needs to be restarted after installation
+    default: false
+
+  install_path:
+    type: string
+    description: Custom installation path if not using package manager default
+    pattern: "^(/[^/ ]*)+/?$"
+
+  config_files:
+    type: array
+    description: Configuration files to manage
+    items:
+      type: object
+      required:
+        - source
+        - destination
+      properties:
+        source:
+          type: string
+          description: Source path of the configuration file
+        destination:
+          type: string
+          description: Destination path where the file should be placed
+        template:
+          type: boolean
+          description: Whether the file should be processed as a template
+          default: false
+        mode:
+          type: string
+          description: File permissions in octal format
+          pattern: "^[0-7]{3,4}$" 

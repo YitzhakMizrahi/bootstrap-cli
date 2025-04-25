@@ -12,7 +12,6 @@ import (
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/implementations"
 )
 
 var (
@@ -58,7 +57,7 @@ type Tool struct {
 	// SystemDependencies is a list of system-level dependencies required
 	SystemDependencies []string
 	// PostInstall is a list of commands to run after installation
-	PostInstall []PostInstallCommand
+	PostInstall []Command
 	// VerifyCommand is the command to verify the installation
 	VerifyCommand string
 	// Description is a brief description of the tool
@@ -83,29 +82,36 @@ type ConfigFile struct {
 	Destination string
 	// Type is the type of configuration (file, symlink, or content)
 	Type string
-	// Permissions are the file permissions (e.g., "0644")
-	Permissions string
+	// Mode is the file mode (e.g., "0644")
+	Mode string
 }
 
-// PostInstallCommand represents a post-installation command
-type PostInstallCommand struct {
+// Command represents a post-installation command
+type Command struct {
 	Command     string
 	Description string
 }
 
-// InstallError represents an installation error
-type InstallError struct {
+// Error represents an installation error
+type Error struct {
 	Tool    string
 	Phase   string
 	Message string
 	Err     error
 }
 
-func (e *InstallError) Error() string {
+func (e *Error) Error() string {
 	if e.Err != nil {
 		return fmt.Sprintf("%s: %s failed: %s (%v)", e.Tool, e.Phase, e.Message, e.Err)
 	}
 	return fmt.Sprintf("%s: %s failed: %s", e.Tool, e.Phase, e.Message)
+}
+
+// Result represents the result of an installation attempt
+type Result struct {
+	Success      bool
+	InstalledPkg string
+	Error        error
 }
 
 // Installer handles tool installation
@@ -151,14 +157,9 @@ func (i *Installer) getPackageWithVersion(pkg, version string) string {
 }
 
 // getSystemPackageName returns the appropriate package name for the current system
-func (i *Installer) getSystemPackageName(tool *Tool) string {
+func (i *Installer) getSystemPackageName(tool *interfaces.Tool) string {
 	if tool == nil {
 		return ""
-	}
-
-	// If PackageNames is nil, just return the default PackageName
-	if tool.PackageNames == nil {
-		return tool.PackageName
 	}
 
 	// Try to get system-specific package name
@@ -184,703 +185,91 @@ func (i *Installer) getSystemPackageName(tool *Tool) string {
 	}
 
 	// Fall back to default package name
-	return tool.PackageName
-}
-
-// InstallResult represents the result of an installation attempt
-type InstallResult struct {
-	Success      bool
-	InstalledPkg string
-	Error        error
+	return tool.Name
 }
 
 // Install installs a tool
-func (i *Installer) Install(tool *Tool) error {
-	i.Logger.Info("Starting installation of %s", tool.Name)
+func (i *Installer) Install(tool *interfaces.Tool) error {
+	if tool == nil {
+		return fmt.Errorf("tool is nil")
+	}
+
+	i.Logger.Info("Installing %s...", tool.Name)
 
 	// Get the appropriate package name for the current system
-	pkg := i.getSystemPackageName(tool)
-	if pkg == "" {
-		return &InstallError{
-			Tool:    tool.Name,
-			Phase:   "package name resolution",
-			Message: "no suitable package name found for current system",
-		}
+	pkgName := i.getSystemPackageName(tool)
+	if pkgName == "" {
+		return fmt.Errorf("no package name found for tool %s", tool.Name)
 	}
 
 	// Add version if specified
-	i.Logger.Info("Installing %s version %s", pkg, tool.Version)
+	pkgName = i.getPackageWithVersion(pkgName, tool.Version)
 
 	// Install system dependencies first
 	if len(tool.SystemDependencies) > 0 {
-		i.Logger.Info("Installing system dependencies for %s", tool.Name)
+		i.Logger.Info("Installing system dependencies for %s...", tool.Name)
 		for _, dep := range tool.SystemDependencies {
-			if err := i.installWithRetry(dep).Error; err != nil {
-				return &InstallError{
-					Tool:    tool.Name,
-					Phase:   "system dependency installation",
-					Message: fmt.Sprintf("failed to install system dependency %s", dep),
-					Err:     err,
-				}
+			err := i.PackageManager.Install(dep)
+			if err != nil {
+				return fmt.Errorf("failed to install system dependency %s: %v", dep, err)
 			}
 		}
 	}
 
-	// Install package dependencies
+	// Install dependencies
 	if len(tool.Dependencies) > 0 {
-		i.Logger.Info("Installing dependencies for %s", tool.Name)
+		i.Logger.Info("Installing dependencies for %s...", tool.Name)
 		for _, dep := range tool.Dependencies {
-			if err := i.installWithRetry(dep).Error; err != nil {
-				return &InstallError{
-					Tool:    tool.Name,
-					Phase:   "dependency installation",
-					Message: fmt.Sprintf("failed to install dependency %s", dep),
-					Err:     err,
-				}
+			err := i.PackageManager.Install(dep.Name)
+			if err != nil && !dep.Optional {
+				return fmt.Errorf("failed to install dependency %s: %v", dep.Name, err)
 			}
 		}
 	}
 
-	// Try to set up special package if needed (e.g., adding PPAs)
-	if err := i.PackageManager.SetupSpecialPackage(pkg); err != nil {
-		i.Logger.Warn("Failed to set up special package %s: %v", pkg, err)
-		// Continue with installation even if setup fails
-	}
-
-	// Install package
-	i.Logger.Info("Installing %s version %s", tool.Name, tool.Version)
-	if err := i.PackageManager.Install(pkg); err != nil {
-		return &InstallError{
-			Tool:    tool.Name,
-			Phase:   "package installation",
-			Message: fmt.Sprintf("failed to install package %s", pkg),
-			Err:     err,
-		}
-	}
-
-	// Create configuration files
-	if len(tool.ConfigFiles) > 0 {
-		i.Logger.Info("Setting up configuration for %s", tool.Name)
-		if err := i.setupConfigFiles(tool); err != nil {
-			return &InstallError{
-				Tool:    tool.Name,
-				Phase:   "configuration setup",
-				Message: "failed to set up configuration files",
-				Err:     err,
-			}
-		}
+	// Install the tool
+	err := i.PackageManager.Install(pkgName)
+	if err != nil {
+		return fmt.Errorf("failed to install %s: %v", tool.Name, err)
 	}
 
 	// Run post-install commands
 	if len(tool.PostInstall) > 0 {
-		i.Logger.Info("Running post-install commands for %s", tool.Name)
+		i.Logger.Info("Running post-install commands for %s...", tool.Name)
 		for _, cmd := range tool.PostInstall {
-			if err := i.runPostInstall(cmd); err != nil {
-				return &InstallError{
-					Tool:    tool.Name,
-					Phase:   "post-install",
-					Message: fmt.Sprintf("failed to run post-install command: %s", cmd.Command),
-					Err:     err,
-				}
+			if err := i.runCommand(cmd.Command); err != nil {
+				return fmt.Errorf("post-install command failed: %v", err)
 			}
-		}
-	}
-
-	// Apply shell configuration
-	i.Logger.Info("Applying shell configuration for %s", tool.Name)
-	if err := i.applyShellConfig(tool); err != nil {
-		return &InstallError{
-			Tool:    tool.Name,
-			Phase:   "shell configuration",
-			Message: "failed to apply shell configuration",
-			Err:     err,
-		}
-	}
-
-	// Reload shell configuration
-	i.Logger.Info("Reloading shell configuration")
-	shell, err := i.getCurrentShell()
-	if err != nil {
-		return &InstallError{
-			Tool:    tool.Name,
-			Phase:   "shell reload",
-			Message: "failed to get current shell",
-			Err:     err,
-		}
-	}
-
-	if err := i.reloadShellConfig(shell); err != nil {
-		return &InstallError{
-			Tool:    tool.Name,
-			Phase:   "shell reload",
-			Message: "failed to reload shell configuration",
-			Err:     err,
 		}
 	}
 
 	// Verify installation
-	i.Logger.Info("Verifying installation of %s", tool.Name)
-	if err := i.verifyInstallation(tool); err != nil {
-		return &InstallError{
-			Tool:    tool.Name,
-			Phase:   "verification",
-			Message: "installation verification failed",
-			Err:     err,
+	if tool.VerifyCommand != "" {
+		i.Logger.Info("Verifying installation of %s...", tool.Name)
+		if err := i.verifyInstallation(tool); err != nil {
+			return fmt.Errorf("verification failed: %v", err)
 		}
 	}
 
+	// Set up config files
+	if len(tool.ConfigFiles) > 0 {
+		i.Logger.Info("Setting up configuration files for %s...", tool.Name)
+		if err := i.setupConfigFiles(tool); err != nil {
+			return fmt.Errorf("failed to set up config files: %v", err)
+		}
+	}
+
+	// Apply shell configuration
+	if err := i.applyShellConfig(tool); err != nil {
+		return fmt.Errorf("failed to apply shell configuration: %v", err)
+	}
+
+	i.Logger.Success("Successfully installed %s", tool.Name)
 	return nil
 }
 
-// installWithRetry attempts to install a package with retries
-func (i *Installer) installWithRetry(pkg string) InstallResult {
-	// Check if package is already installed
-	if i.PackageManager.IsInstalled(pkg) {
-		i.Logger.Info("%s is already installed", pkg)
-		return InstallResult{
-			Success:      true,
-			InstalledPkg: pkg,
-			Error:        nil,
-		}
-	}
-
-	var lastErr error
-	var repositorySetupAttempted bool
-
-	for attempt := 0; attempt <= i.MaxRetries; attempt++ {
-		if attempt > 0 {
-			i.Logger.Debug("Retrying installation of %s (attempt %d/%d)", pkg, attempt, i.MaxRetries)
-			time.Sleep(i.RetryDelay)
-
-			// Update package lists before retry
-			if err := i.PackageManager.Update(); err != nil {
-				i.Logger.Debug("Failed to update package lists: %v", err)
-			}
-		}
-
-		// Try to install the package
-		if err := i.PackageManager.Install(pkg); err != nil {
-			lastErr = err
-			
-			// Check if the error indicates package not found
-			if strings.Contains(err.Error(), "Unable to locate package") ||
-				strings.Contains(err.Error(), "No matching package") ||
-				strings.Contains(err.Error(), "package not found") {
-				i.Logger.Info("Package %s not found in repositories", pkg)
-				return InstallResult{
-					Success:      false,
-					InstalledPkg: pkg,
-					Error:        fmt.Errorf("package not found: %w", err),
-				}
-			}
-			
-			// If this is a special package that needs repository setup and we haven't tried that yet
-			if !repositorySetupAttempted {
-				// Try to set up repository for the package
-				if setupErr := i.setupRepository(pkg); setupErr != nil {
-					i.Logger.Debug("Failed to set up repository for %s: %v", pkg, setupErr)
-					// Don't retry if repository setup failed
-					return InstallResult{
-						Success:      false,
-						InstalledPkg: pkg,
-						Error:        fmt.Errorf("failed to set up repository: %w", setupErr),
-					}
-				}
-				repositorySetupAttempted = true
-				// Continue to next attempt after repository setup
-				continue
-			}
-			
-			i.Logger.Debug("Installation attempt failed: %v", err)
-			continue
-		}
-
-		return InstallResult{
-			Success:      true,
-			InstalledPkg: pkg,
-			Error:        nil,
-		}
-	}
-
-	return InstallResult{
-		Success:      false,
-		InstalledPkg: pkg,
-		Error:        fmt.Errorf("failed to install after %d attempts: %w", i.MaxRetries, lastErr),
-	}
-}
-
-// setupRepository attempts to set up the repository for a package
-func (i *Installer) setupRepository(pkg string) error {
-	switch pm := i.PackageManager.(type) {
-	case *implementations.APTManager:
-		return pm.SetupSpecialPackage(pkg)
-	case *implementations.DnfPackageManager:
-		return pm.SetupSpecialPackage(pkg)
-	case *implementations.PacmanPackageManager:
-		return pm.SetupSpecialPackage(pkg)
-	default:
-		return nil // No repository setup needed for this package manager
-	}
-}
-
-// cleanup removes installed packages in case of failure
-func (i *Installer) cleanup(packages []string) {
-	if len(packages) == 0 {
-		return
-	}
-
-	i.Logger.Info("Cleaning up installed packages: %v", packages)
-	for _, pkg := range packages {
-		i.Logger.Debug("Removing package: %s", pkg)
-		if err := i.PackageManager.Remove(pkg); err != nil {
-			i.Logger.Error("Failed to remove package %s: %v", pkg, err)
-		}
-	}
-}
-
-// runPostInstall executes post-installation commands
-func (i *Installer) runPostInstall(cmd PostInstallCommand) error {
-	if cmd.Command == "" {
-		return nil
-	}
-
-	command := exec.Command("sh", "-c", cmd.Command)
-	if output, err := command.CombinedOutput(); err != nil {
-		return fmt.Errorf("post-install command failed: %w\nOutput: %s", err, string(output))
-	}
-	return nil
-}
-
-// verifyInstallation checks if the tool was installed correctly
-func (i *Installer) verifyInstallation(tool *Tool) error {
-	if tool.VerifyCommand == "" {
-		return nil
-	}
-
-	// Wait for PATH to be updated
-	time.Sleep(time.Second * 2)
-
-	// Try to find the binary in PATH
-	cmd := exec.Command("sh", "-c", tool.VerifyCommand)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		// If not found in PATH, check common locations
-		commonPaths := []string{
-			"/usr/bin/",
-			"/usr/local/bin/",
-			"/opt/homebrew/bin/",
-		}
-
-		for _, path := range commonPaths {
-			fullPath := filepath.Join(path, tool.Name)
-			if _, err := os.Stat(fullPath); err == nil {
-				return nil
-			}
-		}
-
-		return fmt.Errorf("verification failed: %w\nOutput: %s", err, string(output))
-	}
-	return nil
-}
-
-// retryOperation retries an operation with exponential backoff
-func (i *Installer) retryOperation(op func() error) error {
-	var lastErr error
-	for attempt := 0; attempt < i.MaxRetries; attempt++ {
-		if attempt > 0 {
-			i.Logger.Debug("Retrying operation (attempt %d/%d)", attempt+1, i.MaxRetries)
-			time.Sleep(i.RetryDelay * time.Duration(attempt))
-		}
-
-		if err := op(); err != nil {
-			lastErr = err
-			i.Logger.Warn("Operation failed (attempt %d/%d): %v", attempt+1, i.MaxRetries, err)
-			continue
-		}
-
-		return nil
-	}
-
-	return lastErr
-}
-
-// runCommand executes a shell command
-func (i *Installer) runCommand(cmd string) error {
-	if cmd == "" {
-		return nil
-	}
-
-	return i.runPostInstall(PostInstallCommand{
-		Command: cmd,
-		Description: "Run shell command",
-	})
-}
-
-// setupConfigFiles creates or symlinks configuration files
-func (i *Installer) setupConfigFiles(tool *Tool) error {
-	for _, config := range tool.ConfigFiles {
-		switch config.Type {
-		case "file":
-			if err := i.createFile(config.Source, config.Destination, config.Permissions); err != nil {
-				return fmt.Errorf("failed to create file %s: %w", config.Destination, err)
-			}
-		case "symlink":
-			if err := i.createSymlink(config.Source, config.Destination); err != nil {
-				return fmt.Errorf("failed to create symlink %s: %w", config.Destination, err)
-			}
-		case "content":
-			if err := i.writeContent(config.Source, config.Destination, config.Permissions); err != nil {
-				return fmt.Errorf("failed to write content to %s: %w", config.Destination, err)
-			}
-		default:
-			return fmt.Errorf("unknown config type: %s", config.Type)
-		}
-	}
-	return nil
-}
-
-// applyShellConfig applies shell-specific configuration
-func (i *Installer) applyShellConfig(tool *Tool) error {
-	if len(tool.ShellConfig.Exports) == 0 && len(tool.ShellConfig.Path) == 0 {
-		return nil
-	}
-
-	shell, err := i.getCurrentShell()
-	if err != nil {
-		return err
-	}
-
-	switch shell {
-	case "zsh":
-		return i.applyZshConfig(tool)
-	case "bash":
-		return i.applyBashConfig(tool)
-	case "fish":
-		return i.applyFishConfig(tool)
-	default:
-		return fmt.Errorf("unsupported shell: %s", shell)
-	}
-}
-
-// createFile creates a new file with the given content and permissions
-func (i *Installer) createFile(source, destination, permissions string) error {
-	// Read source file
-	content, err := os.ReadFile(source)
-	if err != nil {
-		return fmt.Errorf("failed to read source file: %w", err)
-	}
-
-	// Parse permissions
-	perm, err := strconv.ParseInt(permissions, 8, 32)
-	if err != nil {
-		return fmt.Errorf("invalid permissions: %w", err)
-	}
-
-	// Create destination directory if it doesn't exist
-	dir := filepath.Dir(destination)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
-	}
-
-	// Write file
-	if err := os.WriteFile(destination, content, os.FileMode(perm)); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
-	}
-
-	return nil
-}
-
-// createSymlink creates a symbolic link
-func (i *Installer) createSymlink(source, destination string) error {
-	// Create destination directory if it doesn't exist
-	dir := filepath.Dir(destination)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
-	}
-
-	// Remove existing symlink or file
-	if _, err := os.Lstat(destination); err == nil {
-		if err := os.Remove(destination); err != nil {
-			return fmt.Errorf("failed to remove existing file: %w", err)
-		}
-	}
-
-	// Create symlink
-	if err := os.Symlink(source, destination); err != nil {
-		return fmt.Errorf("failed to create symlink: %w", err)
-	}
-
-	return nil
-}
-
-// writeContent writes content to a file
-func (i *Installer) writeContent(content, destination, permissions string) error {
-	// Parse permissions
-	perm, err := strconv.ParseInt(permissions, 8, 32)
-	if err != nil {
-		return fmt.Errorf("invalid permissions: %w", err)
-	}
-
-	// Create destination directory if it doesn't exist
-	dir := filepath.Dir(destination)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
-	}
-
-	// Write file
-	if err := os.WriteFile(destination, []byte(content), os.FileMode(perm)); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
-	}
-
-	return nil
-}
-
-// getCurrentShell returns the current shell name (zsh, bash, fish)
-func (i *Installer) getCurrentShell() (string, error) {
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		return "", fmt.Errorf("SHELL environment variable not set")
-	}
-
-	switch {
-	case strings.Contains(shell, "zsh"):
-		return "zsh", nil
-	case strings.Contains(shell, "bash"):
-		return "bash", nil
-	case strings.Contains(shell, "fish"):
-		return "fish", nil
-	default:
-		return "", fmt.Errorf("unsupported shell: %s", shell)
-	}
-}
-
-// applyZshConfig applies Zsh-specific configuration
-func (i *Installer) applyZshConfig(tool *Tool) error {
-	config := tool.ShellConfig
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	zshrc := filepath.Join(homeDir, ".zshrc")
-	content := []string{}
-
-	// Add environment variables
-	if len(config.Exports) > 0 {
-		content = append(content, "\n# Environment variables")
-		for key, value := range config.Exports {
-			content = append(content, fmt.Sprintf("export %s=%s", key, value))
-		}
-	}
-
-	// Add PATH additions
-	if len(config.Path) > 0 {
-		content = append(content, "\n# PATH additions")
-		for _, path := range config.Path {
-			content = append(content, fmt.Sprintf("export PATH=%s:$PATH", path))
-		}
-	}
-
-	// Read existing .zshrc
-	existingContent, err := os.ReadFile(zshrc)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to read .zshrc: %w", err)
-	}
-
-	// Prepare new content
-	var newContent strings.Builder
-	if len(existingContent) > 0 {
-		newContent.Write(existingContent)
-		newContent.WriteString("\n\n")
-	}
-
-	// Add configuration header
-	newContent.WriteString(fmt.Sprintf("# Configuration for %s\n", tool.Name))
-
-	// Add aliases
-	if len(config.Exports) > 0 {
-		newContent.WriteString("\n# Aliases\n")
-		for alias, cmd := range config.Exports {
-			newContent.WriteString(fmt.Sprintf("alias %s='%s'\n", alias, cmd))
-		}
-	}
-
-	// Add functions
-	if len(config.Functions) > 0 {
-		newContent.WriteString("\n# Functions\n")
-		for name, body := range config.Functions {
-			newContent.WriteString(fmt.Sprintf("%s() {\n%s\n}\n", name, body))
-		}
-	}
-
-	// Write updated .zshrc
-	if err := os.WriteFile(zshrc, []byte(newContent.String()), 0644); err != nil {
-		return fmt.Errorf("failed to write .zshrc: %w", err)
-	}
-
-	return nil
-}
-
-// applyBashConfig applies Bash-specific configuration
-func (i *Installer) applyBashConfig(tool *Tool) error {
-	config := tool.ShellConfig
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	bashrc := filepath.Join(homeDir, ".bashrc")
-	content := []string{}
-
-	// Add environment variables
-	if len(config.Exports) > 0 {
-		content = append(content, "\n# Environment variables")
-		for key, value := range config.Exports {
-			content = append(content, fmt.Sprintf("export %s=%s", key, value))
-		}
-	}
-
-	// Add PATH additions
-	if len(config.Path) > 0 {
-		content = append(content, "\n# PATH additions")
-		for _, path := range config.Path {
-			content = append(content, fmt.Sprintf("export PATH=%s:$PATH", path))
-		}
-	}
-
-	// Read existing .bashrc
-	existingContent, err := os.ReadFile(bashrc)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to read .bashrc: %w", err)
-	}
-
-	// Prepare new content
-	var newContent strings.Builder
-	if len(existingContent) > 0 {
-		newContent.Write(existingContent)
-		newContent.WriteString("\n\n")
-	}
-
-	// Add configuration header
-	newContent.WriteString(fmt.Sprintf("# Configuration for %s\n", tool.Name))
-
-	// Add aliases
-	if len(config.Exports) > 0 {
-		newContent.WriteString("\n# Aliases\n")
-		for alias, cmd := range config.Exports {
-			newContent.WriteString(fmt.Sprintf("alias %s='%s'\n", alias, cmd))
-		}
-	}
-
-	// Add functions
-	if len(config.Functions) > 0 {
-		newContent.WriteString("\n# Functions\n")
-		for name, body := range config.Functions {
-			newContent.WriteString(fmt.Sprintf("%s() {\n%s\n}\n", name, body))
-		}
-	}
-
-	// Write updated .bashrc
-	if err := os.WriteFile(bashrc, []byte(newContent.String()), 0644); err != nil {
-		return fmt.Errorf("failed to write .bashrc: %w", err)
-	}
-
-	return nil
-}
-
-// applyFishConfig applies Fish-specific configuration
-func (i *Installer) applyFishConfig(tool *Tool) error {
-	config := tool.ShellConfig
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	fishConfig := filepath.Join(homeDir, ".config", "fish", "config.fish")
-	content := []string{}
-
-	// Add environment variables
-	if len(config.Exports) > 0 {
-		content = append(content, "\n# Environment variables")
-		for key, value := range config.Exports {
-			content = append(content, fmt.Sprintf("set -x %s %s", key, value))
-		}
-	}
-
-	// Add PATH additions
-	if len(config.Path) > 0 {
-		content = append(content, "\n# PATH additions")
-		for _, path := range config.Path {
-			content = append(content, fmt.Sprintf("fish_add_path %s", path))
-		}
-	}
-
-	// Read existing fish config
-	existingContent, err := os.ReadFile(fishConfig)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to read fish config: %w", err)
-	}
-
-	// Prepare new content
-	var newContent strings.Builder
-	if len(existingContent) > 0 {
-		newContent.Write(existingContent)
-		newContent.WriteString("\n\n")
-	}
-
-	// Add configuration header
-	newContent.WriteString(fmt.Sprintf("# Configuration for %s\n", tool.Name))
-
-	// Add aliases
-	if len(config.Exports) > 0 {
-		newContent.WriteString("\n# Aliases\n")
-		for alias, cmd := range config.Exports {
-			newContent.WriteString(fmt.Sprintf("alias %s='%s'\n", alias, cmd))
-		}
-	}
-
-	// Add functions
-	if len(config.Functions) > 0 {
-		newContent.WriteString("\n# Functions\n")
-		for name, body := range config.Functions {
-			newContent.WriteString(fmt.Sprintf("function %s\n%s\nend\n", name, body))
-		}
-	}
-
-	// Write updated fish config
-	if err := os.WriteFile(fishConfig, []byte(newContent.String()), 0644); err != nil {
-		return fmt.Errorf("failed to write fish config: %w", err)
-	}
-
-	return nil
-}
-
-// reloadShellConfig reloads the shell configuration for the given shell
-func (i *Installer) reloadShellConfig(shell string) error {
-	var reloadCmd PostInstallCommand
-	switch shell {
-	case "zsh":
-		reloadCmd = PostInstallCommand{
-			Command:     "zsh -c 'source ~/.zshrc'",
-			Description: "Reload zsh configuration",
-		}
-	case "bash":
-		reloadCmd = PostInstallCommand{
-			Command:     "bash -c 'source ~/.bashrc'",
-			Description: "Reload bash configuration",
-		}
-	case "fish":
-		reloadCmd = PostInstallCommand{
-			Command:     "fish -c 'source ~/.config/fish/config.fish'",
-			Description: "Reload fish configuration",
-		}
-	default:
-		return fmt.Errorf("unsupported shell: %s", shell)
-	}
-	return i.runPostInstall(reloadCmd)
-}
-
-// InstallOptions represents options for tool installation
-type InstallOptions struct {
+// Options represents options for installing tools
+type Options struct {
 	Logger           *log.Logger
 	PackageManager   interfaces.PackageManager
 	Tools            []*interfaces.Tool
@@ -888,53 +277,296 @@ type InstallOptions struct {
 	AdditionalPaths  []string
 }
 
-// InstallCoreTools installs the core development tools
-func InstallCoreTools(opts *InstallOptions) error {
+// CoreTools installs core tools
+func CoreTools(opts *Options) error {
 	if opts == nil {
-		return fmt.Errorf("install options cannot be nil")
+		return fmt.Errorf("options are nil")
 	}
 
-	installer := NewInstaller(opts.PackageManager)
-	installer.Logger = opts.Logger
+	installer := &Installer{
+		PackageManager: opts.PackageManager,
+		Logger:        opts.Logger,
+	}
 
 	for _, tool := range opts.Tools {
-		opts.Logger.Info("Installing %s...", tool.Name)
-		if err := installer.Install(&Tool{
-			Name:        tool.Name,
-			PackageName: tool.Name,
-			Description: tool.Description,
-		}); err != nil {
-			opts.Logger.Error("Failed to install %s: %v", tool.Name, err)
+		if err := installer.Install(tool); err != nil {
+			return fmt.Errorf("failed to install %s: %v", tool.Name, err)
 		}
 	}
 
 	if !opts.SkipVerification {
-		if err := VerifyCoreTools(opts); err != nil {
-			return fmt.Errorf("verification failed: %w", err)
+		return VerifyCoreTools(opts)
+	}
+
+	return nil
+}
+
+// VerifyCoreTools verifies core tools are installed correctly
+func VerifyCoreTools(opts *Options) error {
+	if opts == nil {
+		return fmt.Errorf("options are nil")
+	}
+
+	installer := &Installer{
+		PackageManager: opts.PackageManager,
+		Logger:        opts.Logger,
+	}
+
+	for _, tool := range opts.Tools {
+		if tool.VerifyCommand != "" {
+			if err := installer.verifyInstallation(tool); err != nil {
+				return fmt.Errorf("verification failed for %s: %v", tool.Name, err)
+			}
 		}
 	}
 
 	return nil
 }
 
-// VerifyCoreTools verifies the installation of core development tools
-func VerifyCoreTools(opts *InstallOptions) error {
-	if opts == nil {
-		return fmt.Errorf("install options cannot be nil")
+// Helper functions
+
+func (i *Installer) installWithRetry(pkg string) error {
+	return i.retryOperation(func() error {
+		return i.PackageManager.Install(pkg)
+	})
+}
+
+func (i *Installer) verifyInstallation(tool *interfaces.Tool) error {
+	return i.retryOperation(func() error {
+		cmd := exec.Command("sh", "-c", tool.VerifyCommand)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("verification command failed: %v", err)
+		}
+		return nil
+	})
+}
+
+func (i *Installer) retryOperation(op func() error) error {
+	var lastErr error
+	for attempt := 0; attempt < i.MaxRetries; attempt++ {
+		if err := op(); err != nil {
+			lastErr = err
+			i.Logger.Warn("Operation failed (attempt %d/%d): %v", attempt+1, i.MaxRetries, err)
+			if attempt < i.MaxRetries-1 {
+				time.Sleep(i.RetryDelay)
+				continue
+			}
+		} else {
+			return nil
+		}
+	}
+	return lastErr
+}
+
+func (i *Installer) runCommand(cmd string) error {
+	command := exec.Command("sh", "-c", cmd)
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	return command.Run()
+}
+
+func (i *Installer) setupConfigFiles(tool *interfaces.Tool) error {
+	for _, file := range tool.ConfigFiles {
+		if err := i.createFile(file.Source, file.Destination, file.Mode); err != nil {
+			return fmt.Errorf("failed to set up config files: %v", err)
+		}
+	}
+	return nil
+}
+
+func (i *Installer) applyShellConfig(tool *interfaces.Tool) error {
+	if tool.ShellConfig.Aliases == nil && tool.ShellConfig.Env == nil && len(tool.ShellConfig.Path) == 0 {
+		return nil
 	}
 
-	installer := NewInstaller(opts.PackageManager)
-	installer.Logger = opts.Logger
+	shell, err := i.getCurrentShell()
+	if err != nil {
+		return fmt.Errorf("failed to detect current shell: %v", err)
+	}
 
-	for _, tool := range opts.Tools {
-		opts.Logger.Info("Verifying %s...", tool.Name)
-		if err := installer.verifyInstallation(&Tool{
-			Name:        tool.Name,
-			PackageName: tool.Name,
-			Description: tool.Description,
-		}); err != nil {
-			opts.Logger.Error("Failed to verify %s: %v", tool.Name, err)
+	switch {
+	case strings.Contains(shell, "zsh"):
+		return i.applyZshConfig(tool)
+	case strings.Contains(shell, "bash"):
+		return i.applyBashConfig(tool)
+	case strings.Contains(shell, "fish"):
+		return i.applyFishConfig(tool)
+	default:
+		return fmt.Errorf("unsupported shell: %s", shell)
+	}
+}
+
+func (i *Installer) createFile(source, destination string, mode string) error {
+	// Create parent directories if they don't exist
+	if err := os.MkdirAll(filepath.Dir(destination), 0755); err != nil {
+		return fmt.Errorf("failed to create parent directories: %v", err)
+	}
+
+	// Read source file
+	content, err := os.ReadFile(source)
+	if err != nil {
+		return fmt.Errorf("failed to read source file: %v", err)
+	}
+
+	// Parse mode string into os.FileMode
+	var fileMode os.FileMode = 0644 // Default mode
+	if mode != "" {
+		parsed, err := strconv.ParseUint(mode, 8, 32)
+		if err != nil {
+			return fmt.Errorf("invalid file mode %s: %v", mode, err)
 		}
+		fileMode = os.FileMode(parsed)
+	}
+
+	// Write to destination with specified mode
+	if err := os.WriteFile(destination, content, fileMode); err != nil {
+		return fmt.Errorf("failed to write destination file: %v", err)
+	}
+
+	return nil
+}
+
+func (i *Installer) getCurrentShell() (string, error) {
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		return "", fmt.Errorf("SHELL environment variable not set")
+	}
+	return shell, nil
+}
+
+func (i *Installer) applyZshConfig(tool *interfaces.Tool) error {
+	configDir := filepath.Join(os.Getenv("HOME"), ".zsh")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("failed to create zsh config directory: %v", err)
+	}
+
+	configFile := filepath.Join(configDir, fmt.Sprintf("%s.zsh", tool.Name))
+	var config strings.Builder
+
+	// Add aliases
+	for alias, cmd := range tool.ShellConfig.Aliases {
+		config.WriteString(fmt.Sprintf("alias %s='%s'\n", alias, cmd))
+	}
+
+	// Add environment variables
+	for key, value := range tool.ShellConfig.Env {
+		config.WriteString(fmt.Sprintf("export %s='%s'\n", key, value))
+	}
+
+	// Add PATH entries
+	for _, path := range tool.ShellConfig.Path {
+		config.WriteString(fmt.Sprintf("export PATH=\"%s:$PATH\"\n", path))
+	}
+
+	// Write the config file
+	if err := os.WriteFile(configFile, []byte(config.String()), 0644); err != nil {
+		return fmt.Errorf("failed to write zsh config: %v", err)
+	}
+
+	// Add source line to .zshrc if not already present
+	zshrc := filepath.Join(os.Getenv("HOME"), ".zshrc")
+	sourceLine := fmt.Sprintf("source %s", configFile)
+	
+	content, err := os.ReadFile(zshrc)
+	if err != nil {
+		return fmt.Errorf("failed to read .zshrc: %v", err)
+	}
+
+	if !strings.Contains(string(content), sourceLine) {
+		f, err := os.OpenFile(zshrc, os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open .zshrc: %v", err)
+		}
+		defer f.Close()
+
+		if _, err := f.WriteString(fmt.Sprintf("\n# Added by bootstrap-cli\n%s\n", sourceLine)); err != nil {
+			return fmt.Errorf("failed to update .zshrc: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (i *Installer) applyBashConfig(tool *interfaces.Tool) error {
+	configDir := filepath.Join(os.Getenv("HOME"), ".bash")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("failed to create bash config directory: %v", err)
+	}
+
+	configFile := filepath.Join(configDir, fmt.Sprintf("%s.bash", tool.Name))
+	var config strings.Builder
+
+	// Add aliases
+	for alias, cmd := range tool.ShellConfig.Aliases {
+		config.WriteString(fmt.Sprintf("alias %s='%s'\n", alias, cmd))
+	}
+
+	// Add environment variables
+	for key, value := range tool.ShellConfig.Env {
+		config.WriteString(fmt.Sprintf("export %s='%s'\n", key, value))
+	}
+
+	// Add PATH entries
+	for _, path := range tool.ShellConfig.Path {
+		config.WriteString(fmt.Sprintf("export PATH=\"%s:$PATH\"\n", path))
+	}
+
+	// Write the config file
+	if err := os.WriteFile(configFile, []byte(config.String()), 0644); err != nil {
+		return fmt.Errorf("failed to write bash config: %v", err)
+	}
+
+	// Add source line to .bashrc if not already present
+	bashrc := filepath.Join(os.Getenv("HOME"), ".bashrc")
+	sourceLine := fmt.Sprintf("source %s", configFile)
+	
+	content, err := os.ReadFile(bashrc)
+	if err != nil {
+		return fmt.Errorf("failed to read .bashrc: %v", err)
+	}
+
+	if !strings.Contains(string(content), sourceLine) {
+		f, err := os.OpenFile(bashrc, os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open .bashrc: %v", err)
+		}
+		defer f.Close()
+
+		if _, err := f.WriteString(fmt.Sprintf("\n# Added by bootstrap-cli\n%s\n", sourceLine)); err != nil {
+			return fmt.Errorf("failed to update .bashrc: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (i *Installer) applyFishConfig(tool *interfaces.Tool) error {
+	configDir := filepath.Join(os.Getenv("HOME"), ".config/fish/conf.d")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("failed to create fish config directory: %v", err)
+	}
+
+	configFile := filepath.Join(configDir, fmt.Sprintf("%s.fish", tool.Name))
+	var config strings.Builder
+
+	// Add aliases
+	for alias, cmd := range tool.ShellConfig.Aliases {
+		config.WriteString(fmt.Sprintf("alias %s '%s'\n", alias, cmd))
+	}
+
+	// Add environment variables
+	for key, value := range tool.ShellConfig.Env {
+		config.WriteString(fmt.Sprintf("set -gx %s '%s'\n", key, value))
+	}
+
+	// Add PATH entries
+	for _, path := range tool.ShellConfig.Path {
+		config.WriteString(fmt.Sprintf("fish_add_path '%s'\n", path))
+	}
+
+	// Write the config file
+	if err := os.WriteFile(configFile, []byte(config.String()), 0644); err != nil {
+		return fmt.Errorf("failed to write fish config: %v", err)
 	}
 
 	return nil

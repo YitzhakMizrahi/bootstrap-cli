@@ -10,38 +10,26 @@ func TestInstallationState(t *testing.T) {
 	state := NewInstallationState()
 
 	// Test initial state
-	if state.IsInstalled("test") {
-		t.Error("Package should not be installed initially")
+	if state.Status != "initialized" {
+		t.Error("Initial state should be 'initialized'")
 	}
 
-	// Test marking as pending
-	state.MarkPending("test")
-	if !state.IsPending("test") {
-		t.Error("Package should be pending")
+	// Test state updates
+	state.UpdateState("test", "running", nil)
+	if state.CurrentStep != "test" || state.Status != "running" {
+		t.Error("State should be updated correctly")
 	}
 
-	// Test marking as installed
-	state.MarkInstalled("test")
-	if !state.IsInstalled("test") {
-		t.Error("Package should be installed")
-	}
-	if state.IsPending("test") {
-		t.Error("Package should not be pending after installation")
-	}
-
-	// Test marking as failed
-	state.MarkFailed("test2", errors.New("test error"))
-	if !state.IsFailed("test2") {
-		t.Error("Package should be failed")
-	}
-	if err := state.GetFailedError("test2"); err == nil {
-		t.Error("Should return error for failed package")
+	// Test error state
+	testErr := errors.New("test error")
+	state.UpdateState("test", "failed", testErr)
+	if state.Error != testErr {
+		t.Error("Error should be set correctly")
 	}
 }
 
 func TestInstallationPipeline(t *testing.T) {
-	state := NewInstallationState()
-	pipeline := NewInstallationPipeline(state)
+	pipeline := NewInstallationPipeline()
 
 	// Test successful step
 	successStep := InstallationStep{
@@ -95,8 +83,7 @@ func TestPlatformDetection(t *testing.T) {
 }
 
 func TestPipelineTimeout(t *testing.T) {
-	state := NewInstallationState()
-	pipeline := NewInstallationPipeline(state)
+	pipeline := NewInstallationPipeline()
 
 	// Test step with timeout
 	timeoutStep := InstallationStep{
@@ -116,8 +103,7 @@ func TestPipelineTimeout(t *testing.T) {
 }
 
 func TestPipelineRetry(t *testing.T) {
-	state := NewInstallationState()
-	pipeline := NewInstallationPipeline(state)
+	pipeline := NewInstallationPipeline()
 
 	attempts := 0
 	retryStep := InstallationStep{
@@ -129,10 +115,12 @@ func TestPipelineRetry(t *testing.T) {
 			}
 			return nil
 		},
-		Timeout: 5 * time.Second,
+		RetryCount: 3,
+		RetryDelay: 100 * time.Millisecond,
 	}
+	pipeline.AddStep(retryStep)
 
-	err := pipeline.ExecuteWithRetry(retryStep, 3)
+	err := pipeline.Execute()
 	if err != nil {
 		t.Errorf("Step should succeed after retries: %v", err)
 	}

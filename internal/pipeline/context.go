@@ -1,3 +1,6 @@
+// Package pipeline provides a flexible and extensible installation pipeline system
+// for the bootstrap-cli, managing the installation process, dependencies, and
+// post-installation tasks.
 package pipeline
 
 import (

@@ -1,3 +1,5 @@
+// Package cmd provides the root command and command registration for the bootstrap-cli,
+// coordinating all subcommands and managing global flags and configuration.
 package cmd
 
 import (
@@ -29,7 +31,7 @@ It helps you install and configure:
 - Shell configurations and plugins
 - Programming language environments
 - Dotfiles management`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRun: func(_ *cobra.Command, _ []string) {
 		// Set up logging based on debug flag
 		if debug {
 			logger = log.New(log.DebugLevel)

@@ -1,3 +1,5 @@
+// Package main is the entry point for the bootstrap-cli application,
+// handling initial configuration extraction and command execution setup.
 package main
 
 import (
@@ -17,8 +19,8 @@ func main() {
 	defer os.RemoveAll(tempDir) // Clean up on exit
 
 	// Create config loader and extract configs
-	loader := config.NewConfigLoader(tempDir)
-	if err := loader.ExtractEmbeddedConfigs(); err != nil {
+	configLoader := config.NewLoader(tempDir)
+	if err := configLoader.ExtractEmbeddedConfigs(); err != nil {
 		log.Fatalf("Failed to extract embedded configs: %v", err)
 	}
 

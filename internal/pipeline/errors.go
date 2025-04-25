@@ -89,6 +89,8 @@ func (e *PlatformError) Unwrap() error {
 }
 
 // Helper functions to create errors
+
+// NewInstallationError creates a new installation error with the given tool, step, message, and cause.
 func NewInstallationError(tool, step, message string, cause error) error {
 	return &InstallationError{
 		Tool:    tool,
@@ -98,6 +100,7 @@ func NewInstallationError(tool, step, message string, cause error) error {
 	}
 }
 
+// NewVerificationError creates a new verification error with the given tool, message, and cause
 func NewVerificationError(tool, message string, cause error) error {
 	return &VerificationError{
 		Tool:    tool,
@@ -106,6 +109,7 @@ func NewVerificationError(tool, message string, cause error) error {
 	}
 }
 
+// NewPackageManagerError creates a new package manager error with the given operation, package, message, and cause
 func NewPackageManagerError(operation, pkg, message string, cause error) error {
 	return &PackageManagerError{
 		Operation: operation,
@@ -115,6 +119,7 @@ func NewPackageManagerError(operation, pkg, message string, cause error) error {
 	}
 }
 
+// NewPlatformError creates a new platform error with the given platform, message, and cause
 func NewPlatformError(platform, message string, cause error) error {
 	return &PlatformError{
 		Platform: platform,

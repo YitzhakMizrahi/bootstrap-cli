@@ -1,0 +1,113 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: Language Configuration Schema
+description: Schema for language configuration files in bootstrap-cli
+type: object
+
+required:
+  - name
+  - description
+  - category
+  - version
+  - installer
+  - verify_command
+
+properties:
+  name:
+    type: string
+    description: Name of the programming language
+    minLength: 1
+
+  description:
+    type: string
+    description: Brief description of the language
+    minLength: 1
+
+  category:
+    type: string
+    description: Category of the configuration (should be 'language')
+    enum: ["language"]
+
+  tags:
+    type: array
+    description: Tags for categorizing and searching
+    items:
+      type: string
+    uniqueItems: true
+
+  version:
+    type: string
+    description: Version of the language to install
+    minLength: 1
+
+  installer:
+    type: string
+    description: Name of the version manager/installer to use
+    minLength: 1
+
+  verify_command:
+    type: string
+    description: Command to verify successful installation
+    minLength: 1
+
+  dependencies:
+    type: array
+    description: List of required dependencies
+    items:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: Name of the dependency
+        type:
+          type: string
+          enum: ["package", "tool"]
+        optional:
+          type: boolean
+          default: false
+
+  package_names:
+    type: object
+    description: Package names for different package managers
+    properties:
+      apt:
+        type: string
+      brew:
+        type: string
+      dnf:
+        type: string
+      pacman:
+        type: string
+
+  post_install:
+    type: array
+    description: Commands to run after installation
+    items:
+      type: object
+      required:
+        - command
+        - description
+      properties:
+        command:
+          type: string
+          description: Command to execute
+        description:
+          type: string
+          description: Description of what the command does
+
+  shell_config:
+    type: object
+    description: Shell configuration settings
+    properties:
+      env:
+        type: object
+        description: Environment variables to set
+        additionalProperties:
+          type: string
+      source:
+        type: array
+        description: Shell scripts to source
+        items:
+          type: string 

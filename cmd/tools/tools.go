@@ -1,3 +1,5 @@
+// Package tools provides command-line tools for managing package installations,
+// verifications, and system configurations through the bootstrap-cli interface.
 package tools
 
 import (
@@ -56,7 +58,7 @@ This command is used internally by the init command to install selected tools.`,
 	return cmd
 }
 
-func runInstall(cmd *cobra.Command, args []string) error {
+func runInstall(cmd *cobra.Command, _ []string) error {
 	logger = log.New(log.InfoLevel)
 	if debug, _ := cmd.Flags().GetBool("debug"); debug {
 		logger.SetLevel(log.DebugLevel)
@@ -91,8 +93,8 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Create installation options
-	opts := &install.InstallOptions{
+	// Initialize installation options
+	opts := &install.Options{
 		Logger:           logger,
 		PackageManager:   pm,
 		Tools:            selectedTools,
@@ -101,8 +103,8 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		AdditionalPaths: []string{"/usr/bin", "/usr/local/bin"},
 	}
 
-	// Install selected tools
-	if err := install.InstallCoreTools(opts); err != nil {
+	// Install core tools
+	if err := install.CoreTools(opts); err != nil {
 		return fmt.Errorf("failed to install core tools: %w", err)
 	}
 
@@ -128,7 +130,7 @@ This command is used internally by the init command to verify selected tools.`,
 	return cmd
 }
 
-func runVerify(cmd *cobra.Command, args []string) error {
+func runVerify(cmd *cobra.Command, _ []string) error {
 	logger = log.New(log.InfoLevel)
 	if debug, _ := cmd.Flags().GetBool("debug"); debug {
 		logger.SetLevel(log.DebugLevel)
@@ -151,10 +153,18 @@ func runVerify(cmd *cobra.Command, args []string) error {
 	logger.Info("System: %s %s (%s)", sysInfo.Distro, sysInfo.Version, sysInfo.OS)
 	logger.Info("Package Manager: %s", pm.GetName())
 
-	// Create verification options
-	opts := &install.InstallOptions{
+	// Get selected tools
+	selectedTools := install.GetSelectedTools()
+	if len(selectedTools) == 0 {
+		logger.Info("No tools selected for verification.")
+		return nil
+	}
+
+	// Initialize installation options
+	opts := &install.Options{
 		Logger:         logger,
 		PackageManager: pm,
+		Tools:          selectedTools,
 	}
 
 	// Run verification

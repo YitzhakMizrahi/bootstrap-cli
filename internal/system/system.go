@@ -1,3 +1,6 @@
+// Package system provides system detection and configuration functionality
+// for the bootstrap-cli, including OS detection, package manager detection,
+// and system-level operations.
 package system
 
 import (
@@ -9,8 +12,8 @@ import (
 	"strings"
 )
 
-// SystemInfo contains information about the current system
-type SystemInfo struct {
+// Info contains information about the current system
+type Info struct {
 	OS              string
 	Arch            string
 	Shell           string
@@ -45,8 +48,8 @@ type SystemInfo struct {
 }
 
 // Detect gathers information about the current system
-func Detect() (*SystemInfo, error) {
-	info := &SystemInfo{
+func Detect() (*Info, error) {
+	info := &Info{
 		OS:     runtime.GOOS,
 		Arch:   runtime.GOARCH,
 		Shell:  os.Getenv("SHELL"),
@@ -173,7 +176,7 @@ func getKernelVersion() (string, error) {
 }
 
 // getLinuxDistroInfo detects Linux distribution and version
-func getLinuxDistroInfo(info *SystemInfo) error {
+func getLinuxDistroInfo(info *Info) error {
 	// Try /etc/os-release first
 	if data, err := os.ReadFile("/etc/os-release"); err == nil {
 		scanner := bufio.NewScanner(strings.NewReader(string(data)))
@@ -214,7 +217,7 @@ func getLinuxDistroInfo(info *SystemInfo) error {
 }
 
 // getDarwinInfo detects macOS version
-func getDarwinInfo(info *SystemInfo) error {
+func getDarwinInfo(info *Info) error {
 	info.Distro = "macOS"
 	cmd := exec.Command("sw_vers", "-productVersion")
 	out, err := cmd.Output()

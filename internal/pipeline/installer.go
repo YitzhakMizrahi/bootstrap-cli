@@ -17,7 +17,7 @@ type Installer struct {
 // NewInstaller creates a new installer instance
 func NewInstaller(platform *Platform, pkgManager PackageManager) (*Installer, error) {
 	context := NewInstallationContext(platform, pkgManager)
-	pipeline := NewInstallationPipeline(context.State)
+	pipeline := NewInstallationPipeline()
 	
 	return &Installer{
 		Context:  context,
@@ -128,8 +128,8 @@ func (i *Installer) Uninstall(tool *Tool) error {
 }
 
 // GetStatus returns the current installation status of a tool
-func (i *Installer) GetStatus(tool *Tool) string {
-	return i.Context.State.Status(tool.Name)
+func (i *Installer) GetStatus(_ *Tool) string {
+	return i.Context.State.Status
 }
 
 // GetProgress returns the current progress of the installation pipeline
@@ -138,16 +138,21 @@ func (i *Installer) GetProgress() string {
 }
 
 // executeWithRetry executes a command with retries
-func executeWithRetry(cmd *exec.Cmd, retries int, delay time.Duration) error {
-	var err error
-	for i := 0; i < retries; i++ {
-		err = cmd.Run()
-		if err == nil {
-			return nil
-		}
-		if i < retries-1 {
+func executeWithRetry(cmd *exec.Cmd, maxRetries int, delay time.Duration) error {
+	var lastErr error
+	
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
 			time.Sleep(delay)
 		}
+		
+		if err := cmd.Run(); err != nil {
+			lastErr = err
+			continue
+		}
+		
+		return nil
 	}
-	return fmt.Errorf("failed after %d retries: %w", retries, err)
+	
+	return fmt.Errorf("command failed after %d attempts: %v", maxRetries, lastErr)
 } 

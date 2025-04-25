@@ -5,22 +5,22 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/cmdexec"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/utils"
 )
 
 // ToolCategory represents the category of a tool
 type ToolCategory string
 
 const (
-	// Essential tools are required for basic system functionality
+	// CategoryEssential represents tools that are required for basic system functionality
 	CategoryEssential ToolCategory = "essential"
-	// Development tools are used for software development
+	// CategoryDevelopment represents tools that are used for software development
 	CategoryDevelopment ToolCategory = "development"
-	// Shell tools enhance the shell experience
+	// CategoryShell represents tools that enhance the shell experience
 	CategoryShell ToolCategory = "shell"
-	// System tools are used for system management
+	// CategorySystem represents tools that are used for system management
 	CategorySystem ToolCategory = "system"
 )
 
@@ -97,7 +97,7 @@ type Tool struct {
 	PlatformConfig map[string]InstallStrategy
 	
 	// Command executor for running commands
-	cmdExecutor *utils.CommandExecutor
+	cmdExecutor *cmdexec.CommandExecutor
 
 	// Logger for the tool
 	logger interfaces.Logger
@@ -110,7 +110,7 @@ func NewTool(name string, category ToolCategory) *Tool {
 		Name:            name,
 		Category:        category,
 		PlatformConfig:  make(map[string]InstallStrategy),
-		cmdExecutor:     utils.NewCommandExecutor(logger),
+		cmdExecutor:     cmdexec.NewCommandExecutor(logger),
 		logger:          logger,
 	}
 }
@@ -164,7 +164,7 @@ func (t *Tool) checkRequiredFile(file string) (bool, error) {
 }
 
 // VerifyInstallation checks if the tool is installed correctly
-func (t *Tool) VerifyInstallation(ctx *InstallationContext) error {
+func (t *Tool) VerifyInstallation(_ *InstallationContext) error {
 	// Check binary paths with retries
 	for _, path := range t.Verify.BinaryPaths {
 		var exists bool

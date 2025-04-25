@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/testutil"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 )
 
 func TestConfig_GenerateConfig(t *testing.T) {
@@ -22,7 +22,7 @@ func TestConfig_GenerateConfig(t *testing.T) {
 	os.Setenv("TMPDIR", tempDir)
 	defer os.Setenv("TMPDIR", oldTmpDir)
 
-	mockLogger := testutil.NewMockLogger()
+	mockLogger := log.NewMockLogger()
 	tests := []struct {
 		name     string
 		shell    string
@@ -99,7 +99,7 @@ func TestConfig_Apply(t *testing.T) {
 	os.Setenv("TMPDIR", tempDir)
 	defer os.Setenv("TMPDIR", oldTmpDir)
 
-	mockLogger := testutil.NewMockLogger()
+	mockLogger := log.NewMockLogger()
 
 	tests := []struct {
 		name          string

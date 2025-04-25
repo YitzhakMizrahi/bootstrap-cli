@@ -137,11 +137,11 @@ type mockPackageManager struct {
 	uninstallCount int
 }
 
-func (m *mockPackageManager) Install(packageName string) error {
+func (m *mockPackageManager) Install(_ string) error {
 	return nil
 }
 
-func (m *mockPackageManager) Remove(pkg string) error {
+func (m *mockPackageManager) Remove(_ string) error {
 	m.uninstallCount++
 	if m.uninstallCount <= m.failCount {
 		return fmt.Errorf("mock remove error")
@@ -161,11 +161,11 @@ func (m *mockPackageManager) Update() error {
 	return nil
 }
 
-func (m *mockPackageManager) IsInstalled(pkg string) bool {
+func (m *mockPackageManager) IsInstalled(_ string) bool {
 	return false
 }
 
-func (m *mockPackageManager) GetVersion(packageName string) (string, error) {
+func (m *mockPackageManager) GetVersion(_ string) (string, error) {
 	return "1.0.0", nil
 }
 
@@ -181,6 +181,6 @@ func (m *mockPackageManager) Upgrade() error {
 	return nil
 }
 
-func (m *mockPackageManager) SetupSpecialPackage(pkg string) error {
+func (m *mockPackageManager) SetupSpecialPackage(_ string) error {
 	return nil
 } 

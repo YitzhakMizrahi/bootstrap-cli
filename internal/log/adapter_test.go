@@ -5,47 +5,71 @@ import (
 	"time"
 )
 
+// mockLogger is a mock implementation of the Logger interface for testing
 type mockLogger struct {
-	debugMessages     []string
-	infoMessages      []string
-	warnMessages      []string
-	errorMessages     []string
-	commandStarts     []string
-	commandSuccesses  []string
-	commandErrors     []string
+	debugMessages   []string
+	infoMessages    []string
+	warnMessages    []string
+	errorMessages   []string
+	commandStarts   []string
+	commandSuccesses []string
+	commandErrors   []string
 }
 
-func (m *mockLogger) Debug(format string, args ...interface{}) {
+// newMockLogger creates a new mock logger
+func newMockLogger() *mockLogger {
+	return &mockLogger{
+		debugMessages:   make([]string, 0),
+		infoMessages:    make([]string, 0),
+		warnMessages:    make([]string, 0),
+		errorMessages:   make([]string, 0),
+		commandStarts:   make([]string, 0),
+		commandSuccesses: make([]string, 0),
+		commandErrors:   make([]string, 0),
+	}
+}
+
+// Debug logs a debug message
+func (m *mockLogger) Debug(format string, _ ...interface{}) {
 	m.debugMessages = append(m.debugMessages, format)
 }
 
-func (m *mockLogger) Info(format string, args ...interface{}) {
+// Info logs an info message
+func (m *mockLogger) Info(format string, _ ...interface{}) {
 	m.infoMessages = append(m.infoMessages, format)
 }
 
-func (m *mockLogger) Warn(format string, args ...interface{}) {
+// Warn logs a warning message
+func (m *mockLogger) Warn(format string, _ ...interface{}) {
 	m.warnMessages = append(m.warnMessages, format)
 }
 
-func (m *mockLogger) Error(format string, args ...interface{}) {
+// Error logs an error message
+func (m *mockLogger) Error(format string, _ ...interface{}) {
 	m.errorMessages = append(m.errorMessages, format)
 }
 
-func (m *mockLogger) CommandStart(cmd string, attempt, maxAttempts int) {
+// CommandStart logs the start of a command execution
+func (m *mockLogger) CommandStart(cmd string, _ int, _ int) {
 	m.commandStarts = append(m.commandStarts, cmd)
 }
 
-func (m *mockLogger) CommandSuccess(cmd string, duration time.Duration) {
+// CommandSuccess logs the successful completion of a command
+func (m *mockLogger) CommandSuccess(cmd string, _ time.Duration) {
 	m.commandSuccesses = append(m.commandSuccesses, cmd)
 }
 
-func (m *mockLogger) CommandError(cmd string, err error, attempt, maxAttempts int) {
+// CommandError logs a command execution error
+func (m *mockLogger) CommandError(cmd string, _ error, _ int, _ int) {
 	m.commandErrors = append(m.commandErrors, cmd)
 }
 
+// SetLevel sets the log level
+func (m *mockLogger) SetLevel(_ Level) {}
+
 func TestLogAdapter(t *testing.T) {
-	mock := &mockLogger{}
-	adapter := NewLogAdapter(mock)
+	mock := newMockLogger()
+	adapter := NewAdapter(mock)
 
 	tests := []struct {
 		name     string

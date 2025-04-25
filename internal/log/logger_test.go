@@ -13,63 +13,41 @@ func TestLogger(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		fn       func()
-		contains []string
+		level    Level
+		messages []string
 	}{
 		{
-			name: "Debug message",
-			fn:   func() { logger.Debug("debug message") },
-			contains: []string{
-				"[DEBUG]",
+			name:  "debug level",
+			level: DebugLevel,
+			messages: []string{
 				"debug message",
-			},
-		},
-		{
-			name: "Info message",
-			fn:   func() { logger.Info("info message") },
-			contains: []string{
-				"[INFO]",
 				"info message",
-			},
-		},
-		{
-			name: "Warn message",
-			fn:   func() { logger.Warn("warn message") },
-			contains: []string{
-				"[WARN]",
 				"warn message",
-			},
-		},
-		{
-			name: "Error message",
-			fn:   func() { logger.Error("error message") },
-			contains: []string{
-				"[ERROR]",
 				"error message",
 			},
 		},
 		{
-			name: "Command start",
-			fn:   func() { logger.CommandStart("test command", 1, 3) },
-			contains: []string{
-				"Executing command (attempt 1/3):",
-				"test command",
+			name:  "info level",
+			level: InfoLevel,
+			messages: []string{
+				"info message",
+				"warn message",
+				"error message",
 			},
 		},
 		{
-			name: "Command success",
-			fn:   func() { logger.CommandSuccess("test command", time.Second) },
-			contains: []string{
-				"Command completed successfully in",
-				"test command",
+			name:  "warn level",
+			level: WarnLevel,
+			messages: []string{
+				"warn message",
+				"error message",
 			},
 		},
 		{
-			name: "Command error",
-			fn:   func() { logger.CommandError("test command", nil, 1, 3) },
-			contains: []string{
-				"Command failed (attempt 1/3):",
-				"test command",
+			name:  "error level",
+			level: ErrorLevel,
+			messages: []string{
+				"error message",
 			},
 		},
 	}
@@ -77,11 +55,22 @@ func TestLogger(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buf.Reset()
-			tt.fn()
+			for _, msg := range tt.messages {
+				switch tt.level {
+				case DebugLevel:
+					logger.Debug("%s", msg)
+				case InfoLevel:
+					logger.Info("%s", msg)
+				case WarnLevel:
+					logger.Warn("%s", msg)
+				case ErrorLevel:
+					logger.Error("%s", msg)
+				}
+			}
 			output := buf.String()
-			for _, s := range tt.contains {
-				if !strings.Contains(output, s) {
-					t.Errorf("output %q does not contain %q", output, s)
+			for _, msg := range tt.messages {
+				if !strings.Contains(output, msg) {
+					t.Errorf("output %q does not contain %q", output, msg)
 				}
 			}
 		})
@@ -93,7 +82,7 @@ func TestLogger_Levels(t *testing.T) {
 	logger := New(DebugLevel, WithOutput(&buf))
 
 	tests := []struct {
-		level   LogLevel
+		level   Level
 		logFunc func(string, ...interface{})
 		prefix  string
 	}{

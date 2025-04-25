@@ -1,3 +1,5 @@
+// Package packages provides error types and utilities for package management operations,
+// including installation, removal, and version management across different package managers.
 package packages
 
 import (

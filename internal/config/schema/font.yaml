@@ -1,0 +1,80 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: Font Configuration Schema
+description: Schema for font configuration files in bootstrap-cli
+type: object
+
+required:
+  - name
+  - description
+  - category
+  - source
+  - install
+  - verify
+
+properties:
+  name:
+    type: string
+    description: Name of the font
+    minLength: 1
+
+  description:
+    type: string
+    description: Brief description of the font
+    minLength: 1
+
+  category:
+    type: string
+    description: Category of the font (e.g., programming, system)
+    minLength: 1
+
+  tags:
+    type: array
+    description: Tags for categorizing and searching
+    items:
+      type: string
+    uniqueItems: true
+
+  source:
+    type: string
+    description: URL or path to the font source
+    format: uri
+
+  system_dependencies:
+    type: array
+    description: List of system packages required for installation
+    items:
+      type: string
+
+  install:
+    type: array
+    description: Installation steps
+    minItems: 1
+    items:
+      type: object
+      required:
+        - command
+        - description
+      properties:
+        command:
+          type: string
+          description: Command to execute
+        description:
+          type: string
+          description: Description of what the command does
+
+  verify:
+    type: array
+    description: Verification steps to ensure successful installation
+    minItems: 1
+    items:
+      type: object
+      required:
+        - command
+        - description
+      properties:
+        command:
+          type: string
+          description: Command to verify installation
+        description:
+          type: string
+          description: Description of what the verification checks 

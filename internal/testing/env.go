@@ -1,4 +1,7 @@
-package testutil
+// Package testing provides testing utilities and helpers for the bootstrap-cli,
+// including test environment setup, temporary file and directory management,
+// and environment variable handling.
+package testing
 
 import (
 	"os"

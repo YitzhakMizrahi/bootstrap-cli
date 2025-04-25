@@ -1,3 +1,6 @@
+// Package implementations provides concrete implementations of various interfaces
+// used throughout the bootstrap-cli, including package managers for different
+// operating systems and package management systems.
 package implementations
 
 import (
@@ -101,7 +104,7 @@ func (a *APTManager) installPrerequisites() error {
 }
 
 // SetupSpecialPackage handles special package installations that require repository setup
-func (a *APTManager) SetupSpecialPackage(pkg string) error {
+func (a *APTManager) SetupSpecialPackage(_ string) error {
 	// No special setup needed for lsd and bat anymore as we're using direct package installation
 	// This method is kept for other packages that might need special repository setup
 	return nil

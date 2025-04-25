@@ -1,20 +1,28 @@
 name: Go
-description: Go programming language with goenv version manager
+description: Go programming language
 category: language
-tags: ["go", "runtime", "goenv"]
-version: latest
+tags: ["go", "golang", "runtime"]
+version: "1.21"
 installer: goenv
 verify_command: go version
 
+# Dependencies
+dependencies:
+  - name: goenv
+    type: package
+    optional: false
+
 package_names:
-  apt: golang
+  apt: golang-go
   brew: go
   dnf: golang
   pacman: go
 
 post_install:
-  - command: git clone https://github.com/syndbg/goenv.git ~/.goenv
-    description: Install goenv (Go Version Manager)
+  - command: goenv install 1.21
+    description: Install Go 1.21 using goenv
+  - command: goenv global 1.21
+    description: Set Go 1.21 as the global version
 
 shell_config:
   env:

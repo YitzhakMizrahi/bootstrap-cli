@@ -1,0 +1,28 @@
+categories:
+  - name: essential
+    description: Essential system tools
+    priority: 1
+    
+  - name: development
+    description: Development tools and utilities
+    priority: 2
+    
+  - name: shell
+    description: Shell enhancements and utilities
+    priority: 3
+    
+  - name: language_managers
+    description: Version managers for programming languages
+    priority: 4
+    
+  - name: languages
+    description: Programming languages and runtimes
+    priority: 5
+    
+  - name: editors
+    description: Text editors and IDEs
+    priority: 6
+    
+  - name: containers
+    description: Container and virtualization tools
+    priority: 7 

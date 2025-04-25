@@ -7,12 +7,32 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/implementations"
 )
+
+var (
+	selectedTools []*interfaces.Tool
+	selectedToolsMutex sync.RWMutex
+)
+
+// SetSelectedTools sets the selected tools for installation
+func SetSelectedTools(tools []*interfaces.Tool) {
+	selectedToolsMutex.Lock()
+	defer selectedToolsMutex.Unlock()
+	selectedTools = tools
+}
+
+// GetSelectedTools gets the selected tools for installation
+func GetSelectedTools() []*interfaces.Tool {
+	selectedToolsMutex.RLock()
+	defer selectedToolsMutex.RUnlock()
+	return selectedTools
+}
 
 // PackageMapping defines package names for different package managers
 type PackageMapping struct {
@@ -134,6 +154,11 @@ func (i *Installer) getPackageWithVersion(pkg, version string) string {
 func (i *Installer) getSystemPackageName(tool *Tool) string {
 	if tool == nil {
 		return ""
+	}
+
+	// If PackageNames is nil, just return the default PackageName
+	if tool.PackageNames == nil {
+		return tool.PackageName
 	}
 
 	// Try to get system-specific package name
@@ -852,4 +877,65 @@ func (i *Installer) reloadShellConfig(shell string) error {
 		return fmt.Errorf("unsupported shell: %s", shell)
 	}
 	return i.runPostInstall(reloadCmd)
+}
+
+// InstallOptions represents options for tool installation
+type InstallOptions struct {
+	Logger           *log.Logger
+	PackageManager   interfaces.PackageManager
+	Tools            []*interfaces.Tool
+	SkipVerification bool
+	AdditionalPaths  []string
+}
+
+// InstallCoreTools installs the core development tools
+func InstallCoreTools(opts *InstallOptions) error {
+	if opts == nil {
+		return fmt.Errorf("install options cannot be nil")
+	}
+
+	installer := NewInstaller(opts.PackageManager)
+	installer.Logger = opts.Logger
+
+	for _, tool := range opts.Tools {
+		opts.Logger.Info("Installing %s...", tool.Name)
+		if err := installer.Install(&Tool{
+			Name:        tool.Name,
+			PackageName: tool.Name,
+			Description: tool.Description,
+		}); err != nil {
+			opts.Logger.Error("Failed to install %s: %v", tool.Name, err)
+		}
+	}
+
+	if !opts.SkipVerification {
+		if err := VerifyCoreTools(opts); err != nil {
+			return fmt.Errorf("verification failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// VerifyCoreTools verifies the installation of core development tools
+func VerifyCoreTools(opts *InstallOptions) error {
+	if opts == nil {
+		return fmt.Errorf("install options cannot be nil")
+	}
+
+	installer := NewInstaller(opts.PackageManager)
+	installer.Logger = opts.Logger
+
+	for _, tool := range opts.Tools {
+		opts.Logger.Info("Verifying %s...", tool.Name)
+		if err := installer.verifyInstallation(&Tool{
+			Name:        tool.Name,
+			PackageName: tool.Name,
+			Description: tool.Description,
+		}); err != nil {
+			opts.Logger.Error("Failed to verify %s: %v", tool.Name, err)
+		}
+	}
+
+	return nil
 } 

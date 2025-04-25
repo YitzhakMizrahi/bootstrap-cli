@@ -12,8 +12,8 @@ import (
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/tools"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
@@ -46,8 +46,21 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 	logger.Info("Starting Bootstrap CLI initialization...")
 
+	// Define installation sections
+	sections := []ui.Section{
+		{Name: "System Detection", Status: "pending"},
+		{Name: "Tool Selection", Status: "pending"},
+		{Name: "Font Selection", Status: "pending"},
+		{Name: "Language Selection", Status: "pending"},
+		{Name: "Dotfiles Setup", Status: "pending"},
+	}
+
 	// Initialize config loader
 	configLoader := config.NewConfigLoader(filepath.Join(os.TempDir(), "bootstrap-cli"))
+
+	// Update progress for system detection
+	sections[0].Status = "current"
+	fmt.Println(ui.RenderProgressBar(sections, 80))
 
 	// Detect system info and package manager early as we'll need it for multiple phases
 	sysInfo, err := system.Detect()
@@ -62,6 +75,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 	logger.Info("System: %s %s (%s)", sysInfo.Distro, sysInfo.Version, sysInfo.OS)
 	logger.Info("Package Manager: %s", pm.GetName())
+
+	// Mark system detection as completed and update tool selection
+	sections[0].Status = "completed"
+	sections[1].Status = "current"
+	fmt.Println(ui.RenderProgressBar(sections, 80))
 
 	// --- Phase 1: Tool Selection ---
 	logger.Info("Step 1: Select tools to install")
@@ -87,6 +105,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("UI error: %w", err)
 	}
 
+	// Mark tool selection as completed and update font selection
+	sections[1].Status = "completed"
+	sections[2].Status = "current"
+	fmt.Println(ui.RenderProgressBar(sections, 80))
+
 	// Check if user quit
 	if selectorModel, ok := model.(*ui.ToolSelector); ok {
 		selectedNames := selectorModel.GetSelectedTools()
@@ -98,13 +121,13 @@ func runInit(cmd *cobra.Command, args []string) error {
 		// Convert selected names back to Tool objects
 		var selectedTools []*interfaces.Tool
 		for _, name := range selectedNames {
-			if tool, exists := toolMap[name]; exists {
+			if tool, ok := toolMap[name]; ok {
 				selectedTools = append(selectedTools, tool)
 			}
 		}
 
 		// Store selected tools for the installer
-		tools.SetSelectedTools(selectedTools)
+		install.SetSelectedTools(selectedTools)
 
 		if len(selectedTools) == 0 {
 			logger.Info("No tools selected. Skipping tool installation.")
@@ -125,16 +148,18 @@ func runInit(cmd *cobra.Command, args []string) error {
 				logger.Warn("Failed to configure needrestart for automatic restarts: %v", err)
 			}
 
-			opts := &tools.InstallOptions{
-				Logger:           logger,
-				PackageManager:   pm,
-				Tools:            selectedTools,
-				SkipVerification: false,
-				AdditionalPaths:  []string{"/usr/bin", "/usr/local/bin", "/opt/homebrew/bin"},
-			}
-
-			if err := tools.InstallCoreTools(opts); err != nil {
-				return fmt.Errorf("failed to install selected tools: %w", err)
+			// Install selected tools
+			for _, tool := range selectedTools {
+				logger.Info("Installing %s...", tool.Name)
+				installer := install.NewInstaller(pm)
+				installer.Logger = logger
+				if err := installer.Install(&install.Tool{
+					Name:        tool.Name,
+					PackageName: tool.Name,
+					Description: tool.Description,
+				}); err != nil {
+					logger.Error("Failed to install %s: %v", tool.Name, err)
+				}
 			}
 
 			logger.Success("Tool installation completed successfully!")
@@ -143,9 +168,14 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get tool selector model")
 	}
 
+	// Mark font selection as completed and update language selection
+	sections[2].Status = "completed"
+	sections[3].Status = "current"
+	fmt.Println(ui.RenderProgressBar(sections, 80))
+
 	// --- Phase 3: Font Selection ---
 	logger.Info("Step 3: Select fonts to install")
-	_, err = configLoader.LoadFonts() // We'll use the fonts later when we implement the UI
+	_, err = configLoader.LoadFonts()
 	if err != nil {
 		return fmt.Errorf("failed to load font configurations: %w", err)
 	}
@@ -161,28 +191,76 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Mark language selection as completed and update dotfiles setup
+	sections[3].Status = "completed"
+	sections[4].Status = "current"
+	fmt.Println(ui.RenderProgressBar(sections, 80))
+
 	// --- Phase 4: Language Selection ---
-	logger.Info("Step 4: Select programming languages to install")
-	_, err = configLoader.LoadLanguages() // We'll use the languages later when we implement the UI
+	logger.Info("Step 4: Select programming languages and managers")
+	_, err = configLoader.LoadLanguages()
 	if err != nil {
 		return fmt.Errorf("failed to load language configurations: %w", err)
 	}
 
-	// TODO: Add language selection UI similar to tools
-	// For now, prompt for common runtimes
-	if selectedRuntimes, err := ui.PromptLanguageRuntimes(); err == nil && len(selectedRuntimes) > 0 {
-		runtimeInstaller := install.NewRuntimeInstaller(pm, logger)
-		for _, runtime := range selectedRuntimes {
-			if err := runtimeInstaller.Install(runtime); err != nil {
-				logger.Error("Failed to install runtime %s: %v", runtime, err)
+	// First, select languages
+	selectedLanguages, err := ui.PromptLanguages()
+	if err != nil {
+		logger.Error("Failed to get language selection: %v", err)
+	} else if len(selectedLanguages) > 0 {
+		// Then, select language managers based on selected languages
+		selectedManagers, err := ui.PromptLanguageManagersForLanguages(selectedLanguages)
+		if err != nil {
+			logger.Error("Failed to get language manager selection: %v", err)
+		} else if len(selectedManagers) > 0 {
+			// Install language managers first
+			logger.Info("Installing selected language managers...")
+			for _, manager := range selectedManagers {
+				if err := install.NewInstaller(pm).Install(&install.Tool{
+					Name:        manager,
+					PackageName: manager,
+					Description: fmt.Sprintf("Version manager for %s", manager),
+					PackageNames: &install.PackageMapping{
+						Default: manager,
+						APT:     manager,
+						DNF:     manager,
+						Pacman:  manager,
+						Brew:    manager,
+					},
+				}); err != nil {
+					logger.Error("Failed to install language manager %s: %v", manager, err)
+				}
 			}
 		}
-		logger.Success("Language runtime installation completed successfully!")
+
+		// Then install languages
+		logger.Info("Installing selected languages...")
+		for _, lang := range selectedLanguages {
+			if err := install.NewInstaller(pm).Install(&install.Tool{
+				Name:        lang,
+				PackageName: lang,
+				Description: fmt.Sprintf("%s programming language", lang),
+				PackageNames: &install.PackageMapping{
+					Default: lang,
+					APT:     lang,
+					DNF:     lang,
+					Pacman:  lang,
+					Brew:    lang,
+				},
+			}); err != nil {
+				logger.Error("Failed to install language %s: %v", lang, err)
+			}
+		}
+		logger.Success("Language installation completed successfully!")
 	}
+
+	// Mark dotfiles setup as completed
+	sections[4].Status = "completed"
+	fmt.Println(ui.RenderProgressBar(sections, 80))
 
 	// --- Phase 5: Dotfiles Setup ---
 	logger.Info("Step 5: Configure dotfiles")
-	_, err = configLoader.LoadDotfiles() // We'll use the dotfiles later when we implement the UI
+	_, err = configLoader.LoadDotfiles()
 	if err != nil {
 		return fmt.Errorf("failed to load dotfile configurations: %w", err)
 	}

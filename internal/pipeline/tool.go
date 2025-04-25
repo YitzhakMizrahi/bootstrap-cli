@@ -3,9 +3,10 @@ package pipeline
 import (
 	"fmt"
 	"os/exec"
-	"strings"
 	"time"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/utils"
 )
 
@@ -26,7 +27,7 @@ const (
 // VerifyStrategy defines how to verify if a tool is installed correctly
 type VerifyStrategy struct {
 	// Command to run for verification
-	Command string
+	Command Command
 	// Expected output (substring match)
 	ExpectedOutput string
 	// Binary paths to check
@@ -35,17 +36,41 @@ type VerifyStrategy struct {
 	RequiredFiles []string
 }
 
-// InstallStrategy defines how to install a tool
-type InstallStrategy struct {
-	// Package names for different package managers
-	PackageNames map[string]string
-	// Pre-install commands (e.g., adding PPAs)
-	PreInstall []string
-	// Post-install commands (e.g., setting up config)
-	PostInstall []string
-	// Custom installation script
-	CustomInstall []string
+// InstallationMethod defines how a tool should be installed
+type InstallationMethod string
+
+const (
+	// PackageManagerInstall uses the system's package manager
+	PackageManagerInstall InstallationMethod = "package_manager"
+	// BinaryInstall downloads and installs a binary directly
+	BinaryInstall InstallationMethod = "binary"
+	// CustomInstall uses custom installation commands
+	CustomInstall InstallationMethod = "custom"
+)
+
+// PackageInfo contains information about a package's availability
+type PackageInfo struct {
+	// Whether the package is available in repositories
+	Available bool
+	// The actual package name to use (may differ from requested name)
+	PackageName string
+	// Version available in repositories
+	Version string
+	// Error message if package is not available
+	Error string
 }
+
+// Platform represents the target platform for installation
+// This type is defined in platform.go
+
+// InstallationContext provides context for the installation process
+// This type is defined in context.go
+
+// PackageManager interface defines methods for package management
+// This type is defined in interfaces.go
+
+// Logger interface for installation logging
+// This type is defined in interfaces/logger.go
 
 // Tool represents a tool that can be installed
 type Tool struct {
@@ -73,56 +98,21 @@ type Tool struct {
 	
 	// Command executor for running commands
 	cmdExecutor *utils.CommandExecutor
+
+	// Logger for the tool
+	logger interfaces.Logger
 }
 
-// NewTool creates a new tool configuration
+// NewTool creates a new tool with the given name and category
 func NewTool(name string, category ToolCategory) *Tool {
+	logger := log.New(log.InfoLevel)
 	return &Tool{
-		Name:           name,
-		Category:       category,
-		Dependencies:   make([]Dependency, 0),
-		PlatformConfig: make(map[string]InstallStrategy),
-		cmdExecutor:    utils.NewCommandExecutor(utils.NewDefaultLogger()),
+		Name:            name,
+		Category:        category,
+		PlatformConfig:  make(map[string]InstallStrategy),
+		cmdExecutor:     utils.NewCommandExecutor(logger),
+		logger:          logger,
 	}
-}
-
-// defaultLogger implements the utils.InstallLogger interface
-type defaultLogger struct {
-	DebugEnabled bool
-}
-
-func (l *defaultLogger) CommandStart(cmd string, attempt, maxAttempts int) {
-	if maxAttempts > 1 {
-		fmt.Printf("Executing command (attempt %d/%d): %s\n", attempt, maxAttempts, cmd)
-	} else {
-		fmt.Printf("Executing command: %s\n", cmd)
-	}
-}
-
-func (l *defaultLogger) CommandSuccess(cmd string, duration time.Duration) {
-	fmt.Printf("Command completed successfully in %v: %s\n", duration, cmd)
-}
-
-func (l *defaultLogger) CommandError(cmd string, err error, attempt, maxAttempts int) {
-	fmt.Printf("Command failed (attempt %d/%d): %s\nError: %v\n", attempt, maxAttempts, cmd, err)
-}
-
-func (l *defaultLogger) Debug(format string, args ...interface{}) {
-	if l.DebugEnabled {
-		fmt.Printf("[DEBUG] "+format+"\n", args...)
-	}
-}
-
-func (l *defaultLogger) Info(format string, args ...interface{}) {
-	fmt.Printf("[INFO] "+format+"\n", args...)
-}
-
-func (l *defaultLogger) Warn(format string, args ...interface{}) {
-	fmt.Printf("[WARN] "+format+"\n", args...)
-}
-
-func (l *defaultLogger) Error(format string, args ...interface{}) {
-	fmt.Printf("[ERROR] "+format+"\n", args...)
 }
 
 // AddDependency adds a dependency to the tool
@@ -154,193 +144,345 @@ func (t *Tool) GetInstallStrategy(platform *Platform) InstallStrategy {
 	return t.Install
 }
 
+// checkBinaryPath checks if a binary exists in the PATH
+func (t *Tool) checkBinaryPath(path string) (bool, error) {
+	_, err := exec.LookPath(path)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// checkRequiredFile checks if a required file exists
+func (t *Tool) checkRequiredFile(file string) (bool, error) {
+	cmd := exec.Command("test", "-f", file)
+	err := cmd.Run()
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // VerifyInstallation checks if the tool is installed correctly
-func (t *Tool) VerifyInstallation() error {
-	// Check binary paths
+func (t *Tool) VerifyInstallation(ctx *InstallationContext) error {
+	// Check binary paths with retries
 	for _, path := range t.Verify.BinaryPaths {
-		if _, err := exec.LookPath(path); err != nil {
-			return fmt.Errorf("binary not found in PATH: %s", path)
+		var exists bool
+		var err error
+		for i := 0; i < t.cmdExecutor.DefaultRetries; i++ {
+			exists, err = t.checkBinaryPath(path)
+			if err == nil && exists {
+				break
+			}
+			if i < t.cmdExecutor.DefaultRetries-1 {
+				t.cmdExecutor.Logger.Debug("Binary path %s not found, retrying in %v...", path, t.cmdExecutor.DefaultDelay)
+				time.Sleep(t.cmdExecutor.DefaultDelay)
+			}
 		}
-	}
-
-	// Check required files
-	for _, file := range t.Verify.RequiredFiles {
-		if _, err := exec.Command("test", "-f", file).Output(); err != nil {
-			return fmt.Errorf("required file not found: %s", file)
-		}
-	}
-
-	// Run verification command if specified
-	if t.Verify.Command != "" {
-		cmd := exec.Command("sh", "-c", t.Verify.Command)
-		output, err := t.cmdExecutor.ExecuteWithOutput(cmd, 0, 0)
 		if err != nil {
-			return fmt.Errorf("verification command failed: %v", err)
+			return fmt.Errorf("failed to check binary path %s: %w", path, err)
 		}
+		if !exists {
+			return fmt.Errorf("binary path %s not found after %d attempts", path, t.cmdExecutor.DefaultRetries)
+		}
+	}
 
-		// Check expected output if specified
-		if t.Verify.ExpectedOutput != "" && !strings.Contains(output, t.Verify.ExpectedOutput) {
-			return fmt.Errorf("unexpected verification output: %s", output)
+	// Check required files with retries
+	for _, file := range t.Verify.RequiredFiles {
+		var exists bool
+		var err error
+		for i := 0; i < t.cmdExecutor.DefaultRetries; i++ {
+			exists, err = t.checkRequiredFile(file)
+			if err == nil && exists {
+				break
+			}
+			if i < t.cmdExecutor.DefaultRetries-1 {
+				t.cmdExecutor.Logger.Debug("Required file %s not found, retrying in %v...", file, t.cmdExecutor.DefaultDelay)
+				time.Sleep(t.cmdExecutor.DefaultDelay)
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("failed to check required file %s: %w", file, err)
+		}
+		if !exists {
+			return fmt.Errorf("required file %s not found after %d attempts", file, t.cmdExecutor.DefaultRetries)
+		}
+	}
+
+	// Execute verification command with timeout
+	if t.Verify.Command.Command != "" {
+		cmd := exec.Command("sh", "-c", t.Verify.Command.Command)
+		if err := t.cmdExecutor.ExecuteWithRetry(cmd, t.cmdExecutor.DefaultRetries, t.cmdExecutor.DefaultDelay); err != nil {
+			return fmt.Errorf("verification command failed: %w", err)
 		}
 	}
 
 	return nil
 }
 
-// GenerateInstallationSteps creates installation steps for the pipeline
+// determineInstallationMethod determines the best installation method for the tool
+func (t *Tool) determineInstallationMethod(context *InstallationContext) (InstallationMethod, error) {
+	// Get the package name for the current platform
+	packageName := t.Install.PackageNames[context.Platform.OS]
+	if packageName == "" {
+		packageName = t.Install.PackageNames["default"]
+	}
+
+	// Check if package is available in repositories
+	if !context.PackageManager.IsPackageAvailable(packageName) {
+		return "", fmt.Errorf("package %s is not available", packageName)
+	}
+
+	// If package is available, use package manager installation
+	return PackageManagerInstall, nil
+}
+
+// GenerateInstallationSteps generates the steps needed to install a tool
 func (t *Tool) GenerateInstallationSteps(platform *Platform, context *InstallationContext) []InstallationStep {
-	strategy := t.GetInstallStrategy(platform)
 	var steps []InstallationStep
-
-	// First, handle dependencies
-	for _, dep := range t.Dependencies {
-		depTool := context.GetTool(dep.Name)
-		if depTool == nil {
-			context.Logger.Printf("Warning: Dependency %s not found", dep.Name)
-			continue
-		}
-		depSteps := depTool.GenerateInstallationSteps(platform, context)
-		steps = append(steps, depSteps...)
-	}
-
-	// Add package manager update step with better error handling
+	
+	// First, resolve dependencies
 	steps = append(steps, InstallationStep{
-		Name: fmt.Sprintf("%s-update-package-lists", t.Name),
+		Name: fmt.Sprintf("%s-resolve-dependencies", t.Name),
 		Action: func() error {
-			var cmd *exec.Cmd
-			switch platform.PackageManager {
-			case "apt":
-				cmd = exec.Command("sudo", "apt-get", "update")
-			case "brew":
-				cmd = exec.Command("brew", "update")
-			case "pacman":
-				cmd = exec.Command("sudo", "pacman", "-Sy")
-			default:
-				return fmt.Errorf("unsupported package manager: %s", platform.PackageManager)
-			}
-			if err := t.cmdExecutor.ExecuteWithRetry(cmd, context.RetryCount, context.RetryDelay); err != nil {
-				return fmt.Errorf("failed to update package lists: %w", err)
-			}
-			return nil
+			return context.ResolveDependencies(t)
 		},
+		Timeout: 5 * time.Minute,
 	})
-
-	// Add system dependencies installation step with validation
-	if len(t.SystemDependencies) > 0 {
-		steps = append(steps, InstallationStep{
-			Name: fmt.Sprintf("%s-system-dependencies", t.Name),
-			Action: func() error {
-				// Validate package names first
-				for _, pkg := range t.SystemDependencies {
-					if !context.PackageManager.IsPackageAvailable(pkg) {
-						return fmt.Errorf("system dependency %s is not available", pkg)
-					}
-				}
-
-				var cmd *exec.Cmd
-				switch platform.PackageManager {
-				case "apt":
-					args := append([]string{"apt-get", "install", "-y"}, t.SystemDependencies...)
-					cmd = exec.Command("sudo", args...)
-				case "brew":
-					args := append([]string{"install"}, t.SystemDependencies...)
-					cmd = exec.Command("brew", args...)
-				case "pacman":
-					args := append([]string{"pacman", "-S", "--noconfirm"}, t.SystemDependencies...)
-					cmd = exec.Command("sudo", args...)
-				default:
-					return fmt.Errorf("unsupported package manager: %s", platform.PackageManager)
-				}
-				if err := t.cmdExecutor.ExecuteWithRetry(cmd, context.RetryCount, context.RetryDelay); err != nil {
-					return fmt.Errorf("failed to install system dependencies: %w", err)
-				}
-				return nil
-			},
-		})
+	
+	// Determine installation method
+	method, err := t.determineInstallationMethod(context)
+	if err != nil {
+		t.logger.Error("Failed to determine installation method: %v", err)
+		return steps
 	}
-
-	// Add pre-install steps with better error context
+	
+	// Get the appropriate installation strategy
+	strategy := t.GetInstallStrategy(platform)
+	
+	// Add pre-install steps
 	for i, cmd := range strategy.PreInstall {
 		steps = append(steps, InstallationStep{
 			Name: fmt.Sprintf("%s-pre-install-%d", t.Name, i),
 			Action: func() error {
-				if err := t.cmdExecutor.ExecuteWithRetry(exec.Command("sh", "-c", cmd), context.RetryCount, context.RetryDelay); err != nil {
-					return fmt.Errorf("pre-install step %d failed: %w", i, err)
+				t.logger.CommandStart(cmd.Command, 1, 1)
+				start := time.Now()
+				
+				execCmd := exec.Command("sh", "-c", cmd.Command)
+				output, err := execCmd.CombinedOutput()
+				
+				duration := time.Since(start)
+				if err != nil {
+					t.logger.CommandError(cmd.Command, err, 1, 1)
+					return fmt.Errorf("pre-install command failed: %w (Output: %s)", err, string(output))
 				}
+				
+				t.logger.CommandSuccess(cmd.Command, duration)
 				return nil
 			},
+			Timeout: 5 * time.Minute,
 		})
 	}
-
-	// Add main installation step with package validation
-	if pkgName, ok := strategy.PackageNames[platform.PackageManager]; ok {
+	
+	// Add main installation step based on method
+	switch method {
+	case PackageManagerInstall:
+		// Get package name for the platform
+		pkgName, ok := strategy.PackageNames[platform.PackageManager]
+		if !ok {
+			t.logger.Error("No package name defined for %s on %s", t.Name, platform.PackageManager)
+			return steps
+		}
+		
 		steps = append(steps, InstallationStep{
-			Name: fmt.Sprintf("%s-install", t.Name),
+			Name: fmt.Sprintf("%s-install-package", t.Name),
 			Action: func() error {
-				// Validate package name
-				if !context.PackageManager.IsPackageAvailable(pkgName) {
-					return fmt.Errorf("package %s is not available", pkgName)
-				}
-
-				var cmd *exec.Cmd
+				var cmd string
 				switch platform.PackageManager {
 				case "apt":
-					cmd = exec.Command("sudo", "apt-get", "install", "-y", pkgName)
+					cmd = fmt.Sprintf("sudo apt-get install -y %s", pkgName)
 				case "brew":
-					cmd = exec.Command("brew", "install", pkgName)
+					cmd = fmt.Sprintf("brew install %s", pkgName)
 				case "pacman":
-					cmd = exec.Command("sudo", "pacman", "-S", "--noconfirm", pkgName)
+					cmd = fmt.Sprintf("sudo pacman -S --noconfirm %s", pkgName)
 				default:
 					return fmt.Errorf("unsupported package manager: %s", platform.PackageManager)
 				}
-				if err := t.cmdExecutor.ExecuteWithRetry(cmd, context.RetryCount, context.RetryDelay); err != nil {
-					return fmt.Errorf("failed to install %s: %w", t.Name, err)
+				
+				t.logger.CommandStart(cmd, 1, 1)
+				start := time.Now()
+				
+				execCmd := exec.Command("sh", "-c", cmd)
+				output, err := execCmd.CombinedOutput()
+				
+				duration := time.Since(start)
+				if err != nil {
+					t.logger.CommandError(cmd, err, 1, 1)
+					return fmt.Errorf("package installation failed: %w (Output: %s)", err, string(output))
 				}
+				
+				t.logger.CommandSuccess(cmd, duration)
 				return nil
 			},
+			Timeout: 10 * time.Minute,
 		})
-	} else if len(strategy.CustomInstall) > 0 {
-		// Use custom installation commands with better error context
+		
+	case BinaryInstall:
+		// Binary installation is not directly supported in the current InstallStrategy
+		// We'll use custom installation instead
+		t.logger.Warn("Binary installation not directly supported, using custom installation")
+		fallthrough
+		
+	case CustomInstall:
+		// Custom installation steps
 		for i, cmd := range strategy.CustomInstall {
 			steps = append(steps, InstallationStep{
 				Name: fmt.Sprintf("%s-custom-install-%d", t.Name, i),
 				Action: func() error {
-					if err := t.cmdExecutor.ExecuteWithRetry(exec.Command("sh", "-c", cmd), context.RetryCount, context.RetryDelay); err != nil {
-						return fmt.Errorf("custom install step %d failed: %w", i, err)
+					t.logger.CommandStart(cmd.Command, 1, 1)
+					start := time.Now()
+					
+					execCmd := exec.Command("sh", "-c", cmd.Command)
+					output, err := execCmd.CombinedOutput()
+					
+					duration := time.Since(start)
+					if err != nil {
+						t.logger.CommandError(cmd.Command, err, 1, 1)
+						return fmt.Errorf("custom installation command failed: %w (Output: %s)", err, string(output))
 					}
+					
+					t.logger.CommandSuccess(cmd.Command, duration)
 					return nil
 				},
+				Timeout: 5 * time.Minute,
 			})
 		}
 	}
-
-	// Add post-install steps with delay and better error context
+	
+	// Add post-install steps
 	for i, cmd := range strategy.PostInstall {
 		steps = append(steps, InstallationStep{
 			Name: fmt.Sprintf("%s-post-install-%d", t.Name, i),
 			Action: func() error {
-				// Add a small delay to ensure the installation is complete
-				time.Sleep(2 * time.Second)
-				if err := t.cmdExecutor.ExecuteWithRetry(exec.Command("sh", "-c", cmd), context.RetryCount, context.RetryDelay); err != nil {
-					return fmt.Errorf("post-install step %d failed: %w", i, err)
+				t.logger.CommandStart(cmd.Command, 1, 1)
+				start := time.Now()
+				
+				execCmd := exec.Command("sh", "-c", cmd.Command)
+				output, err := execCmd.CombinedOutput()
+				
+				duration := time.Since(start)
+				if err != nil {
+					t.logger.CommandError(cmd.Command, err, 1, 1)
+					return fmt.Errorf("post-install command failed: %w (Output: %s)", err, string(output))
 				}
+				
+				t.logger.CommandSuccess(cmd.Command, duration)
 				return nil
 			},
+			Timeout: 5 * time.Minute,
 		})
 	}
-
-	// Add verification step with delay
+	
+	// Add verification step
 	steps = append(steps, InstallationStep{
 		Name: fmt.Sprintf("%s-verify", t.Name),
 		Action: func() error {
-			// Add a delay to ensure all installation steps are complete
-			time.Sleep(5 * time.Second)
-			if err := t.VerifyInstallation(); err != nil {
-				return fmt.Errorf("verification failed: %w", err)
-			}
-			return nil
+			return t.VerifyInstallation(context)
 		},
+		Timeout: 1 * time.Minute,
 	})
-
+	
 	return steps
+}
+
+// Validate checks if the tool configuration is valid
+func (t *Tool) Validate() error {
+	// Check required fields
+	if t.Name == "" {
+		return fmt.Errorf("tool name cannot be empty")
+	}
+	if t.Category == "" {
+		return fmt.Errorf("tool category cannot be empty")
+	}
+	if t.Description == "" {
+		return fmt.Errorf("tool description cannot be empty")
+	}
+
+	// Validate category
+	switch t.Category {
+	case CategoryEssential, CategoryDevelopment, CategoryShell, CategorySystem:
+		// Valid categories
+	default:
+		return fmt.Errorf("invalid tool category: %s", t.Category)
+	}
+
+	// Validate installation strategy
+	if err := t.Install.Validate(); err != nil {
+		return fmt.Errorf("invalid installation strategy: %w", err)
+	}
+
+	// Validate verification strategy
+	if err := t.Verify.Validate(); err != nil {
+		return fmt.Errorf("invalid verification strategy: %w", err)
+	}
+
+	// Validate dependencies
+	for i, dep := range t.Dependencies {
+		if dep.Name == "" {
+			return fmt.Errorf("dependency %d name cannot be empty", i)
+		}
+		if dep.Version == "" {
+			return fmt.Errorf("dependency %d version cannot be empty", i)
+		}
+	}
+
+	// Validate system dependencies
+	for i, dep := range t.SystemDependencies {
+		if dep == "" {
+			return fmt.Errorf("system dependency %d cannot be empty", i)
+		}
+	}
+
+	// Validate platform-specific configurations
+	for platform, strategy := range t.PlatformConfig {
+		if platform == "" {
+			return fmt.Errorf("platform name cannot be empty")
+		}
+		if err := strategy.Validate(); err != nil {
+			return fmt.Errorf("invalid platform-specific strategy for %s: %w", platform, err)
+		}
+	}
+
+	return nil
+}
+
+// Validate checks if the verification strategy is valid
+func (v *VerifyStrategy) Validate() error {
+	// At least one verification method must be specified
+	if v.Command.Command == "" && len(v.BinaryPaths) == 0 && len(v.RequiredFiles) == 0 {
+		return fmt.Errorf("at least one verification method must be specified")
+	}
+
+	// Validate command if specified
+	if v.Command.Command != "" {
+		if err := v.Command.Validate(); err != nil {
+			return fmt.Errorf("invalid verification command: %w", err)
+		}
+	}
+
+	// Validate binary paths
+	for i, path := range v.BinaryPaths {
+		if path == "" {
+			return fmt.Errorf("binary path %d cannot be empty", i)
+		}
+	}
+
+	// Validate required files
+	for i, file := range v.RequiredFiles {
+		if file == "" {
+			return fmt.Errorf("required file %d cannot be empty", i)
+		}
+	}
+
+	return nil
 } 

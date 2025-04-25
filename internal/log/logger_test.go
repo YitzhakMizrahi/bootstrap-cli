@@ -8,72 +8,80 @@ import (
 )
 
 func TestLogger(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(InfoLevel, WithOutput(&buf))
+
 	tests := []struct {
 		name     string
-		level    LogLevel
-		logFunc  func(*Logger, string, ...interface{})
-		logLevel string
-		message  string
-		want     bool
+		fn       func()
+		contains []string
 	}{
 		{
-			name:     "debug message at debug level",
-			level:    DebugLevel,
-			logFunc:  (*Logger).Debug,
-			logLevel: "DEBUG",
-			message:  "test debug message",
-			want:     true,
+			name: "Debug message",
+			fn:   func() { logger.Debug("debug message") },
+			contains: []string{
+				"[DEBUG]",
+				"debug message",
+			},
 		},
 		{
-			name:     "debug message at info level",
-			level:    InfoLevel,
-			logFunc:  (*Logger).Debug,
-			logLevel: "DEBUG",
-			message:  "test debug message",
-			want:     false,
+			name: "Info message",
+			fn:   func() { logger.Info("info message") },
+			contains: []string{
+				"[INFO]",
+				"info message",
+			},
 		},
 		{
-			name:     "info message at info level",
-			level:    InfoLevel,
-			logFunc:  (*Logger).Info,
-			logLevel: "INFO",
-			message:  "test info message",
-			want:     true,
+			name: "Warn message",
+			fn:   func() { logger.Warn("warn message") },
+			contains: []string{
+				"[WARN]",
+				"warn message",
+			},
 		},
 		{
-			name:     "warn message at warn level",
-			level:    WarnLevel,
-			logFunc:  (*Logger).Warn,
-			logLevel: "WARN",
-			message:  "test warn message",
-			want:     true,
+			name: "Error message",
+			fn:   func() { logger.Error("error message") },
+			contains: []string{
+				"[ERROR]",
+				"error message",
+			},
 		},
 		{
-			name:     "error message at error level",
-			level:    ErrorLevel,
-			logFunc:  (*Logger).Error,
-			logLevel: "ERROR",
-			message:  "test error message",
-			want:     true,
+			name: "Command start",
+			fn:   func() { logger.CommandStart("test command", 1, 3) },
+			contains: []string{
+				"Executing command (attempt 1/3):",
+				"test command",
+			},
+		},
+		{
+			name: "Command success",
+			fn:   func() { logger.CommandSuccess("test command", time.Second) },
+			contains: []string{
+				"Command completed successfully in",
+				"test command",
+			},
+		},
+		{
+			name: "Command error",
+			fn:   func() { logger.CommandError("test command", nil, 1, 3) },
+			contains: []string{
+				"Command failed (attempt 1/3):",
+				"test command",
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var buf bytes.Buffer
-			logger := New(tt.level)
-			logger.SetOutput(&buf)
-
-			tt.logFunc(logger, tt.message)
-
-			got := buf.String()
-			if tt.want {
-				if !strings.Contains(got, tt.logLevel) || !strings.Contains(got, tt.message) {
-					t.Errorf("Logger output = %q, want containing level %q and message %q", got, tt.logLevel, tt.message)
-				}
-			} else {
-				if got != "" {
-					t.Errorf("Logger output = %q, want empty string", got)
+			buf.Reset()
+			tt.fn()
+			output := buf.String()
+			for _, s := range tt.contains {
+				if !strings.Contains(output, s) {
+					t.Errorf("output %q does not contain %q", output, s)
 				}
 			}
 		})

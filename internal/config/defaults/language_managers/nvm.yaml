@@ -1,0 +1,38 @@
+name: nvm
+description: Node Version Manager
+languages:
+  - Node.js
+version: latest
+package_name: nvm
+package_names:
+  apt: nvm
+  brew: nvm
+  dnf: nvm
+  pacman: nvm
+
+dependencies:
+  - curl
+  - git
+
+post_install:
+  - command: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+    description: Install nvm
+
+shell_config:
+  exports:
+    NVM_DIR: "$HOME/.nvm"
+  path:
+    - "$NVM_DIR"
+  functions:
+    nvm_load: |
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+      [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+
+verify:
+  command:
+    command: "nvm --version"
+  expected_output: "nvm"
+  binary_paths:
+    - "nvm"
+  required_files:
+    - "$HOME/.nvm" 

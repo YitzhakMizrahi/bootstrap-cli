@@ -1,0 +1,39 @@
+name: goenv
+description: Go Version Manager
+languages:
+  - Go
+version: latest
+package_name: goenv
+package_names:
+  apt: goenv
+  brew: goenv
+  dnf: goenv
+  pacman: goenv
+
+dependencies:
+  - git
+  - curl
+  - make
+
+post_install:
+  - command: git clone https://github.com/syndbg/goenv.git ~/.goenv
+    description: Install goenv
+
+shell_config:
+  exports:
+    GOENV_ROOT: "$HOME/.goenv"
+  path:
+    - "$GOENV_ROOT/bin"
+    - "$GOENV_ROOT/shims"
+  functions:
+    goenv_init: |
+      eval "$(goenv init -)"
+
+verify:
+  command:
+    command: "goenv --version"
+  expected_output: "goenv"
+  binary_paths:
+    - "goenv"
+  required_files:
+    - "$HOME/.goenv" 

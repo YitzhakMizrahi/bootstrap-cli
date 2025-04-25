@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os/exec"
 	"time"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 )
 
 // CommandExecutor provides utilities for executing commands with retries and error handling
@@ -13,11 +15,11 @@ type CommandExecutor struct {
 	// Default delay between retries
 	DefaultDelay time.Duration
 	// Logger for command execution
-	Logger *InstallLogger
+	Logger *log.Logger
 }
 
 // NewCommandExecutor creates a new command executor
-func NewCommandExecutor(logger *InstallLogger) *CommandExecutor {
+func NewCommandExecutor(logger *log.Logger) *CommandExecutor {
 	return &CommandExecutor{
 		DefaultRetries: 3,
 		DefaultDelay:   time.Second * 2,
@@ -37,17 +39,17 @@ func (e *CommandExecutor) ExecuteWithRetry(cmd *exec.Cmd, retries int, delay tim
 	var err error
 	for i := 0; i < retries; i++ {
 		start := time.Now()
-		e.Logger.CommandStart(cmd.String(), i+1, retries)
+		e.Logger.Info("Running command (attempt %d/%d): %s", i+1, retries, cmd.String())
 		
 		err = cmd.Run()
 		duration := time.Since(start)
 		
 		if err == nil {
-			e.Logger.CommandSuccess(cmd.String(), duration)
+			e.Logger.Success("Command completed in %v: %s", duration, cmd.String())
 			return nil
 		}
 		
-		e.Logger.CommandError(cmd.String(), err, i+1, retries)
+		e.Logger.Error("Command failed (attempt %d/%d): %s - %v", i+1, retries, cmd.String(), err)
 		
 		if i < retries-1 {
 			e.Logger.Debug("Waiting %v before retry...", delay)
@@ -72,17 +74,17 @@ func (e *CommandExecutor) ExecuteWithOutput(cmd *exec.Cmd, retries int, delay ti
 	
 	for i := 0; i < retries; i++ {
 		start := time.Now()
-		e.Logger.CommandStart(cmd.String(), i+1, retries)
+		e.Logger.Info("Running command (attempt %d/%d): %s", i+1, retries, cmd.String())
 		
 		output, err = cmd.Output()
 		duration := time.Since(start)
 		
 		if err == nil {
-			e.Logger.CommandSuccess(cmd.String(), duration)
+			e.Logger.Success("Command completed in %v: %s", duration, cmd.String())
 			return string(output), nil
 		}
 		
-		e.Logger.CommandError(cmd.String(), err, i+1, retries)
+		e.Logger.Error("Command failed (attempt %d/%d): %s - %v", i+1, retries, cmd.String(), err)
 		
 		if i < retries-1 {
 			e.Logger.Debug("Waiting %v before retry...", delay)

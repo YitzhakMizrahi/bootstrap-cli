@@ -2,36 +2,48 @@ package pipeline
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/shell"
 )
 
 // InstallationContext holds the context for an installation process
 type InstallationContext struct {
-	Platform      *Platform
+	Platform       *Platform
 	PackageManager PackageManager
 	State         *InstallationState
-	Logger        *log.Logger
+	Logger        interfaces.Logger
 	Timeout       time.Duration
 	RetryCount    int
 	RetryDelay    time.Duration
 	tools         map[string]*Tool
+	shellConfig   *shell.Config
+	// Add dependency graph
+	dependencyGraph *DependencyGraph
+	// Track installed tools
+	installedTools map[string]bool
 }
 
 // NewInstallationContext creates a new installation context
 func NewInstallationContext(platform *Platform, pkgManager PackageManager) *InstallationContext {
+	logger := log.NewInstallLogger(false)
 	return &InstallationContext{
-		Platform:      platform,
+		Platform:       platform,
 		PackageManager: pkgManager,
 		State:         NewInstallationState(),
-		Logger:        log.New(log.Writer(), "[Context] ", log.LstdFlags),
+		Logger:        logger,
 		Timeout:       5 * time.Minute,
 		RetryCount:    3,
 		RetryDelay:    time.Second,
 		tools:         make(map[string]*Tool),
+		shellConfig:   shell.NewConfig(platform.Shell, logger),
+		dependencyGraph: NewDependencyGraph(),
+		installedTools: make(map[string]bool),
 	}
 }
 
@@ -40,18 +52,23 @@ func (c *InstallationContext) GetTool(name string) *Tool {
 	return c.tools[name]
 }
 
-// AddTool adds a tool to the context
+// AddTool adds a tool to the context and its dependencies to the graph
 func (c *InstallationContext) AddTool(tool *Tool) {
 	c.tools[tool.Name] = tool
+	
+	// Add tool dependencies to the graph
+	if len(tool.Dependencies) > 0 {
+		c.dependencyGraph.AddDependency(tool.Name, tool.Dependencies)
+	}
 }
 
 // VerifyInstallation verifies that a tool is properly installed
 func (c *InstallationContext) VerifyInstallation(tool *Tool) error {
-	if tool.Verify.Command == "" {
+	if tool.Verify.Command.Command == "" {
 		return nil
 	}
 
-	cmd := exec.Command("sh", "-c", tool.Verify.Command)
+	cmd := exec.Command("sh", "-c", tool.Verify.Command.Command)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("verification failed: %w (Output: %s)", err, string(output))
@@ -86,13 +103,14 @@ func (c *InstallationContext) SetupEnvironment(tool *Tool) error {
 
 	// Execute post-install commands
 	for _, cmd := range strategy.PostInstall {
-		c.Logger.Printf("Executing post-install command: %s", cmd)
-		execCmd := exec.Command("sh", "-c", cmd)
+		c.Logger.Info("Executing post-install command: %s", cmd.Command)
+		execCmd := exec.Command("sh", "-c", cmd.Command)
 		output, err := execCmd.CombinedOutput()
 		if err != nil {
+			c.Logger.Error("Post-install command failed: %v (Output: %s)", err, string(output))
 			return fmt.Errorf("post-install command failed: %w (Output: %s)", err, string(output))
 		}
-		c.Logger.Printf("Post-install command output: %s", string(output))
+		c.Logger.Info("Post-install command output: %s", string(output))
 	}
 
 	return nil
@@ -100,25 +118,22 @@ func (c *InstallationContext) SetupEnvironment(tool *Tool) error {
 
 // setupAlias sets up a shell alias
 func (c *InstallationContext) setupAlias(alias, command string) error {
-	// Implementation depends on the shell being used
-	// For now, we'll just log it
-	c.Logger.Printf("Setting up alias: %s='%s'", alias, command)
+	c.Logger.Info("Setting up alias: %s='%s'", alias, command)
+	c.shellConfig.AddAlias(alias, command)
 	return nil
 }
 
 // setupFunction sets up a shell function
 func (c *InstallationContext) setupFunction(name, body string) error {
-	// Implementation depends on the shell being used
-	// For now, we'll just log it
-	c.Logger.Printf("Setting up function: %s() { %s }", name, body)
+	c.Logger.Info("Setting up function: %s() { %s }", name, body)
+	c.shellConfig.AddFunction(name, body)
 	return nil
 }
 
 // setupEnvVar sets up an environment variable
 func (c *InstallationContext) setupEnvVar(key, value string) error {
-	// Implementation depends on the shell being used
-	// For now, we'll just log it
-	c.Logger.Printf("Setting up environment variable: %s='%s'", key, value)
+	c.Logger.Info("Setting up environment variable: %s='%s'", key, value)
+	c.shellConfig.AddEnvVar(key, value)
 	return nil
 }
 
@@ -130,13 +145,14 @@ func (c *InstallationContext) ExecutePostInstall(tool *Tool) error {
 	}
 
 	for _, cmd := range strategy.PostInstall {
-		c.Logger.Printf("Executing post-install command: %s", cmd)
-		execCmd := exec.Command("sh", "-c", cmd)
+		c.Logger.Info("Executing post-install command: %s", cmd.Command)
+		execCmd := exec.Command("sh", "-c", cmd.Command)
 		output, err := execCmd.CombinedOutput()
 		if err != nil {
+			c.Logger.Error("Post-install command failed: %v (Output: %s)", err, string(output))
 			return fmt.Errorf("post-install command failed: %w (Output: %s)", err, string(output))
 		}
-		c.Logger.Printf("Post-install command output: %s", string(output))
+		c.Logger.Info("Post-install command output: %s", string(output))
 	}
 
 	return nil
@@ -161,21 +177,23 @@ func (c *InstallationContext) UpdatePath() error {
 		os.ExpandEnv("$HOME/.cargo/bin"),
 	}
 
-	// Add paths to PATH if they don't exist
+	// Add paths to shell config
 	for _, p := range paths {
 		if !strings.Contains(path, p) {
-			path = p + ":" + path
+			c.shellConfig.AddPath(p)
 		}
 	}
 
-	// Set the new PATH
-	if err := os.Setenv("PATH", path); err != nil {
-		return fmt.Errorf("failed to update PATH: %w", err)
+	// Apply shell configuration
+	sourceCmd, err := c.shellConfig.Apply()
+	if err != nil {
+		return fmt.Errorf("failed to apply shell configuration: %w", err)
 	}
 
-	// Reload shell configuration
-	if err := c.reloadShellConfig(); err != nil {
-		return fmt.Errorf("failed to reload shell configuration: %w", err)
+	// Execute the source command
+	cmd := exec.Command("sh", "-c", sourceCmd)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to reload shell configuration: %w (output: %s)", err, string(output))
 	}
 
 	return nil
@@ -183,15 +201,80 @@ func (c *InstallationContext) UpdatePath() error {
 
 // reloadShellConfig reloads the shell configuration
 func (c *InstallationContext) reloadShellConfig() error {
-	shell := c.Platform.Shell
-	switch shell {
-	case "bash":
-		return exec.Command("source", os.ExpandEnv("$HOME/.bashrc")).Run()
-	case "zsh":
-		return exec.Command("source", os.ExpandEnv("$HOME/.zshrc")).Run()
-	case "fish":
-		return exec.Command("source", os.ExpandEnv("$HOME/.config/fish/config.fish")).Run()
-	default:
-		return fmt.Errorf("unsupported shell: %s", shell)
+	sourceCmd, err := c.shellConfig.Apply()
+	if err != nil {
+		return fmt.Errorf("failed to apply shell configuration: %w", err)
 	}
+
+	cmd := exec.Command("sh", "-c", sourceCmd)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to reload shell configuration: %w (output: %s)", err, string(output))
+	}
+
+	return nil
+}
+
+// ResolveDependencies resolves and installs all dependencies for a tool
+func (c *InstallationContext) ResolveDependencies(tool *Tool) error {
+	c.Logger.Info("Resolving dependencies for %s", tool.Name)
+	
+	// Get all dependencies for the tool
+	deps := c.dependencyGraph.GetDependencies(tool.Name)
+	if len(deps) == 0 {
+		c.Logger.Info("No dependencies found for %s", tool.Name)
+		return nil
+	}
+	
+	// Get installation order
+	order, err := c.dependencyGraph.GetInstallOrder()
+	if err != nil {
+		return fmt.Errorf("failed to determine installation order: %w", err)
+	}
+	
+	// Install dependencies in order
+	for _, depName := range order {
+		// Skip if already installed
+		if c.installedTools[depName] {
+			c.Logger.Info("Dependency %s already installed, skipping", depName)
+			continue
+		}
+		
+		// Find the dependency tool
+		depTool, exists := c.tools[depName]
+		if !exists {
+			return fmt.Errorf("dependency %s not found in available tools", depName)
+		}
+		
+		// Install the dependency
+		c.Logger.Info("Installing dependency %s for %s", depName, tool.Name)
+		if err := c.installTool(depTool); err != nil {
+			return fmt.Errorf("failed to install dependency %s: %w", depName, err)
+		}
+		
+		// Mark as installed
+		c.installedTools[depName] = true
+	}
+	
+	return nil
+}
+
+// installTool installs a tool using the pipeline
+func (c *InstallationContext) installTool(tool *Tool) error {
+	// Generate installation steps
+	steps := tool.GenerateInstallationSteps(c.Platform, c)
+	
+	// Execute each step
+	for _, step := range steps {
+		c.Logger.Info("Executing step: %s", step.Name)
+		
+		// Execute the step
+		if err := step.Action(); err != nil {
+			c.Logger.Error("Step failed: %v", err)
+			return fmt.Errorf("step %s failed: %w", step.Name, err)
+		}
+		
+		c.Logger.Info("Step completed successfully")
+	}
+	
+	return nil
 } 

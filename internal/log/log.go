@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 )
 
 // LogLevel defines the level of logging
@@ -253,4 +255,7 @@ func (l *Logger) VerificationInfo(binary string, version string, paths []string)
 	l.Info("  Version: %s", version)
 	l.Info("  Paths: %s", strings.Join(paths, ", "))
 	l.component = prevComponent
-} 
+}
+
+// Ensure Logger implements the interfaces.Logger interface
+var _ interfaces.Logger = (*Logger)(nil) 

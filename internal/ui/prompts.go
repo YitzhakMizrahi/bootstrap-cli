@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
@@ -165,17 +164,10 @@ func PromptToolSelection() ([]string, error) {
 	return nil, fmt.Errorf("failed to get tool selector model")
 }
 
-// PromptLanguageRuntimes prompts for language runtime installation
-func PromptLanguageRuntimes() ([]string, error) {
-	// Create config loader with a temporary directory for embedded configs
-	tmpDir, err := os.MkdirTemp("", "bootstrap-cli-*")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir) // Clean up temp directory when done
-
+// PromptLanguages prompts for programming language selection
+func PromptLanguages() ([]string, error) {
 	// Create config loader
-	loader := config.NewConfigLoader(tmpDir)
+	loader := config.NewConfigLoader("")
 
 	// Load all languages
 	availableLanguages, err := loader.LoadLanguages()
@@ -184,12 +176,59 @@ func PromptLanguageRuntimes() ([]string, error) {
 	}
 
 	// Extract language names
-	var runtimes []string
+	var languages []string
 	for _, lang := range availableLanguages {
-		runtimes = append(runtimes, lang.Name)
+		languages = append(languages, lang.Name)
 	}
 
-	selector := NewToolSelector(runtimes)
+	selector := NewToolSelector(languages)
+	p := tea.NewProgram(selector)
+
+	// Run the interactive UI
+	model, err := p.Run()
+	if err != nil {
+		return nil, fmt.Errorf("UI error: %w", err)
+	}
+
+	// Check if user quit
+	if selectorModel, ok := model.(*ToolSelector); ok {
+		if !selectorModel.Finished() {
+			return nil, fmt.Errorf("selection cancelled")
+		}
+		return selectorModel.GetSelectedTools(), nil
+	}
+
+	return nil, fmt.Errorf("failed to get tool selector model")
+}
+
+// PromptLanguageManagersForLanguages prompts for language managers based on selected languages
+func PromptLanguageManagersForLanguages(selectedLanguages []string) ([]string, error) {
+	// Create config loader
+	loader := config.NewConfigLoader("")
+
+	// Load all language managers
+	managers, err := loader.LoadLanguageManagers()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load language manager configurations: %w", err)
+	}
+
+	// Filter managers based on selected languages
+	var relevantManagers []string
+	for _, manager := range managers {
+		// Check if this manager is for any of the selected languages
+		for _, lang := range selectedLanguages {
+			if manager.SupportsLanguage(lang) {
+				relevantManagers = append(relevantManagers, manager.Name)
+				break
+			}
+		}
+	}
+
+	if len(relevantManagers) == 0 {
+		return nil, nil
+	}
+
+	selector := NewToolSelector(relevantManagers)
 	p := tea.NewProgram(selector)
 
 	// Run the interactive UI

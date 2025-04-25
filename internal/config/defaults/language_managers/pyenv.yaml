@@ -1,0 +1,44 @@
+name: pyenv
+description: Python Version Manager
+languages:
+  - Python
+version: latest
+package_name: pyenv
+package_names:
+  apt: pyenv
+  brew: pyenv
+  dnf: pyenv
+  pacman: pyenv
+
+dependencies:
+  - make
+  - build-essential
+  - libssl-dev
+  - zlib1g-dev
+  - libbz2-dev
+  - libreadline-dev
+  - libsqlite3-dev
+  - wget
+  - curl
+  - llvm
+  - libncursesw5-dev
+  - xz-utils
+  - tk-dev
+  - libxml2-dev
+  - libxmlsec1-dev
+  - libffi-dev
+  - liblzma-dev
+
+post_install:
+  - command: curl https://pyenv.run | bash
+    description: Install pyenv
+
+shell_config:
+  exports:
+    PYENV_ROOT: "$HOME/.pyenv"
+  path:
+    - "$PYENV_ROOT/bin"
+  functions:
+    pyenv_init: |
+      eval "$(pyenv init -)"
+      eval "$(pyenv virtualenv-init -)" 

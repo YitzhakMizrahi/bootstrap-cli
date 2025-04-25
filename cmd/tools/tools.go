@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os/user"
 
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/tools"
 	"github.com/spf13/cobra"
 )
 
@@ -25,49 +25,42 @@ func isRoot() bool {
 	return currentUser.Uid == "0"
 }
 
-// NewToolsCmd creates a new tools command that is meant to be used internally
-// by the init command, not directly by users
+// NewToolsCmd creates the tools command
 func NewToolsCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:    "tools",
-		Short:  "Manage development tools",
-		Hidden: true, // Hide from user-facing CLI
+		Use:   "tools",
+		Short: "Manage development tools",
 		Long: `Manage development tools.
 This command is used internally by the init command to install selected tools.
 It provides functionality for installing and verifying development tools.`,
 	}
 
-	// Add install subcommand
-	installCmd := &cobra.Command{
-		Use:    "install",
-		Short:  "Install core development tools",
-		Hidden: true,
-		Long: `Install core development tools.
-This command installs the tools selected during initialization.
-It handles package management, dependencies, and post-install verification.`,
-		RunE:   runInstall,
-	}
+	cmd.AddCommand(newInstallCmd())
+	cmd.AddCommand(newVerifyCmd())
 
-	// Add verify subcommand
-	verifyCmd := &cobra.Command{
-		Use:    "verify",
-		Short:  "Verify tool installations",
-		Hidden: true,
-		RunE:   runVerify,
+	return cmd
+}
+
+func newInstallCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "install",
+		Short: "Install core development tools",
+		Long: `Install core development tools.
+This command is used internally by the init command to install selected tools.`,
+		RunE: runInstall,
 	}
 
 	// Add flags
-	installCmd.Flags().BoolVar(&skipVerification, "skip-verify", false, "Skip verification after installation")
-
-	// Add subcommands
-	cmd.AddCommand(installCmd)
-	cmd.AddCommand(verifyCmd)
+	cmd.Flags().BoolVar(&skipVerification, "skip-verify", false, "Skip verification after installation")
 
 	return cmd
 }
 
 func runInstall(cmd *cobra.Command, args []string) error {
 	logger = log.New(log.InfoLevel)
+	if debug, _ := cmd.Flags().GetBool("debug"); debug {
+		logger.SetLevel(log.DebugLevel)
+	}
 
 	// Configure needrestart to run in automatic mode
 	if err := configureNeedrestart(); err != nil {
@@ -91,25 +84,25 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	logger.Info("System: %s %s (%s)", sysInfo.Distro, sysInfo.Version, sysInfo.OS)
 	logger.Info("Package Manager: %s", pm.GetName())
 
-	// Get selected tools from the init context
-	selectedTools := tools.GetSelectedTools()
+	// Get selected tools
+	selectedTools := install.GetSelectedTools()
 	if len(selectedTools) == 0 {
-		logger.Info("No tools selected, skipping installation...")
+		logger.Info("No tools selected for installation.")
 		return nil
 	}
 
 	// Create installation options
-	opts := &tools.InstallOptions{
+	opts := &install.InstallOptions{
 		Logger:           logger,
 		PackageManager:   pm,
-		Tools:           selectedTools,
+		Tools:            selectedTools,
 		SkipVerification: skipVerification,
 		// Add PATH to binary locations for verification
 		AdditionalPaths: []string{"/usr/bin", "/usr/local/bin"},
 	}
 
 	// Install selected tools
-	if err := tools.InstallCoreTools(opts); err != nil {
+	if err := install.InstallCoreTools(opts); err != nil {
 		return fmt.Errorf("failed to install core tools: %w", err)
 	}
 
@@ -123,8 +116,23 @@ func configureNeedrestart() error {
 	return system.WriteConfigFile("/etc/needrestart/conf.d/50-autorestart.conf", content)
 }
 
+func newVerifyCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "verify",
+		Short: "Verify core development tools",
+		Long: `Verify core development tools.
+This command is used internally by the init command to verify selected tools.`,
+		RunE: runVerify,
+	}
+
+	return cmd
+}
+
 func runVerify(cmd *cobra.Command, args []string) error {
 	logger = log.New(log.InfoLevel)
+	if debug, _ := cmd.Flags().GetBool("debug"); debug {
+		logger.SetLevel(log.DebugLevel)
+	}
 	logger.Info("Detecting system information...")
 
 	// Detect system info
@@ -144,13 +152,13 @@ func runVerify(cmd *cobra.Command, args []string) error {
 	logger.Info("Package Manager: %s", pm.GetName())
 
 	// Create verification options
-	opts := &tools.InstallOptions{
+	opts := &install.InstallOptions{
 		Logger:         logger,
 		PackageManager: pm,
 	}
 
 	// Run verification
-	if err := tools.VerifyCoreTools(opts); err != nil {
+	if err := install.VerifyCoreTools(opts); err != nil {
 		return fmt.Errorf("tool verification failed: %w", err)
 	}
 

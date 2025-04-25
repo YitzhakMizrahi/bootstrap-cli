@@ -13,6 +13,7 @@ type Tool struct {
 	Description string   `yaml:"description"`
 	Category    string   `yaml:"category"`
 	Tags        []string `yaml:"tags"`
+	Languages   []string `yaml:"languages"`  // List of supported languages
 	
 	// Package management
 	PackageName string  `yaml:"package_name"` // Package name for the default package manager
@@ -138,4 +139,17 @@ func runCommand(cmd string) error {
 	}
 	
 	return nil
+}
+
+// SupportsLanguage checks if the tool supports a given language
+func (t *Tool) SupportsLanguage(language string) bool {
+	if t == nil || len(t.Languages) == 0 {
+		return false
+	}
+	for _, lang := range t.Languages {
+		if strings.EqualFold(lang, language) {
+			return true
+		}
+	}
+	return false
 } 

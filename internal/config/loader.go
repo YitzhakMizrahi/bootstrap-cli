@@ -16,6 +16,7 @@ import (
 //go:embed defaults/tools/schema.yaml
 //go:embed defaults/dotfiles/shell/*.yaml
 //go:embed defaults/languages/*.yaml
+//go:embed defaults/language_managers/*.yaml
 var defaultConfigs embed.FS
 
 // ConfigLoader handles loading and parsing configuration files
@@ -112,6 +113,38 @@ func (l *ConfigLoader) LoadDotfiles() ([]*interfaces.Dotfile, error) {
 		return nil, fmt.Errorf("failed to convert configs to dotfiles")
 	}
 	return dotfiles, nil
+}
+
+// LoadLanguageManagers loads all language manager configurations
+func (l *ConfigLoader) LoadLanguageManagers() ([]*interfaces.Tool, error) {
+	dir := filepath.Join(l.defaultsDir, "language_managers")
+	managers := make([]*interfaces.Tool, 0)
+
+	entries, err := l.configFS.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("error reading language managers directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") || entry.Name() == "schema.yaml" {
+			continue
+		}
+
+		path := filepath.Join(dir, entry.Name())
+		data, err := l.configFS.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("error reading language manager file %s: %w", path, err)
+		}
+
+		var manager interfaces.Tool
+		if err := yaml.Unmarshal(data, &manager); err != nil {
+			return nil, fmt.Errorf("error parsing language manager %s: %w", path, err)
+		}
+
+		managers = append(managers, &manager)
+	}
+
+	return managers, nil
 }
 
 // loadConfigsFromDir loads all configurations from both default and user directories

@@ -33,6 +33,11 @@ func (m *DefaultManager) DetectCurrent() (*interfaces.ShellInfo, error) {
 	// Get shell type
 	shellType := filepath.Base(currentShell)
 
+	// Validate shell type
+	if !interfaces.IsValidShell(shellType) {
+		return nil, fmt.Errorf("unknown shell type: %s", shellType)
+	}
+
 	// Get shell version
 	version, err := m.getShellVersion(currentShell)
 	if err != nil {

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/tools"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -65,7 +64,7 @@ func (t ToolItem) Description() string {
 
 // ToolSelector is the main model for tool selection
 type ToolSelector struct {
-	categories []tools.ToolCategory
+	categories []install.ToolCategory
 	lists      []list.Model
 	activeList int
 	selected   map[string]bool

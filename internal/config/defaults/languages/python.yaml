@@ -1,10 +1,36 @@
 name: Python
-description: Python programming language with pyenv version manager
+description: Python programming language
 category: language
-tags: ["python", "runtime", "pyenv"]
+tags: ["python", "runtime"]
 version: "3.11"
 installer: pyenv
 verify_command: python --version
+
+# Dependencies
+dependencies:
+  - name: pyenv
+    type: package
+    optional: false
+
+# System dependencies required for building Python
+system_dependencies:
+  - make
+  - build-essential
+  - libssl-dev
+  - zlib1g-dev
+  - libbz2-dev
+  - libreadline-dev
+  - libsqlite3-dev
+  - wget
+  - curl
+  - llvm
+  - libncursesw5-dev
+  - xz-utils
+  - tk-dev
+  - libxml2-dev
+  - libxmlsec1-dev
+  - libffi-dev
+  - liblzma-dev
 
 package_names:
   apt: python3
@@ -13,8 +39,10 @@ package_names:
   pacman: python
 
 post_install:
-  - command: curl https://pyenv.run | bash
-    description: Install pyenv (Python Version Manager)
+  - command: pyenv install 3.11
+    description: Install Python 3.11 using pyenv
+  - command: pyenv global 3.11
+    description: Set Python 3.11 as the global version
 
 shell_config:
   env:

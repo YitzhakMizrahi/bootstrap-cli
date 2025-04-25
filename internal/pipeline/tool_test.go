@@ -34,14 +34,17 @@ func TestTool_AddDependency(t *testing.T) {
 func TestTool_SetVerification(t *testing.T) {
 	tool := NewTool("test-tool", CategoryDevelopment)
 	verify := VerifyStrategy{
-		Command:        "test-tool --version",
+		Command: Command{
+			Command:     "test-tool --version",
+			Description: "Check test-tool version",
+		},
 		ExpectedOutput: "v1.0.0",
 		BinaryPaths:    []string{"test-tool"},
 	}
 	tool.SetVerification(verify)
 
-	if tool.Verify.Command != verify.Command {
-		t.Errorf("Expected command '%s', got '%s'", verify.Command, tool.Verify.Command)
+	if tool.Verify.Command.Command != verify.Command.Command {
+		t.Errorf("Expected command '%s', got '%s'", verify.Command.Command, tool.Verify.Command.Command)
 	}
 }
 
@@ -52,8 +55,18 @@ func TestTool_SetInstallation(t *testing.T) {
 			"apt":  "test-tool",
 			"brew": "test-tool",
 		},
-		PreInstall:  []string{"echo 'pre-install'"},
-		PostInstall: []string{"echo 'post-install'"},
+		PreInstall: []Command{
+			{
+				Command:     "echo 'pre-install'",
+				Description: "Pre-install command",
+			},
+		},
+		PostInstall: []Command{
+			{
+				Command:     "echo 'post-install'",
+				Description: "Post-install command",
+			},
+		},
 	}
 	tool.SetInstallation(install)
 
@@ -100,8 +113,18 @@ func TestTool_GenerateInstallationSteps(t *testing.T) {
 	// Create a tool with installation strategy
 	tool := NewTool("test-tool", CategoryEssential)
 	install := InstallStrategy{
-		PreInstall:  []string{"echo 'pre-install'"},
-		PostInstall: []string{"echo 'post-install'"},
+		PreInstall: []Command{
+			{
+				Command:     "echo 'pre-install'",
+				Description: "Pre-install command",
+			},
+		},
+		PostInstall: []Command{
+			{
+				Command:     "echo 'post-install'",
+				Description: "Post-install command",
+			},
+		},
 		PackageNames: map[string]string{
 			"apt": "test-tool",
 		},
@@ -128,9 +151,15 @@ func TestTool_CustomInstallation(t *testing.T) {
 	
 	// Set up custom installation
 	install := InstallStrategy{
-		CustomInstall: []string{
-			"echo 'custom install step 1'",
-			"echo 'custom install step 2'",
+		CustomInstall: []Command{
+			{
+				Command:     "echo 'custom install step 1'",
+				Description: "Custom install step 1",
+			},
+			{
+				Command:     "echo 'custom install step 2'",
+				Description: "Custom install step 2",
+			},
 		},
 	}
 	tool.SetInstallation(install)

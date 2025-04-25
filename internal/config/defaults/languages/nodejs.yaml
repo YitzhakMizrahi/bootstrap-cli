@@ -1,10 +1,16 @@
 name: Node.js
-description: JavaScript runtime built on Chrome's V8 JavaScript engine
+description: JavaScript runtime
 category: language
-tags: ["javascript", "runtime", "nvm"]
-version: lts
+tags: ["javascript", "runtime"]
+version: "18"
 installer: nvm
 verify_command: node --version
+
+# Dependencies
+dependencies:
+  - name: nvm
+    type: package
+    optional: false
 
 package_names:
   apt: nodejs
@@ -13,8 +19,10 @@ package_names:
   pacman: nodejs
 
 post_install:
-  - command: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-    description: Install nvm (Node Version Manager)
+  - command: nvm install 18
+    description: Install Node.js 18 using nvm
+  - command: nvm use 18
+    description: Set Node.js 18 as the active version
 
 shell_config:
   env:

@@ -11,7 +11,6 @@ import (
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/shell"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/tools"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -116,13 +115,19 @@ func runUp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to handle tool selection: %w", err)
 	}
 
-	// Step 7: Language Runtimes
-	runtimes, err := ui.PromptLanguageRuntimes()
+	// Step 7: Language Selection
+	selectedLanguages, err := ui.PromptLanguages()
 	if err != nil {
-		return fmt.Errorf("failed to handle language runtimes: %w", err)
+		return fmt.Errorf("failed to handle language selection: %w", err)
 	}
 
-	// Step 8: Install Progress
+	// Step 8: Language Manager Selection
+	selectedManagers, err := ui.PromptLanguageManagersForLanguages(selectedLanguages)
+	if err != nil {
+		return fmt.Errorf("failed to handle language manager selection: %w", err)
+	}
+
+	// Step 9: Install Progress
 	logger := log.New(log.InfoLevel)
 
 	// Check for root privileges before proceeding with installation
@@ -142,60 +147,35 @@ func runUp(cmd *cobra.Command, args []string) error {
 	installer := install.NewInstaller(pm)
 	installer.Logger = logger
 
-	// Convert selected tool names back to install.Tool objects
-	var toolsToInstall []*install.Tool
-	allToolCategories, err := tools.GetToolCategories()
-	if err != nil {
-		return fmt.Errorf("failed to get tool categories: %w", err)
-	}
-	for _, selectedName := range selectedTools {
-		found := false
-		for _, category := range allToolCategories {
-			for _, tool := range category.Tools {
-				if tool.Name == selectedName {
-					// Convert interfaces.Tool to install.Tool
-					toolsToInstall = append(toolsToInstall, &install.Tool{
-						Name:        tool.Name,
-						Description: tool.Description,
-						Category:    tool.Category,
-						Tags:        tool.Tags,
-						PackageName: tool.PackageName,
-						PackageNames: &install.PackageMapping{
-							APT:     tool.PackageNames.APT,
-							DNF:     tool.PackageNames.DNF,
-							Pacman:  tool.PackageNames.Pacman,
-							Brew:    tool.PackageNames.Brew,
-						},
-						Version:       tool.Version,
-						VerifyCommand: tool.VerifyCommand,
-						ShellConfig: interfaces.ShellConfig{
-							Aliases:   tool.ShellConfig.Aliases,
-							Functions: tool.ShellConfig.Functions,
-							Exports:   tool.ShellConfig.Env,
-						},
-					})
-					found = true
-					break
-				}
-			}
-			if found {
-				break
-			}
-		}
-		if !found {
-			logger.Warn("Selected tool '%s' not found in defined categories.", selectedName)
+	// First install language managers
+	logger.Info("Installing selected language managers...")
+	for _, manager := range selectedManagers {
+		logger.Info("Installing %s...", manager)
+		if err := installer.Install(&install.Tool{Name: manager}); err != nil {
+			logger.Error("Failed to install language manager %s: %v. Continuing...", manager, err)
 		}
 	}
+	logger.Success("Language manager installation process finished.")
 
-	// Install selected tools
-	logger.Info("Installing selected tools...")
-	for _, tool := range toolsToInstall {
-		logger.Info("Installing %s...", tool.Name)
-		if err := installer.Install(tool); err != nil {
-			logger.Error("Failed to install tool %s: %v. Continuing...", tool.Name, err)
+	// Then install languages
+	logger.Info("Installing selected languages...")
+	for _, lang := range selectedLanguages {
+		logger.Info("Installing %s...", lang)
+		if err := installer.Install(&install.Tool{Name: lang}); err != nil {
+			logger.Error("Failed to install language %s: %v. Continuing...", lang, err)
 		}
 	}
-	logger.Success("Selected tools installation process finished.")
+	logger.Success("Language installation process finished.")
+
+	// Finally install other selected tools
+	logger.Info("Installing selected tools...")
+	for _, tool := range selectedTools {
+		logger.Info("Installing %s...", tool)
+		if err := installer.Install(&install.Tool{Name: tool}); err != nil {
+			logger.Error("Failed to install tool %s: %v. Continuing...", tool, err)
+		}
+	}
+	logger.Success("Tool installation process finished.")
 
 	// Install JetBrains Mono Nerd Font if selected
 	if installFonts {
@@ -207,19 +187,6 @@ func runUp(cmd *cobra.Command, args []string) error {
 			logger.Success("JetBrains Mono font installed successfully.")
 		}
 	}
-
-	// Install selected language runtimes
-	logger.Info("Installing selected language runtimes...")
-	runtimeInstaller := install.NewRuntimeInstaller(pm, logger)
-	for _, runtime := range runtimes {
-		logger.Info("Installing %s...", runtime)
-		if err := runtimeInstaller.Install(runtime); err != nil {
-			logger.Error("Failed to install runtime %s: %v. Continuing...", runtime, err)
-		} else {
-			logger.Success("Successfully installed %s.", runtime)
-		}
-	}
-	logger.Success("Language runtime installation process finished.")
 
 	// Step 9: Validation & Finish
 	if err := ui.ValidateSetup(); err != nil {

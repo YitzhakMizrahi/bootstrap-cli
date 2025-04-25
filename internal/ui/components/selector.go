@@ -25,8 +25,9 @@ func (i SelectorItem) Title() string {
 	checkbox := "[ ]"
 	if i.selected {
 		checkbox = "[✓]"
+		return styles.SelectedStyle.Render(fmt.Sprintf("%s %s", checkbox, i.title))
 	}
-	return fmt.Sprintf("%s %s", checkbox, i.title)
+	return styles.UnselectedStyle.Render(fmt.Sprintf("%s %s", checkbox, i.title))
 }
 
 // Description returns the description for the list item

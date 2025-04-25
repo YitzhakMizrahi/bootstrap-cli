@@ -84,12 +84,12 @@ func (s *BaseSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.done = false
 			return s, tea.Quit
 		case "enter":
-			if len(s.selected) == 0 {
+			// Only handle Enter if we have selections
+			if len(s.selected) > 0 {
+				s.done = true
+				s.quitting = false
 				return s, nil
 			}
-			s.done = true
-			s.quitting = false
-			return s, tea.Quit
 		case " ":
 			// Get current item and index
 			idx := s.list.Index()

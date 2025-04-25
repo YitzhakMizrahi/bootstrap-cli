@@ -9,15 +9,10 @@ system_dependencies:
   - curl
 
 install:
-  - command: "mkdir -p ~/.local/share/fonts"
-    description: "Create fonts directory"
-  - command: "curl -L -o /tmp/JetBrainsMono.zip ${source}"
-    description: "Download font"
-  - command: "unzip -o /tmp/JetBrainsMono.zip -d ~/.local/share/fonts/"
-    description: "Extract font files"
-  - command: "fc-cache -f"
-    description: "Update font cache"
+  - "mkdir -p ~/.local/share/fonts"
+  - "curl -L -o /tmp/JetBrainsMono.zip ${source}"
+  - "unzip -o /tmp/JetBrainsMono.zip -d ~/.local/share/fonts/"
+  - "fc-cache -f"
 
 verify:
-  - command: "fc-list | grep -i 'JetBrains Mono'"
-    description: "Verify font is installed" 
+  - "fc-list | grep -i 'JetBrains Mono'" 

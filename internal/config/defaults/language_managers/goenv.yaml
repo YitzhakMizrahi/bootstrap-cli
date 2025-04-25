@@ -11,13 +11,16 @@ package_names:
   pacman: goenv
 
 dependencies:
-  - git
-  - curl
-  - make
+  - name: git
+    type: system
+  - name: curl
+    type: system
+  - name: make
+    type: system
 
 post_install:
-  - command: git clone https://github.com/syndbg/goenv.git ~/.goenv
-    description: Install goenv
+  - Command: git clone https://github.com/syndbg/goenv.git ~/.goenv
+    Description: Install goenv
 
 shell_config:
   exports:

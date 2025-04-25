@@ -102,45 +102,21 @@ func detectSystem() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
-	switch msg := msg.(type) {
-	case detectSystemMsg:
-		if msg.err != nil {
-			m.err = msg.err
-			return m, nil
-		}
-		m.pmType = msg.pmType
-		m.systemReady = true
-		return m, nil
-
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		if m.selector != nil {
-			m.selector.SetSize(msg.Width, msg.Height-6)
-		}
-
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
-			return m, tea.Quit
-		case "enter":
-			if m.currentScreen == WelcomeScreen {
-				return m, tea.Batch(m.nextScreen(), detectSystem())
-			}
-			if m.currentScreen == SystemScreen && m.systemReady {
-				return m, m.nextScreen()
-			}
-			if m.selector != nil && m.selector.Finished() {
-				// Store selected items before moving to next screen
+	// Update the current selector if it exists
+	if m.selector != nil {
+		var newModel tea.Model
+		newModel, cmd = m.selector.Update(msg)
+		if newSelector, ok := newModel.(*components.BaseSelector); ok {
+			m.selector = newSelector
+			// If selector is finished, process selections and move to next screen
+			if m.selector.Finished() {
 				switch m.currentScreen {
 				case ToolScreen:
 					selected := m.selector.GetSelected()
-					fmt.Printf("Selected %d tools\n", len(selected))
 					tools := make([]*interfaces.Tool, 0, len(selected))
 					for _, item := range selected {
 						if tool, ok := item.(*interfaces.Tool); ok {
 							tools = append(tools, tool)
-							fmt.Printf("Selected tool: %s\n", tool.Name)
 						}
 					}
 					m.selectedTools = tools
@@ -170,14 +146,37 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.nextScreen()
 			}
 		}
+		return m, cmd
 	}
 
-	// Update the current selector if it exists
-	if m.selector != nil {
-		var newModel tea.Model
-		newModel, cmd = m.selector.Update(msg)
-		if newSelector, ok := newModel.(*components.BaseSelector); ok {
-			m.selector = newSelector
+	switch msg := msg.(type) {
+	case detectSystemMsg:
+		if msg.err != nil {
+			m.err = msg.err
+			return m, nil
+		}
+		m.pmType = msg.pmType
+		m.systemReady = true
+		return m, nil
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		if m.selector != nil {
+			m.selector.SetSize(msg.Width, msg.Height-6)
+		}
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "q":
+			return m, tea.Quit
+		case "enter":
+			if m.currentScreen == WelcomeScreen {
+				return m, tea.Batch(m.nextScreen(), detectSystem())
+			}
+			if m.currentScreen == SystemScreen && m.systemReady {
+				return m, m.nextScreen()
+			}
 		}
 	}
 

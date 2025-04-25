@@ -3,6 +3,8 @@ package utils
 import (
 	"fmt"
 	"strings"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/styles"
 )
 
 // Section represents a section in the progress bar
@@ -11,11 +13,21 @@ type Section struct {
 	Status string
 }
 
-// RenderProgressBar creates a text-based progress bar showing the status of installation sections
-func RenderProgressBar(sections []struct {
-	Name   string
-	Status string
-}, width int) string {
+// RenderSimpleProgressBar renders a simple progress bar with the given percentage
+func RenderSimpleProgressBar(percent float64) string {
+	// Calculate the filled and empty portions
+	filled := int(percent * 20)
+	empty := 20 - filled
+
+	// Create the bar
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", empty)
+
+	// Format with percentage
+	return fmt.Sprintf("%s %3.0f%%", styles.ProgressStyle.Render(bar), percent*100)
+}
+
+// RenderSectionProgressBar creates a text-based progress bar showing the status of installation sections
+func RenderSectionProgressBar(sections []Section) string {
 	var result strings.Builder
 	
 	// Calculate the maximum section name length

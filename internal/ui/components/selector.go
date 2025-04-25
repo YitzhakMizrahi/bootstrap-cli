@@ -51,7 +51,7 @@ func NewBaseSelector(title string) *BaseSelector {
 	delegate := list.NewDefaultDelegate()
 	delegate.SetHeight(2) // Give more space for items
 	delegate.SetSpacing(1) // Add spacing between items
-	delegate.UpdateFunc = func(msg tea.Msg, m *list.Model) tea.Cmd {
+	delegate.UpdateFunc = func(_ tea.Msg, _ *list.Model) tea.Cmd {
 		return nil
 	}
 
@@ -74,7 +74,7 @@ func (s *BaseSelector) Init() tea.Cmd {
 	return nil
 }
 
-// Update implements tea.Model
+// Update handles keyboard input and updates the selector state
 func (s *BaseSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:

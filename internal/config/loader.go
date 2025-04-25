@@ -3,6 +3,7 @@ package config
 import (
 	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -935,4 +936,61 @@ func (l *Loader) loadDotfile(path string) (*interfaces.Dotfile, error) {
 		return nil, fmt.Errorf("error parsing dotfile %s: %w", path, err)
 	}
 	return &dotfile, nil
+}
+
+// ExtractDefaults extracts default configurations to the user's config directory
+func (l *Loader) ExtractDefaults() error {
+	// Create all necessary directories
+	dirs := []string{"tools", "fonts", "languages", "dotfiles", "language_managers"}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(filepath.Join(l.baseDir, dir), 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", dir, err)
+		}
+	}
+
+	// Walk through the embedded defaults and copy to user config
+	err := fs.WalkDir(l.configFS, l.defaultsDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories and schema files
+		if d.IsDir() || strings.HasSuffix(d.Name(), "schema.yaml") {
+			return nil
+		}
+
+		// Read the file
+		data, err := l.configFS.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("failed to read %s: %w", path, err)
+		}
+
+		// Create the target path
+		relPath, err := filepath.Rel(l.defaultsDir, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path for %s: %w", path, err)
+		}
+		targetPath := filepath.Join(l.baseDir, relPath)
+
+		// Ensure the target directory exists
+		targetDir := filepath.Dir(targetPath)
+		if err := os.MkdirAll(targetDir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", targetDir, err)
+		}
+
+		// Write the file if it doesn't exist
+		if _, err := os.Stat(targetPath); os.IsNotExist(err) {
+			if err := os.WriteFile(targetPath, data, 0644); err != nil {
+				return fmt.Errorf("failed to write %s: %w", targetPath, err)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to extract default configurations: %w", err)
+	}
+
+	return nil
 } 

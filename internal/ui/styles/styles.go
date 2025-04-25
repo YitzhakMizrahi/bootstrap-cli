@@ -70,6 +70,10 @@ var (
 	InfoStyle = BaseStyle.Copy().
 		Foreground(primaryColor).
 		Bold(true)
+
+	// ProgressStyle provides styling for progress bars
+	ProgressStyle = BaseStyle.Copy().
+		Foreground(primaryColor)
 )
 
 // JoinVertical joins multiple strings vertically with proper spacing

@@ -11,8 +11,10 @@ package_names:
   pacman: nvm
 
 dependencies:
-  - curl
-  - git
+  - name: curl
+    type: system
+  - name: git
+    type: system
 
 post_install:
   - command: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash

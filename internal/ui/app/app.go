@@ -81,7 +81,11 @@ func New(config *config.Loader) *Model {
 
 // Init implements tea.Model
 func (m *Model) Init() tea.Cmd {
-	return nil
+	// Enter alternate screen and hide cursor
+	return tea.Batch(
+		tea.EnterAltScreen,
+		tea.HideCursor,
+	)
 }
 
 // detectSystemMsg is sent when system detection is complete
@@ -185,22 +189,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View implements tea.Model
 func (m *Model) View() string {
+	// Clear screen and move cursor to top-left
+	output := "\x1b[2J\x1b[H"
+	
 	// Header with step indicator
-	header := m.stepIndicator.View()
+	output += m.stepIndicator.View() + "\n\n"
 
 	// Main content based on current screen
-	var content string
 	switch m.currentScreen {
 	case WelcomeScreen:
-		content = styles.TitleStyle.Render("Welcome to Bootstrap CLI") + "\n\n" +
+		output += styles.TitleStyle.Render("Welcome to Bootstrap CLI") + "\n\n" +
 			styles.BaseStyle.Render("Setup your development environment with ease") + "\n\n" +
 			styles.HelpStyle.Render("Press Enter to begin setup...")
 	case SystemScreen:
-		content = styles.TitleStyle.Render("System Information") + "\n\n"
+		output += styles.TitleStyle.Render("System Information") + "\n\n"
 		if !m.systemReady {
-			content += styles.BaseStyle.Render("Detecting system configuration...") + "\n"
+			output += styles.BaseStyle.Render("Detecting system configuration...") + "\n"
 		} else {
-			content += styles.BaseStyle.Render("System detected:") + "\n\n" +
+			output += styles.BaseStyle.Render("System detected:") + "\n\n" +
 				styles.BaseStyle.Render("OS: " + runtime.GOOS) + "\n" +
 				styles.BaseStyle.Render("Architecture: " + runtime.GOARCH) + "\n" +
 				styles.BaseStyle.Render("Package Manager: " + string(m.pmType)) + "\n\n" +
@@ -208,20 +214,18 @@ func (m *Model) View() string {
 		}
 	default:
 		if m.selector != nil {
-			content = m.selector.View()
+			output += m.selector.View()
 		}
 	}
 
 	// Footer with error message or help text
-	var footer string
 	if m.err != nil {
-		footer = styles.ErrorStyle.Render(m.err.Error())
+		output += "\n\n" + styles.ErrorStyle.Render(m.err.Error())
 	} else {
-		footer = styles.HelpStyle.Render("↑/↓: navigate • space: select/deselect • enter: confirm • q: quit")
+		output += "\n\n" + styles.HelpStyle.Render("↑/↓: navigate • space: select/deselect • enter: confirm • q: quit")
 	}
 
-	// Combine all sections with proper spacing
-	return styles.JoinVertical([]string{header, content, footer}...)
+	return output
 }
 
 // nextScreen advances to the next screen and configures the appropriate selector

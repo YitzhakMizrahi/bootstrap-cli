@@ -1,39 +1,46 @@
-// Package up provides the command for running the complete bootstrap process,
-// orchestrating system detection, shell configuration, tool installation,
-// and environment setup in a single unified flow.
+// Package up provides the up command for running the bootstrap-cli TUI
 package up
 
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/install"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/log"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/app"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
 
-// NewUpCmd creates a new up command
+var (
+	logger *log.Logger
+)
+
+// NewUpCmd creates the up command
 func NewUpCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "up",
-		Short: "Run the complete bootstrap process",
-		Long: `Run the complete bootstrap process including:
-- System detection
-- Shell detection and configuration
-- Core tool installation
-- Package management setup`,
+		Short: "Run the interactive TUI to configure and set up your development environment",
+		Long: `Guides you through selecting and installing components
+for your development environment, including:
+- Core development tools
+- Modern CLI utilities
+- Programming languages
+- Fonts
+- Shell setup
+- Dotfiles management`,
 		RunE: runUp,
 	}
+	return cmd
 }
 
-func runUp(_ *cobra.Command, _ []string) error {
+func runUp(cmd *cobra.Command, _ []string) error {
+	logger = log.New(log.InfoLevel)
+	if debug, _ := cmd.Flags().GetBool("debug"); debug {
+		logger.SetLevel(log.DebugLevel)
+	}
+	logger.Info("Starting Bootstrap CLI TUI...")
+
 	// Get config path from environment
 	configPath := os.Getenv("BOOTSTRAP_CLI_CONFIG")
 	if configPath == "" {
@@ -43,106 +50,31 @@ func runUp(_ *cobra.Command, _ []string) error {
 	// Initialize config loader with the correct path
 	configLoader := config.NewLoader(configPath)
 
-	// Create and run the Bubble Tea application
+	// Create and run the application
 	model := app.New(configLoader)
-	p := tea.NewProgram(model)
-	
+	p := tea.NewProgram(model, tea.WithAltScreen())
+
 	finalModel, err := p.Run()
 	if err != nil {
-		return fmt.Errorf("UI error: %w", err)
+		return fmt.Errorf("application error: %w", err)
 	}
 
-	// Get the final model state
-	m, ok := finalModel.(*app.Model)
-	if !ok {
-		return fmt.Errorf("invalid model type")
+	// Get selections from the final model
+	m := finalModel.(*app.Model)
+	if len(m.SelectedTools()) > 0 {
+		logger.Info("Installing selected tools...")
+		// TODO: Install tools
 	}
 
-	// Check if user quit early
-	if m.CurrentScreen() != app.FinishScreen {
-		fmt.Println("Setup cancelled by user")
-		return nil
-	}
-
-	// Get selected items
-	selectedTools := m.SelectedTools()
-	selectedFonts := m.SelectedFonts()
-	selectedLanguages := m.SelectedLanguages()
-	selectedManagers := m.SelectedManagers()
-
-	// Step 9: Install Progress
-	logger := log.New(log.InfoLevel)
-
-	// Check for root privileges before proceeding with installation
-	if !system.IsRoot() {
-		logger.Warn("Tool installation requires root privileges.")
-		fmt.Printf("\nPlease re-run with sudo: sudo %s\n\n", strings.Join(os.Args, " "))
-		return fmt.Errorf("root privileges required for installation")
-	}
-
-	// Use the factory to get the package manager
-	f := factory.NewPackageManagerFactory()
-	pm, err := f.GetPackageManager()
-	if err != nil {
-		return fmt.Errorf("failed to detect package manager: %w", err)
-	}
-
-	installer := install.NewInstaller(pm)
-	installer.Logger = logger
-
-	// First install language managers
-	logger.Info("Installing selected language managers...")
-	for _, manager := range selectedManagers {
-		logger.Info("Installing %s...", manager.Name)
-		if err := installer.Install(&interfaces.Tool{
-			Name: manager.Name,
-			Description: manager.Description,
-		}); err != nil {
-			logger.Error("Failed to install language manager %s: %v. Continuing...", manager.Name, err)
-		}
-	}
-	logger.Success("Language manager installation process finished.")
-
-	// Then install languages
-	logger.Info("Installing selected languages...")
-	for _, lang := range selectedLanguages {
-		logger.Info("Installing %s...", lang.Name)
-		if err := installer.Install(&interfaces.Tool{
-			Name: lang.Name,
-			Description: lang.Description,
-		}); err != nil {
-			logger.Error("Failed to install language %s: %v. Continuing...", lang.Name, err)
-		}
-	}
-	logger.Success("Language installation process finished.")
-
-	// Finally install other selected tools
-	logger.Info("Installing selected tools...")
-	for _, tool := range selectedTools {
-		logger.Info("Installing %s...", tool.Name)
-		if err := installer.Install(&interfaces.Tool{
-			Name: tool.Name,
-			Description: tool.Description,
-		}); err != nil {
-			logger.Error("Failed to install tool %s: %v. Continuing...", tool.Name, err)
-		}
-	}
-	logger.Success("Tool installation process finished.")
-
-	// Install selected fonts
-	if len(selectedFonts) > 0 {
+	if len(m.SelectedFonts()) > 0 {
 		logger.Info("Installing selected fonts...")
-		fontInstaller := install.NewFontInstaller(logger)
-		for _, font := range selectedFonts {
-			logger.Info("Installing %s...", font.Name)
-			if err := fontInstaller.InstallFont(font); err != nil {
-				logger.Error("Failed to install font %s: %v", font.Name, err)
-			} else {
-				logger.Success("%s installed successfully.", font.Name)
-			}
-		}
+		// TODO: Install fonts
 	}
 
-	fmt.Println("Bootstrap process completed successfully!")
+	if len(m.SelectedLanguages()) > 0 {
+		logger.Info("Installing selected languages...")
+		// TODO: Install languages and managers
+	}
+
 	return nil
 } 

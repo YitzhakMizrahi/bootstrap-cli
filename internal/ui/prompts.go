@@ -7,20 +7,10 @@ import (
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/components"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/screens"
+	tea "github.com/charmbracelet/bubbletea"
 )
-
-// ShowWelcomeScreen displays the welcome screen and returns true if user wants to continue
-func ShowWelcomeScreen() bool {
-	return screens.ShowWelcomeScreen()
-}
-
-// ShowSystemInfo displays the system information and returns true if user wants to continue
-func ShowSystemInfo(info *system.Info) bool {
-	return screens.ShowSystemInfo(info)
-}
 
 // PromptDotfiles prompts for GitHub dotfiles URL
 func PromptDotfiles() (string, error) {
@@ -63,7 +53,15 @@ func PromptToolSelection(loader *config.Loader) ([]*interfaces.Tool, error) {
 	}
 
 	toolScreen := screens.NewToolScreen(tools)
-	return toolScreen.ShowToolSelection()
+	p := tea.NewProgram(toolScreen)
+	model, err := p.Run()
+	if err != nil {
+		return nil, fmt.Errorf("tool selection failed: %w", err)
+	}
+	if ts, ok := model.(*screens.ToolScreen); ok {
+		return ts.GetSelected(), nil
+	}
+	return nil, fmt.Errorf("unexpected model type returned from tool selection")
 }
 
 // PromptLanguages prompts for programming language selection
@@ -76,16 +74,23 @@ func PromptLanguages() ([]*interfaces.Language, error) {
 
 	// Create config loader with the correct path
 	loader := config.NewLoader(configPath)
-	
 	// Load available languages
 	availableLanguages, err := loader.LoadLanguages()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load language configurations: %w", err)
 	}
-
-	// Use the new language screen
-	screen := screens.NewLanguageScreen()
-	return screen.ShowLanguageSelection(availableLanguages)
+	// No managers for this prompt
+	managers := []*interfaces.Tool{}
+	screen := screens.NewLanguageScreen(availableLanguages, managers)
+	p := tea.NewProgram(screen)
+	model, err := p.Run()
+	if err != nil {
+		return nil, fmt.Errorf("language selection failed: %w", err)
+	}
+	if ls, ok := model.(*screens.LanguageScreen); ok {
+		return ls.GetSelectedLanguages(), nil
+	}
+	return nil, fmt.Errorf("unexpected model type returned from language selection")
 }
 
 // PromptLanguageManagersForLanguages prompts for language manager selection based on selected languages
@@ -95,19 +100,25 @@ func PromptLanguageManagersForLanguages(selectedLanguages []*interfaces.Language
 	if configPath == "" {
 		return nil, fmt.Errorf("BOOTSTRAP_CLI_CONFIG environment variable not set")
 	}
-
 	// Create config loader with the correct path
 	loader := config.NewLoader(configPath)
-
 	// Load all language managers
 	availableManagers, err := loader.LoadLanguageManagers()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load language manager configurations: %w", err)
 	}
-
 	// Use the new language screen
-	screen := screens.NewLanguageScreen()
-	return screen.ShowManagerSelection(availableManagers, selectedLanguages)
+	languages := []*interfaces.Language{} // No languages for this prompt
+	screen := screens.NewLanguageScreen(languages, availableManagers)
+	p := tea.NewProgram(screen)
+	model, err := p.Run()
+	if err != nil {
+		return nil, fmt.Errorf("manager selection failed: %w", err)
+	}
+	if ls, ok := model.(*screens.LanguageScreen); ok {
+		return ls.GetSelectedManagers(), nil
+	}
+	return nil, fmt.Errorf("unexpected model type returned from manager selection")
 }
 
 // Helper function to filter managers based on selected languages

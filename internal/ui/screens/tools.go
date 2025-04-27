@@ -2,10 +2,10 @@ package screens
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/components"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/styles"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -20,35 +20,15 @@ type ToolScreen struct {
 
 // NewToolScreen creates a new tool selection screen
 func NewToolScreen(tools []*interfaces.Tool) *ToolScreen {
-	return &ToolScreen{
+	ts := &ToolScreen{
 		tools:    tools,
 		finished: false,
 		canceled: false,
 	}
-}
-
-// ShowToolSelection displays the tool selection screen
-func (s *ToolScreen) ShowToolSelection() ([]*interfaces.Tool, error) {
-	// Sort tools by category
-	toolsByCategory := make(map[string][]*interfaces.Tool)
-	for _, tool := range s.tools {
-		category := tool.Category
-		toolsByCategory[category] = append(toolsByCategory[category], tool)
-	}
-
-	// Get sorted categories
-	categories := make([]string, 0, len(toolsByCategory))
-	for category := range toolsByCategory {
-		categories = append(categories, category)
-	}
-	sort.Strings(categories)
-
 	// Create selector
-	s.selector = components.NewBaseSelector("Select Development Tools")
-
-	// Set up the selector with tools directly
-	s.selector.SetItems(
-		s.tools, // Pass tools directly, no need for conversion
+	ts.selector = components.NewBaseSelector("Select Development Tools")
+	ts.selector.SetItems(
+		tools,
 		func(item interface{}) string {
 			if tool, ok := item.(*interfaces.Tool); ok {
 				if tool.Category != "" {
@@ -65,35 +45,47 @@ func (s *ToolScreen) ShowToolSelection() ([]*interfaces.Tool, error) {
 			return ""
 		},
 	)
+	return ts
+}
 
-	// Run the selector
-	p := tea.NewProgram(s.selector)
-	model, err := p.Run()
-	if err != nil {
-		return nil, fmt.Errorf("tool selection failed: %w", err)
-	}
+// Init implements tea.Model
+func (s *ToolScreen) Init() tea.Cmd {
+	return nil
+}
 
-	// Check if user quit
-	if selectorModel, ok := model.(*components.BaseSelector); ok {
-		if !selectorModel.Finished() {
-			s.canceled = true
-			return nil, nil
-		}
-
-		// Convert selected items to tools
-		selected := selectorModel.GetSelected()
-		s.selected = make([]*interfaces.Tool, 0, len(selected))
-		for _, item := range selected {
-			if tool, ok := item.(*interfaces.Tool); ok {
-				s.selected = append(s.selected, tool)
+// Update implements tea.Model
+func (s *ToolScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	newModel, cmd := s.selector.Update(msg)
+	if selector, ok := newModel.(*components.BaseSelector); ok {
+		s.selector = selector
+		if s.selector.Finished() {
+			selected := s.selector.GetSelected()
+			s.selected = make([]*interfaces.Tool, 0, len(selected))
+			for _, item := range selected {
+				if tool, ok := item.(*interfaces.Tool); ok {
+					s.selected = append(s.selected, tool)
+				}
 			}
+			s.finished = true
 		}
-
-		s.finished = true
-		return s.selected, nil
 	}
+	return s, cmd
+}
 
-	return nil, fmt.Errorf("failed to get tool selector model")
+// View implements tea.Model
+func (s *ToolScreen) View() string {
+	return styles.TitleStyle.Render("Select Development Tools") + "\n\n" + s.selector.View()
+}
+
+// Finished returns true if the screen was completed
+func (s *ToolScreen) Finished() bool {
+	return s.finished
+}
+
+// GetSelected returns the selected tools
+func (s *ToolScreen) GetSelected() []*interfaces.Tool {
+	return s.selected
 }
 
 // IsFinished returns true if the screen was completed

@@ -94,3 +94,113 @@ This doc captures high-level technical and strategic decisions made during the p
 - Visual theme customization?
 - Accessibility defaults (reduced motion, contrast)?
 
+## 1. Split Commands (2024-04-25)
+
+### Context
+The original design had a single command that handled both initialization and installation. This created confusion about the state of the system and made it difficult to handle first-time setup.
+
+### Decision
+Split the functionality into two distinct commands:
+- `init`: Handles first-time setup
+- `up`: Runs the interactive TUI
+
+### Consequences
+- Clearer separation of concerns
+- Better user experience with explicit initialization
+- More maintainable codebase
+- Slight increase in complexity due to state management
+
+## 2. Bubble Tea TUI (2024-04-25)
+
+### Context
+The original CLI used simple prompts and lacked visual feedback. Users had difficulty understanding the installation progress and their choices.
+
+### Decision
+Adopt the Bubble Tea framework for a full-screen TUI with:
+- Interactive selection screens
+- Progress indicators
+- Consistent styling
+- Keyboard navigation
+
+### Consequences
+- More intuitive user interface
+- Better visual feedback
+- Increased development complexity
+- Need for careful state management
+
+## 3. Configuration-Driven Design (2024-04-25)
+
+### Context
+Tool and font configurations were initially hardcoded, making it difficult to add or modify options.
+
+### Decision
+Move all configurations to YAML files with:
+- Schema validation
+- Default configurations
+- User override support
+- Embedded defaults
+
+### Consequences
+- Easier to add new tools and fonts
+- Better maintainability
+- Need for careful schema design
+- Additional complexity in configuration loading
+
+## 4. Component-Based UI (2024-04-25)
+
+### Context
+UI code was scattered and inconsistent, making it hard to maintain a consistent look and feel.
+
+### Decision
+Create reusable UI components:
+- Base selector for lists
+- Progress indicators
+- Consistent styling system
+- Screen-based navigation
+
+### Consequences
+- More consistent UI
+- Better code reuse
+- Easier to add new features
+- Need for careful component design
+
+## 5. Installation Pipeline (2024-04-25)
+
+### Context
+Installation process was linear and lacked proper error handling and rollback capabilities.
+
+### Decision
+Implement a pipeline-based installation system:
+- Sequential or parallel installation
+- Error handling at each step
+- Rollback capabilities
+- Progress tracking
+
+### Consequences
+- More robust installation process
+- Better error recovery
+- Increased complexity
+- Need for careful testing
+
+## Future Considerations
+
+1. **Package Manager Abstraction**
+   - Consider more flexible package manager support
+   - Add support for more package managers
+   - Improve version handling
+
+2. **Configuration Management**
+   - Consider remote configuration support
+   - Add configuration validation
+   - Improve override mechanics
+
+3. **Testing Strategy**
+   - Add more unit tests
+   - Implement integration tests
+   - Add UI testing
+
+4. **Error Handling**
+   - Improve error messages
+   - Add detailed logging
+   - Implement better recovery strategies
+

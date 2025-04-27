@@ -2,11 +2,10 @@
 package screens
 
 import (
-	"fmt"
-
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/components"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/styles"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/utils"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -19,22 +18,9 @@ type FontScreen struct {
 
 // NewFontScreen creates a new font selection screen
 func NewFontScreen(loader *config.Loader) *FontScreen {
-	return &FontScreen{
-		selector: components.NewBaseSelector("Select Fonts"),
-		loader:   loader,
-	}
-}
-
-// ShowFontSelection prompts the user to select fonts
-func (s *FontScreen) ShowFontSelection() ([]*interfaces.Font, error) {
-	// Load available fonts
-	availableFonts, err := s.loader.LoadFonts()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load font configurations: %w", err)
-	}
-
-	// Set up the selector with fonts
-	s.selector.SetItems(
+	availableFonts, _ := loader.LoadFonts()
+	selector := components.NewBaseSelector("Select Fonts")
+	selector.SetItems(
 		utils.ConvertToInterfaceSlice(availableFonts),
 		func(item interface{}) string {
 			if font, ok := item.(*interfaces.Font); ok {
@@ -49,30 +35,45 @@ func (s *FontScreen) ShowFontSelection() ([]*interfaces.Font, error) {
 			return ""
 		},
 	)
-
-	// Run the interactive UI
-	p := tea.NewProgram(s.selector)
-	model, err := p.Run()
-	if err != nil {
-		return nil, fmt.Errorf("UI error: %w", err)
+	return &FontScreen{
+		selector: selector,
+		loader:   loader,
 	}
+}
 
-	// Check if user quit
-	if selectorModel, ok := model.(*components.BaseSelector); ok {
-		if !selectorModel.Finished() {
-			return nil, fmt.Errorf("selection cancelled")
-		}
-		
-		// Convert selected items to fonts
-		selected := selectorModel.GetSelected()
-		fonts := make([]*interfaces.Font, 0, len(selected))
-		for _, item := range selected {
-			if font, ok := item.(*interfaces.Font); ok {
-				fonts = append(fonts, font)
-			}
-		}
-		return fonts, nil
+// Init implements tea.Model
+func (s *FontScreen) Init() tea.Cmd {
+	return nil
+}
+
+// Update implements tea.Model
+func (s *FontScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	newModel, cmd := s.selector.Update(msg)
+	if selector, ok := newModel.(*components.BaseSelector); ok {
+		s.selector = selector
 	}
+	return s, cmd
+}
 
-	return nil, fmt.Errorf("failed to get font selector model")
+// View implements tea.Model
+func (s *FontScreen) View() string {
+	return styles.TitleStyle.Render("Select Fonts") + "\n\n" + s.selector.View()
+}
+
+// Finished returns true if the screen was completed
+func (s *FontScreen) Finished() bool {
+	return s.selector.Finished()
+}
+
+// GetSelected returns the selected fonts
+func (s *FontScreen) GetSelected() []*interfaces.Font {
+	selected := s.selector.GetSelected()
+	fonts := make([]*interfaces.Font, 0, len(selected))
+	for _, item := range selected {
+		if font, ok := item.(*interfaces.Font); ok {
+			fonts = append(fonts, font)
+		}
+	}
+	return fonts
 } 

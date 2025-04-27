@@ -11,23 +11,40 @@ package_names:
   pacman: pyenv
 
 dependencies:
-  - make
-  - build-essential
-  - libssl-dev
-  - zlib1g-dev
-  - libbz2-dev
-  - libreadline-dev
-  - libsqlite3-dev
-  - wget
-  - curl
-  - llvm
-  - libncursesw5-dev
-  - xz-utils
-  - tk-dev
-  - libxml2-dev
-  - libxmlsec1-dev
-  - libffi-dev
-  - liblzma-dev
+  - name: make
+    type: system
+  - name: build-essential
+    type: system
+  - name: libssl-dev
+    type: system
+  - name: zlib1g-dev
+    type: system
+  - name: libbz2-dev
+    type: system
+  - name: libreadline-dev
+    type: system
+  - name: libsqlite3-dev
+    type: system
+  - name: wget
+    type: system
+  - name: curl
+    type: system
+  - name: llvm
+    type: system
+  - name: libncursesw5-dev
+    type: system
+  - name: xz-utils
+    type: system
+  - name: tk-dev
+    type: system
+  - name: libxml2-dev
+    type: system
+  - name: libxmlsec1-dev
+    type: system
+  - name: libffi-dev
+    type: system
+  - name: liblzma-dev
+    type: system
 
 post_install:
   - command: curl https://pyenv.run | bash

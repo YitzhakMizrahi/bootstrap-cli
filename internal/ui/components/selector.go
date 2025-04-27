@@ -56,11 +56,11 @@ func NewBaseSelector(title string) *BaseSelector {
 	}
 
 	// Create and configure the list
-	l := list.New([]list.Item{}, delegate, 0, 0)
+	l := list.New([]list.Item{}, delegate, 40, 10) // Explicit width and height for debug
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(true)
 	l.SetShowStatusBar(false)
-	l.Title = styles.TitleStyle.Render(title)
+	// l.Title = styles.TitleStyle.Render(title) // Remove extra title for debug
 
 	return &BaseSelector{
 		list:     l,
@@ -84,12 +84,10 @@ func (s *BaseSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.done = false
 			return s, tea.Quit
 		case "enter":
-			// Only handle Enter if we have selections
-			if len(s.selected) > 0 {
-				s.done = true
-				s.quitting = false
-				return s, nil
-			}
+			// Allow advancing even if nothing is selected
+			s.done = true
+			s.quitting = false
+			return s, nil
 		case " ":
 			// Get current item and index
 			idx := s.list.Index()
@@ -99,7 +97,7 @@ func (s *BaseSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// Get the current item and cast it
-			currentItem, ok := items[idx].(SelectorItem)
+			currentItem, ok := items[idx].(*SelectorItem)
 			if !ok {
 				return s, nil
 			}
@@ -137,18 +135,7 @@ func (s *BaseSelector) View() string {
 	if s.quitting {
 		return ""
 	}
-
-	// Create help text
-	help := styles.HelpStyle.Render("↑/↓: navigate • space: select/deselect • enter: confirm • q: quit")
-
-	// Combine all elements with proper spacing
-	content := fmt.Sprintf("%s\n\n%s\n\n%s",
-		s.list.Title,
-		s.list.View(),
-		help,
-	)
-
-	return content
+	return s.list.View()
 }
 
 // Finished returns true if the selector was completed normally (not quit)
@@ -174,7 +161,7 @@ func (s *BaseSelector) SetItems(items interface{}, titleFn func(interface{}) str
 	case []interface{}:
 		listItems = make([]list.Item, len(v))
 		for i, item := range v {
-			listItems[i] = SelectorItem{
+			listItems[i] = &SelectorItem{
 				title:       titleFn(item),
 				description: descFn(item),
 				item:        item,
@@ -184,7 +171,7 @@ func (s *BaseSelector) SetItems(items interface{}, titleFn func(interface{}) str
 	case []*interfaces.Tool:
 		listItems = make([]list.Item, len(v))
 		for i, item := range v {
-			listItems[i] = SelectorItem{
+			listItems[i] = &SelectorItem{
 				title:       titleFn(item),
 				description: descFn(item),
 				item:        item,
@@ -194,7 +181,7 @@ func (s *BaseSelector) SetItems(items interface{}, titleFn func(interface{}) str
 	case []*interfaces.Font:
 		listItems = make([]list.Item, len(v))
 		for i, item := range v {
-			listItems[i] = SelectorItem{
+			listItems[i] = &SelectorItem{
 				title:       titleFn(item),
 				description: descFn(item),
 				item:        item,
@@ -204,7 +191,7 @@ func (s *BaseSelector) SetItems(items interface{}, titleFn func(interface{}) str
 	case []*interfaces.Language:
 		listItems = make([]list.Item, len(v))
 		for i, item := range v {
-			listItems[i] = SelectorItem{
+			listItems[i] = &SelectorItem{
 				title:       titleFn(item),
 				description: descFn(item),
 				item:        item,

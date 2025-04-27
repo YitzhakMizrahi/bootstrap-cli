@@ -1,30 +1,113 @@
 package screens
 
 import (
-	"fmt"
-
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/components"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/styles"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/utils"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // LanguageScreen represents the language selection screen
 type LanguageScreen struct {
-	title string
+	selector *components.BaseSelector
+	selectedLanguages []*interfaces.Language
+	selectedManagers  []*interfaces.Tool
+	finished bool
 }
 
 // NewLanguageScreen creates a new language selection screen
-func NewLanguageScreen() *LanguageScreen {
+func NewLanguageScreen(languages []*interfaces.Language, managers []*interfaces.Tool) *LanguageScreen {
+	items := make([]interface{}, 0, len(languages)+len(managers))
+	for _, m := range managers {
+		items = append(items, m)
+	}
+	for _, l := range languages {
+		items = append(items, l)
+	}
+	selector := components.NewBaseSelector("Select Languages and Version Managers")
+	selector.SetItems(items,
+		func(i interface{}) string {
+			switch v := i.(type) {
+			case *interfaces.Tool:
+				return "Manager: " + v.Name
+			case *interfaces.Language:
+				return v.Name
+			default:
+				return "Unknown"
+			}
+		},
+		func(i interface{}) string {
+			switch v := i.(type) {
+			case *interfaces.Tool:
+				return v.Description
+			case *interfaces.Language:
+				return v.Description
+			default:
+				return ""
+			}
+		},
+	)
 	return &LanguageScreen{
-		title: "Language Runtimes",
+		selector: selector,
+		finished: false,
 	}
 }
 
+// Init implements tea.Model
+func (s *LanguageScreen) Init() tea.Cmd {
+	return nil
+}
+
+// Update implements tea.Model
+func (s *LanguageScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	newModel, cmd := s.selector.Update(msg)
+	if selector, ok := newModel.(*components.BaseSelector); ok {
+		s.selector = selector
+		if s.selector.Finished() {
+			selected := s.selector.GetSelected()
+			languages := make([]*interfaces.Language, 0)
+			managers := make([]*interfaces.Tool, 0)
+			for _, item := range selected {
+				if lang, ok := item.(*interfaces.Language); ok {
+					languages = append(languages, lang)
+				} else if tool, ok := item.(*interfaces.Tool); ok {
+					managers = append(managers, tool)
+				}
+			}
+			s.selectedLanguages = languages
+			s.selectedManagers = managers
+			s.finished = true
+		}
+	}
+	return s, cmd
+}
+
+// View implements tea.Model
+func (s *LanguageScreen) View() string {
+	return styles.TitleStyle.Render("Select Languages and Version Managers") + "\n\n" + s.selector.View()
+}
+
+// Finished returns true if the screen was completed
+func (s *LanguageScreen) Finished() bool {
+	return s.finished
+}
+
+// GetSelectedLanguages returns the selected languages
+func (s *LanguageScreen) GetSelectedLanguages() []*interfaces.Language {
+	return s.selectedLanguages
+}
+
+// GetSelectedManagers returns the selected managers
+func (s *LanguageScreen) GetSelectedManagers() []*interfaces.Tool {
+	return s.selectedManagers
+}
+
 // ShowLanguageSelection shows the language selection screen
-func (s *LanguageScreen) ShowLanguageSelection(availableLanguages []*interfaces.Language) ([]*interfaces.Language, error) {
+func (s *LanguageScreen) ShowLanguageSelection(availableLanguages []*interfaces.Language) *components.BaseSelector {
 	// Create a selector for languages
-	selector := components.NewBaseSelector(s.title)
+	selector := components.NewBaseSelector("Language Runtimes")
 	
 	// Set up the selector with language items
 	selector.SetItems(
@@ -42,44 +125,19 @@ func (s *LanguageScreen) ShowLanguageSelection(availableLanguages []*interfaces.
 			return ""
 		},
 	)
-
-	// Run the selector
-	p := tea.NewProgram(selector)
-	model, err := p.Run()
-	if err != nil {
-		return nil, fmt.Errorf("language selection failed: %w", err)
-	}
-
-	// Check if user quit
-	if selectorModel, ok := model.(*components.BaseSelector); ok {
-		if !selectorModel.Finished() {
-			return nil, fmt.Errorf("selection cancelled")
-		}
-
-		// Convert selected items to languages
-		selected := selectorModel.GetSelected()
-		languages := make([]*interfaces.Language, 0, len(selected))
-		for _, item := range selected {
-			if lang, ok := item.(*interfaces.Language); ok {
-				languages = append(languages, lang)
-			}
-		}
-		return languages, nil
-	}
-
-	return nil, fmt.Errorf("failed to get language selector model")
+	return selector
 }
 
 // ShowManagerSelection prompts the user to select language managers based on selected languages
-func (s *LanguageScreen) ShowManagerSelection(availableManagers []*interfaces.Tool, selectedLanguages []*interfaces.Language) ([]*interfaces.Tool, error) {
+func (s *LanguageScreen) ShowManagerSelection(availableManagers []*interfaces.Tool, selectedLanguages []*interfaces.Language) *components.BaseSelector {
 	if len(selectedLanguages) == 0 {
-		return nil, fmt.Errorf("no languages selected")
+		return nil
 	}
 
 	// Filter managers based on selected languages
 	filteredManagers := filterManagersByLanguages(availableManagers, selectedLanguages)
 	if len(filteredManagers) == 0 {
-		return nil, nil // No relevant managers to show
+		return nil // No relevant managers to show
 	}
 
 	// Create a selector for managers
@@ -101,32 +159,7 @@ func (s *LanguageScreen) ShowManagerSelection(availableManagers []*interfaces.To
 			return ""
 		},
 	)
-
-	// Run the selector
-	p := tea.NewProgram(selector)
-	model, err := p.Run()
-	if err != nil {
-		return nil, fmt.Errorf("manager selection failed: %w", err)
-	}
-
-	// Check if user quit
-	if selectorModel, ok := model.(*components.BaseSelector); ok {
-		if !selectorModel.Finished() {
-			return nil, fmt.Errorf("selection cancelled")
-		}
-
-		// Convert selected items to managers
-		selected := selectorModel.GetSelected()
-		managers := make([]*interfaces.Tool, 0, len(selected))
-		for _, item := range selected {
-			if manager, ok := item.(*interfaces.Tool); ok {
-				managers = append(managers, manager)
-			}
-		}
-		return managers, nil
-	}
-
-	return nil, fmt.Errorf("failed to get manager selector model")
+	return selector
 }
 
 // Helper function to filter managers based on selected languages

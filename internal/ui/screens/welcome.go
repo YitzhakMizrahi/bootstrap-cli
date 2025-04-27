@@ -71,20 +71,8 @@ func (w *WelcomeScreen) Finished() bool {
 	return w.done && !w.quitting
 }
 
-// ShowWelcomeScreen displays the welcome screen and returns true if user wants to continue
-func ShowWelcomeScreen() bool {
+// ShowWelcomeScreen returns the WelcomeScreen model to be managed by the main app
+func ShowWelcomeScreen() *WelcomeScreen {
 	screen := NewWelcomeScreen()
-	p := tea.NewProgram(screen)
-
-	model, err := p.Run()
-	if err != nil {
-		fmt.Printf("Error running welcome screen: %v\n", err)
-		return false
-	}
-
-	if welcomeScreen, ok := model.(*WelcomeScreen); ok {
-		return welcomeScreen.Finished()
-	}
-
-	return false
+	return screen
 } 

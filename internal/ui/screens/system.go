@@ -89,20 +89,8 @@ func (s *SystemScreen) Finished() bool {
 	return s.done && !s.quitting
 }
 
-// ShowSystemInfo displays the system information and returns true if user wants to continue
-func ShowSystemInfo(info *system.Info) bool {
+// ShowSystemInfo returns the SystemScreen model to be managed by the main app
+func ShowSystemInfo(info *system.Info) *SystemScreen {
 	screen := NewSystemScreen(info)
-	p := tea.NewProgram(screen)
-
-	model, err := p.Run()
-	if err != nil {
-		fmt.Printf("Error running system info screen: %v\n", err)
-		return false
-	}
-
-	if systemScreen, ok := model.(*SystemScreen); ok {
-		return systemScreen.Finished()
-	}
-
-	return false
+	return screen
 } 

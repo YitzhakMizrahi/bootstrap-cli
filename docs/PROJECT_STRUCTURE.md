@@ -1,4 +1,131 @@
-# 📁 Project Structure
+# Project Structure
+
+## Overview
+Bootstrap CLI is organized into a modular structure that separates concerns and promotes code reuse. The main components are organized as follows:
+
+```
+bootstrap-cli/
+├── cmd/                    # Command entrypoints
+│   ├── init/              # Initialization command
+│   └── up/                # Main TUI command
+├── internal/              # Internal packages
+│   ├── config/            # Configuration management
+│   │   ├── defaults/      # Default configurations
+│   │   ├── loader.go      # Config loader
+│   │   └── schema/        # YAML schemas
+│   ├── interfaces/        # Core type definitions
+│   │   ├── tool.go
+│   │   ├── font.go
+│   │   └── language.go
+│   ├── install/          # Installation logic
+│   │   ├── font.go
+│   │   ├── language.go
+│   │   └── tool.go
+│   ├── packages/         # Package management
+│   │   ├── detector/     # System detection
+│   │   └── factory/      # Package manager factory
+│   └── ui/              # User interface
+│       ├── app/         # Main application
+│       ├── components/  # Reusable components
+│       ├── screens/     # Screen implementations
+│       ├── styles/      # UI styling
+│       └── utils/       # UI utilities
+└── docs/               # Documentation
+    ├── CHANGELOG.md    # Change history
+    ├── DECISIONS.md    # Architecture decisions
+    └── SPEC.md         # Specifications
+```
+
+## Key Components
+
+### Command Layer (`cmd/`)
+- `init/`: Handles first-time setup
+  - Configuration extraction
+  - Environment setup
+- `up/`: Main TUI application
+  - Interactive installation flow
+  - User selections
+  - Progress tracking
+
+### Configuration (`internal/config/`)
+- Configuration loading and merging
+- Default configurations in YAML
+- Schema validation
+- User override support
+
+### Core Types (`internal/interfaces/`)
+- Tool definitions
+- Font specifications
+- Language configurations
+- Package manager interfaces
+
+### Installation (`internal/install/`)
+- Tool installation logic
+- Font installation
+- Language setup
+- Error handling and rollback
+
+### UI Layer (`internal/ui/`)
+- Bubble Tea components
+- Screen management
+- Consistent styling
+- Progress indicators
+
+## Configuration Structure
+
+### Tools
+```yaml
+name: string
+description: string
+category: string
+package_names:
+  apt: string[]
+  dnf: string[]
+  pacman: string[]
+install_commands: string[]
+verify_commands: string[]
+```
+
+### Fonts
+```yaml
+name: string
+description: string
+source: string
+install_commands: string[]
+verify_commands: string[]
+```
+
+### Languages
+```yaml
+name: string
+description: string
+version: string
+manager: string
+install_commands: string[]
+verify_commands: string[]
+```
+
+## Development Workflow
+
+1. Configuration Changes
+   - Add/modify YAML in `internal/config/defaults/`
+   - Update schemas if needed
+   - Test with `init` command
+
+2. UI Changes
+   - Modify screens in `internal/ui/screens/`
+   - Update components if needed
+   - Style changes in `internal/ui/styles/`
+
+3. Installation Logic
+   - Update relevant files in `internal/install/`
+   - Add error handling and rollback
+   - Test with `up` command
+
+4. Testing
+   - Run linters: `go vet` and `revive`
+   - Run tests: `go test ./...`
+   - Manual testing with both commands
 
 ```
 bootstrap-cli/

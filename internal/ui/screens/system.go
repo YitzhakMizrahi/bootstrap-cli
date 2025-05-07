@@ -69,16 +69,13 @@ func (s *SystemScreen) View() string {
 	systemInfo := styles.InfoStyle.Render(fmt.Sprintf("OS: %s %s", s.info.Distro, s.info.Version))
 	archInfo := styles.InfoStyle.Render(fmt.Sprintf("Architecture: %s", s.info.Arch))
 	pmInfoStyled := styles.InfoStyle.Render(fmt.Sprintf("Package Manager: %s", pmInfo))
-	
-	help := styles.HelpStyle.Render("Press Enter to continue • Press q to quit")
 
 	// Combine all elements
-	content := fmt.Sprintf("%s\n\n%s\n%s\n%s\n\n%s",
+	content := fmt.Sprintf("%s\n\n%s\n%s\n%s",
 		title,
 		systemInfo,
 		archInfo,
 		pmInfoStyled,
-		help,
 	)
 
 	return content

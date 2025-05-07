@@ -54,13 +54,11 @@ func (w *WelcomeScreen) View() string {
 	// Create welcome message
 	welcome := styles.TitleStyle.Render("✨ Welcome to Bootstrap CLI ✨")
 	description := styles.InfoStyle.Render("Setup your development environment with ease")
-	help := styles.HelpStyle.Render("Press Enter to continue • Press q to quit")
 
 	// Combine all elements
-	content := fmt.Sprintf("%s\n\n%s\n\n%s",
+	content := fmt.Sprintf("%s\n\n%s",
 		welcome,
 		description,
-		help,
 	)
 
 	return content

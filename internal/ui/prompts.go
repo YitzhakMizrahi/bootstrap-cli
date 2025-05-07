@@ -52,71 +52,141 @@ func PromptToolSelection(loader *config.Loader) ([]*interfaces.Tool, error) {
 		return nil, fmt.Errorf("failed to load tools: %w", err)
 	}
 
-	toolScreen := screens.NewToolScreen(tools)
-	p := tea.NewProgram(toolScreen)
+	toolItems := make([]interface{}, len(tools))
+	for i, t := range tools {
+		toolItems[i] = t
+	}
+	screen := screens.NewSelectionScreen(
+		"Select Development Tools",
+		toolItems,
+		func(item interface{}) string {
+			if tool, ok := item.(*interfaces.Tool); ok {
+				if tool.Category != "" {
+					return fmt.Sprintf("[%s] %s", tool.Category, tool.Name)
+				}
+				return tool.Name
+			}
+			return ""
+		},
+		func(item interface{}) string {
+			if tool, ok := item.(*interfaces.Tool); ok {
+				return tool.Description
+			}
+			return ""
+		},
+	)
+	p := tea.NewProgram(screen)
 	model, err := p.Run()
 	if err != nil {
 		return nil, fmt.Errorf("tool selection failed: %w", err)
 	}
-	if ts, ok := model.(*screens.ToolScreen); ok {
-		return ts.GetSelected(), nil
+	if sel, ok := model.(*screens.SelectionScreen); ok {
+		selectedMap := sel.GetSelected()
+		selectedTools := make([]*interfaces.Tool, 0, len(selectedMap))
+		for _, item := range selectedMap {
+			if tool, ok := item.(*interfaces.Tool); ok {
+				selectedTools = append(selectedTools, tool)
+			}
+		}
+		return selectedTools, nil
 	}
 	return nil, fmt.Errorf("unexpected model type returned from tool selection")
 }
 
 // PromptLanguages prompts for programming language selection
 func PromptLanguages() ([]*interfaces.Language, error) {
-	// Get config path from environment
 	configPath := os.Getenv("BOOTSTRAP_CLI_CONFIG")
 	if configPath == "" {
 		return nil, fmt.Errorf("BOOTSTRAP_CLI_CONFIG environment variable not set")
 	}
-
-	// Create config loader with the correct path
 	loader := config.NewLoader(configPath)
-	// Load available languages
 	availableLanguages, err := loader.LoadLanguages()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load language configurations: %w", err)
 	}
-	// No managers for this prompt
-	managers := []*interfaces.Tool{}
-	screen := screens.NewLanguageScreen(availableLanguages, managers)
+	languageItems := make([]interface{}, len(availableLanguages))
+	for i, l := range availableLanguages {
+		languageItems[i] = l
+	}
+	screen := screens.NewSelectionScreen(
+		"Select Languages",
+		languageItems,
+		func(item interface{}) string {
+			if lang, ok := item.(*interfaces.Language); ok {
+				return lang.Name
+			}
+			return ""
+		},
+		func(item interface{}) string {
+			if lang, ok := item.(*interfaces.Language); ok {
+				return lang.Description
+			}
+			return ""
+		},
+	)
 	p := tea.NewProgram(screen)
 	model, err := p.Run()
 	if err != nil {
 		return nil, fmt.Errorf("language selection failed: %w", err)
 	}
-	if ls, ok := model.(*screens.LanguageScreen); ok {
-		return ls.GetSelectedLanguages(), nil
+	if sel, ok := model.(*screens.SelectionScreen); ok {
+		selectedMap := sel.GetSelected()
+		selectedLanguages := make([]*interfaces.Language, 0, len(selectedMap))
+		for _, item := range selectedMap {
+			if lang, ok := item.(*interfaces.Language); ok {
+				selectedLanguages = append(selectedLanguages, lang)
+			}
+		}
+		return selectedLanguages, nil
 	}
 	return nil, fmt.Errorf("unexpected model type returned from language selection")
 }
 
 // PromptLanguageManagersForLanguages prompts for language manager selection based on selected languages
-func PromptLanguageManagersForLanguages(selectedLanguages []*interfaces.Language) ([]*interfaces.Tool, error) {
-	// Get config path from environment
+func PromptLanguageManagersForLanguages(_ []*interfaces.Language) ([]*interfaces.Tool, error) {
 	configPath := os.Getenv("BOOTSTRAP_CLI_CONFIG")
 	if configPath == "" {
 		return nil, fmt.Errorf("BOOTSTRAP_CLI_CONFIG environment variable not set")
 	}
-	// Create config loader with the correct path
 	loader := config.NewLoader(configPath)
-	// Load all language managers
 	availableManagers, err := loader.LoadLanguageManagers()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load language manager configurations: %w", err)
 	}
-	// Use the new language screen
-	languages := []*interfaces.Language{} // No languages for this prompt
-	screen := screens.NewLanguageScreen(languages, availableManagers)
+	managerItems := make([]interface{}, len(availableManagers))
+	for i, m := range availableManagers {
+		managerItems[i] = m
+	}
+	screen := screens.NewSelectionScreen(
+		"Select Language Managers",
+		managerItems,
+		func(item interface{}) string {
+			if manager, ok := item.(*interfaces.Tool); ok {
+				return manager.Name
+			}
+			return ""
+		},
+		func(item interface{}) string {
+			if manager, ok := item.(*interfaces.Tool); ok {
+				return manager.Description
+			}
+			return ""
+		},
+	)
 	p := tea.NewProgram(screen)
 	model, err := p.Run()
 	if err != nil {
 		return nil, fmt.Errorf("manager selection failed: %w", err)
 	}
-	if ls, ok := model.(*screens.LanguageScreen); ok {
-		return ls.GetSelectedManagers(), nil
+	if sel, ok := model.(*screens.SelectionScreen); ok {
+		selectedMap := sel.GetSelected()
+		selectedManagers := make([]*interfaces.Tool, 0, len(selectedMap))
+		for _, item := range selectedMap {
+			if manager, ok := item.(*interfaces.Tool); ok {
+				selectedManagers = append(selectedManagers, manager)
+			}
+		}
+		return selectedManagers, nil
 	}
 	return nil, fmt.Errorf("unexpected model type returned from manager selection")
 }

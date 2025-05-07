@@ -217,4 +217,22 @@ func (s *BaseSelector) SetSize(width, height int) {
 	s.height = height
 	s.list.SetWidth(width)
 	s.list.SetHeight(height)
+}
+
+// SetSelectedItems sets the selected items by value
+func (s *BaseSelector) SetSelectedItems(selectedItems []interface{}) {
+	selectedMap := make(map[int]interface{})
+	items := s.list.Items()
+	for i, item := range items {
+		if selectorItem, ok := item.(*SelectorItem); ok {
+			for _, sel := range selectedItems {
+				if sel == selectorItem.item {
+					selectorItem.selected = true
+					selectedMap[i] = selectorItem.item
+				}
+			}
+		}
+	}
+	s.selected = selectedMap
+	s.list.SetItems(items) // Force re-render with updated selection state
 } 

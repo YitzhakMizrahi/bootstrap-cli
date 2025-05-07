@@ -1,14 +1,15 @@
 package app
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/styles"
 )
 
 // View implements tea.Model for Model
 func (m *Model) View() string {
+	if !m.screenReady {
+		return ""
+	}
+
 	output := "\x1b[2J\x1b[H" // ANSI clear screen
 	output += m.stepIndicator.View() + "\n\n"
 
@@ -45,9 +46,6 @@ func (m *Model) View() string {
 	} else {
 		output += "\n\n" + styles.HelpStyle.Render("↑/↓: navigate • space: select/deselect • enter: confirm • q: quit")
 	}
-
-	// DEBUG: Print output length and a preview to stderr
-	fmt.Fprintf(os.Stderr, "[DEBUG] Output length: %d, preview: %q\n", len(output), output[:100])
 
 	return output
 } 

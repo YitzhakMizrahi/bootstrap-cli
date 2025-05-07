@@ -4,11 +4,13 @@ package app
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/shell"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/components"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/screens"
@@ -22,6 +24,7 @@ type Screen int
 
 const (
 	WelcomeScreen Screen = iota // Includes System Info now
+	ShellSelectionScreen // New screen
 	EssentialToolScreen 
 	ModernToolScreen    
 	FontScreen
@@ -47,6 +50,8 @@ type Model struct {
 	selectedFonts     []*interfaces.Font
 	selectedLanguages []*interfaces.Language
 	systemInfo        *system.Info // Store detected system info
+	selectedShell     *interfaces.Shell // Changed type from string
+	shellManager      interfaces.ShellManager // Added ShellManager
 }
 
 // New creates a new application model
@@ -55,6 +60,7 @@ func New(config *config.Loader) *Model {
 	
 	// Adjusted step names for indicator
 	stepNames := []string{
+		"Shell", // New Step
 		"Essential Tools", 
 		"Modern Tools",    
 		"Fonts",
@@ -66,11 +72,24 @@ func New(config *config.Loader) *Model {
 
 	welcomeModel := screens.NewWelcomeScreen()
 
+	// Initialize ShellManager (assuming NewManager exists in shell package)
+	// We might need to pass a logger or other dependencies to NewManager if required.
+	shellMgr, err := shell.NewManager() // Placeholder, might need args
+	if err != nil {
+		// This is a critical failure during app initialization.
+		// We should probably panic or return an error from New if this happens.
+		// For now, let's log and proceed with a nil manager, which will cause issues later
+		// but allows the app to start for dev purposes. Proper error handling needed.
+		fmt.Fprintf(os.Stderr, "Error initializing ShellManager: %v\n", err)
+		shellMgr = nil // Or handle error more gracefully
+	}
+
 	m := &Model{
 		instanceID:    rand.Int63(),
 		currentScreen:  WelcomeScreen, 
 		activeModel:   welcomeModel,
 		config:        config,
+		shellManager:  shellMgr, // Assign initialized shell manager
 		stepIndicator: stepIndicatorModel,
 	}
 	return m
@@ -186,7 +205,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// --- Screen Transition Logic ---
 		switch screen := m.activeModel.(type) {
 		case *screens.WelcomeScreen:
-			if screen.Finished() { cmds = append(cmds, m.transitionTo(EssentialToolScreen)) }
+			if screen.Finished() { cmds = append(cmds, m.transitionTo(ShellSelectionScreen)) }
+		case *screens.ShellSelectionScreen: 
+			if screen.Finished() { 
+				m.selectedShell = screen.GetSelected() 
+				cmds = append(cmds, m.transitionTo(EssentialToolScreen))
+			}
 		case *screens.EssentialToolScreen: 
 			if screen.Finished() { 
 				newTools := screen.GetSelected()
@@ -235,6 +259,69 @@ func (m *Model) transitionTo(targetScreen Screen) tea.Cmd {
 	var initCmd tea.Cmd
 	switch targetScreen {
 	case WelcomeScreen: newScreen = screens.NewWelcomeScreen()
+	case ShellSelectionScreen: 
+		// 1. Load all defined shells from configuration
+		definedShells, err := m.config.LoadShells()
+		if err != nil { 
+			m.err = fmt.Errorf("failed to load shell definitions: %w", err)
+			newScreen = screens.NewWelcomeScreen() 
+			break 
+		}
+
+		// 2. Get shells available on the system
+		var systemShellsInfo []*interfaces.ShellInfo
+		if m.shellManager != nil {
+			systemShellsInfo, err = m.shellManager.ListAvailable()
+			if err != nil {
+				m.err = fmt.Errorf("failed to list available system shells: %w", err)
+				// Proceeding with empty systemShellsInfo, or could go to WelcomeScreen
+				systemShellsInfo = []*interfaces.ShellInfo{} 
+			}
+		} else {
+			m.err = fmt.Errorf("shell manager not initialized")
+			newScreen = screens.NewWelcomeScreen()
+			break
+		}
+
+		// 3. Filter defined shells to only those available on the system
+		availableDisplayShells := make([]*interfaces.Shell, 0)
+		systemShellMap := make(map[string]bool)
+		for _, sysShell := range systemShellsInfo {
+			systemShellMap[sysShell.Type] = true // Assuming Type is like "bash", "zsh"
+			systemShellMap[sysShell.Current] = true // sysShell.Current might be the name or path
+		}
+
+		for _, defShell := range definedShells {
+			if systemShellMap[defShell.Name] { // Assuming defShell.Name matches sysShell.Type or sysShell.Current
+				availableDisplayShells = append(availableDisplayShells, defShell)
+			}
+		}
+
+		// 4. Get the current shell's path or name for pre-selection
+		currentShellIdentifier := ""
+		if m.shellManager != nil {
+			currentShellInfo, err := m.shellManager.DetectCurrent()
+			if err != nil {
+				m.err = fmt.Errorf("failed to detect current shell: %w", err)
+				// Proceeding without a pre-selected current shell
+			} else if currentShellInfo != nil {
+				currentShellIdentifier = currentShellInfo.Current // Or currentShellInfo.Path, depending on what NewShellSelectionScreen expects
+			}
+		} else {
+			// shellManager not initialized, error already set above
+		}
+		
+		preselectedName := ""
+		if m.selectedShell != nil {
+			preselectedName = m.selectedShell.Name // Get name for preselection if already chosen once
+		}
+
+		newScreen = screens.NewShellSelectionScreen(
+			"Please select your primary shell:",
+			availableDisplayShells, // Pass the filtered list of installable/configurable shells
+			currentShellIdentifier,   // Pass the detected current shell (name or path)
+			preselectedName,
+		)
 	case EssentialToolScreen: 
 		tools, err := m.config.LoadTools()
 		if err != nil { m.err = err; newScreen = screens.NewWelcomeScreen(); break }
@@ -384,4 +471,9 @@ func (m *Model) SelectedFonts() []*interfaces.Font {
 // SelectedLanguages returns the selected languages
 func (m *Model) SelectedLanguages() []*interfaces.Language {
 	return m.selectedLanguages
+}
+
+// GetSelectedShell returns the selected shell
+func (m *Model) GetSelectedShell() *interfaces.Shell {
+	return m.selectedShell
 } 

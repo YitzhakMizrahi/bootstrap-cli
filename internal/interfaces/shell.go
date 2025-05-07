@@ -2,6 +2,21 @@ package interfaces
 
 import "errors"
 
+// Shell represents a shell that can be installed and set as default.
+type Shell struct {
+	Name             string `yaml:"name"`
+	Description      string `yaml:"description"`
+	InstallCommands  struct {
+		Apt    string `yaml:"apt,omitempty"`
+		Brew   string `yaml:"brew,omitempty"`
+		Dnf    string `yaml:"dnf,omitempty"`
+		Pacman string `yaml:"pacman,omitempty"`
+	} `yaml:"install_commands"`
+	Path            string `yaml:"path"`
+	SetDefaultCommand string `yaml:"set_default_command,omitempty"`
+	VerifyCommand   string `yaml:"verify_command,omitempty"`
+}
+
 // ShellType represents a shell type
 type ShellType string
 

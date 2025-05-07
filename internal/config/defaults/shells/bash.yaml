@@ -1,0 +1,11 @@
+# Placeholder for Bash shell configuration
+name: bash
+description: Bourne Again SHell
+# install_commands:
+#   apt: sudo apt install -y bash
+#   brew: brew install bash
+#   dnf: sudo dnf install -y bash
+#   pacman: sudo pacman -S --noconfirm bash
+# path: /bin/bash
+# set_default_command: chsh -s /bin/bash
+# verify_command: bash --version 

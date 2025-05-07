@@ -10,276 +10,167 @@ import (
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 )
 
-// DefaultManager implements the ShellManager interface
-type DefaultManager struct {
-	baseDir string
+// manager implements the interfaces.ShellManager interface.
+type manager struct {
+	// Potentially add fields like a logger if needed in the future
 }
 
-// NewDefaultManager creates a new shell manager
-func NewDefaultManager() interfaces.ShellManager {
-	return &DefaultManager{
-		baseDir: filepath.Join(os.Getenv("HOME"), ".config", "bootstrap-cli"),
-	}
+// NewManager creates a new ShellManager.
+func NewManager() (interfaces.ShellManager, error) {
+	return &manager{}, nil
 }
 
-// DetectCurrent detects the current shell environment
-func (m *DefaultManager) DetectCurrent() (*interfaces.ShellInfo, error) {
-	// Get current shell from SHELL env var
-	currentShell := os.Getenv("SHELL")
-	if currentShell == "" {
-		return nil, fmt.Errorf("SHELL environment variable not set")
+// DetectCurrent detects the current user's shell.
+func (m *manager) DetectCurrent() (*interfaces.ShellInfo, error) {
+	shellPath := os.Getenv("SHELL")
+	if shellPath == "" {
+		// Fallback or further probing if SHELL is not set
+		// For now, try to find bash or zsh as a desperate measure
+		probeShells := []string{"zsh", "bash"}
+		for _, s := range probeShells {
+			p, err := exec.LookPath(s)
+			if err == nil {
+				shellPath = p
+				break
+			}
+		}
+		if shellPath == "" {
+			return nil, fmt.Errorf("SHELL environment variable not set and common shells not found")
+		}
 	}
 
-	// Get shell type
-	shellType := filepath.Base(currentShell)
-
-	// Validate shell type
-	if !interfaces.IsValidShell(shellType) {
-		return nil, fmt.Errorf("unknown shell type: %s", shellType)
+	shellName := filepath.Base(shellPath)
+	
+	// Attempt to get version (simplified)
+	version := "unknown"
+	// This is a naive version check, real implementation needs per-shell logic
+	cmd := exec.Command(shellPath, "--version")
+	out, err := cmd.Output()
+	if err == nil {
+		// Simplistic parsing, actual version string format varies greatly
+		versionOutput := string(out)
+		if strings.Contains(strings.ToLower(versionOutput), shellName) { // very basic heuristic
+			lines := strings.Split(versionOutput, "\n")
+			if len(lines) > 0 {
+				version = strings.Fields(lines[0])[0] // Highly likely to be wrong or too simple
+				parts := strings.Fields(lines[0])
+				for _, part := range parts {
+					if _, e := exec.LookPath(part); e != nil && len(part) > 1 && (part[0] >= '0' && part[0] <= '9') { // find first numeric-like part
+						version = part
+						break
+					}
+				}
+			}
+		}
 	}
-
-	// Get shell version
-	version, err := m.getShellVersion(currentShell)
-	if err != nil {
-		version = "unknown"
-	}
-
-	// Get config files
-	configFiles := m.getConfigFiles(shellType)
 
 	return &interfaces.ShellInfo{
-		Current:     shellType,
-		Type:        shellType,
-		Path:        currentShell,
+		Current:     shellName, 
+		Path:        shellPath,
+		Type:        shellName, 
 		Version:     version,
-		IsDefault:   true,
-		IsAvailable: true,
-		ConfigFiles: configFiles,
+		IsAvailable: true, 
+		IsDefault:   os.Getenv("SHELL") == shellPath, // True if $SHELL matches this detected shell
+		// ConfigFiles: Determine actual config files (e.g., [~/.bashrc] for bash)
 	}, nil
 }
 
-// ListAvailable returns a list of available shells
-func (m *DefaultManager) ListAvailable() ([]*interfaces.ShellInfo, error) {
-	var shells []*interfaces.ShellInfo
+// ListAvailable returns a list of available shells on the system.
+func (m *manager) ListAvailable() ([]*interfaces.ShellInfo, error) {
+	available := make([]*interfaces.ShellInfo, 0)
+	// Shells to check for. Could be expanded or made configurable.
+	potentialShells := []interfaces.ShellType{interfaces.BashShell, interfaces.ZshShell, interfaces.FishShell}
 
-	// Common shell paths
-	shellPaths := []string{
-		"/bin/bash",
-		"/usr/bin/bash",
-		"/bin/zsh",
-		"/usr/bin/zsh",
-		"/usr/bin/fish",
-		"/usr/local/bin/fish",
-	}
+	currentShellEnv := os.Getenv("SHELL")
 
-	for _, path := range shellPaths {
-		if _, err := os.Stat(path); err == nil {
-			shellType := filepath.Base(path)
-			if !interfaces.IsValidShell(shellType) {
-				continue
+	for _, shellType := range potentialShells {
+		shellName := string(shellType)
+		path, err := exec.LookPath(shellName)
+		if err == nil { // Shell is found on PATH
+			// Simplified version and config file detection
+			version := "unknown"
+			// Basic version detection (highly simplified)
+			cmd := exec.Command(path, "--version")
+			output, err := cmd.Output()
+			if err == nil {
+				lines := strings.Split(string(output), "\n")
+				if len(lines) > 0 {
+					// Crude parsing, needs to be specific per shell
+					parts := strings.Fields(lines[0])
+					for _, part := range parts {
+						if _, e := exec.LookPath(part); e != nil && len(part) > 1 && (part[0] >= '0' && part[0] <= '9') {
+							version = part
+							break
+						}
+					}
+					if version == "unknown" && len(parts) > 1 {
+						version = parts[1] // fallback to second field if numeric not found
+					}
+				}
 			}
 
-			version, err := m.getShellVersion(path)
-			if err != nil {
-				version = "unknown"
+			configFiles := []string{}
+			homeDir, _ := os.UserHomeDir()
+			switch shellType {
+			case interfaces.BashShell:
+				configFiles = append(configFiles, filepath.Join(homeDir, ".bashrc"))
+				if profilePath := filepath.Join(homeDir, ".bash_profile"); pathExists(profilePath) {
+				    configFiles = append(configFiles, profilePath)
+				}
+			case interfaces.ZshShell:
+				configFiles = append(configFiles, filepath.Join(homeDir, ".zshrc"))
+			case interfaces.FishShell:
+				configFiles = append(configFiles, filepath.Join(homeDir, ".config", "fish", "config.fish"))
 			}
 
-			shells = append(shells, &interfaces.ShellInfo{
-				Current:     shellType,
-				Type:        shellType,
+			info := &interfaces.ShellInfo{
+				Type:        shellName,
 				Path:        path,
 				Version:     version,
 				IsAvailable: true,
-				ConfigFiles: m.getConfigFiles(shellType),
-			})
+				IsDefault:   currentShellEnv == path,
+				ConfigFiles: configFiles,
+				Current: shellName, // Set Current to the shellName for consistency in ShellInfo
+			}
+			available = append(available, info)
 		}
 	}
-
-	return shells, nil
+	return available, nil
 }
 
-// IsInstalled checks if a specific shell is installed
-func (m *DefaultManager) IsInstalled(shell interfaces.ShellType) bool {
-	// Common paths for each shell type
-	paths := map[interfaces.ShellType][]string{
-		interfaces.BashShell: {"/bin/bash", "/usr/bin/bash"},
-		interfaces.ZshShell:  {"/bin/zsh", "/usr/bin/zsh"},
-		interfaces.FishShell: {"/usr/bin/fish", "/usr/local/bin/fish"},
-	}
-
-	// Check if shell exists in any of its common paths
-	for _, path := range paths[shell] {
-		if _, err := os.Stat(path); err == nil {
-			return true
-		}
-	}
-
-	return false
+// IsInstalled checks if a specific shell is installed.
+func (m *manager) IsInstalled(shellType interfaces.ShellType) bool {
+	_, err := exec.LookPath(string(shellType))
+	return err == nil
 }
 
-// GetInfo returns detailed information about a specific shell
-func (m *DefaultManager) GetInfo(shell interfaces.ShellType) (*interfaces.ShellInfo, error) {
-	// Common paths for each shell type
-	paths := map[interfaces.ShellType][]string{
-		interfaces.BashShell: {"/bin/bash", "/usr/bin/bash"},
-		interfaces.ZshShell:  {"/bin/zsh", "/usr/bin/zsh"},
-		interfaces.FishShell: {"/usr/bin/fish", "/usr/local/bin/fish"},
-	}
-
-	// Find the first existing path for the shell
-	var shellPath string
-	for _, path := range paths[shell] {
-		if _, err := os.Stat(path); err == nil {
-			shellPath = path
-			break
-		}
-	}
-
-	if shellPath == "" {
-		return nil, fmt.Errorf("shell %s not found", shell)
-	}
-
-	version, err := m.getShellVersion(shellPath)
+// GetInfo returns detailed information about a specific shell.
+func (m *manager) GetInfo(shellType interfaces.ShellType) (*interfaces.ShellInfo, error) {
+	path, err := exec.LookPath(string(shellType))
 	if err != nil {
-		version = "unknown"
+		return nil, fmt.Errorf("%s shell not found: %w", shellType, err)
 	}
 
-	return &interfaces.ShellInfo{
-		Current:     string(shell),
-		Type:        string(shell),
-		Path:        shellPath,
-		Version:     version,
-		IsAvailable: true,
-		ConfigFiles: m.getConfigFiles(string(shell)),
-	}, nil
-}
-
-// ConfigureShell configures a shell with the specified configuration
-func (m *DefaultManager) ConfigureShell(config *interfaces.ShellConfig) error {
-	// Get current shell
-	shellInfo, err := m.DetectCurrent()
+	// Reuse ListAvailable's logic for populating info for a single shell
+	list, err := m.ListAvailable() // This is a bit inefficient but reuses logic
 	if err != nil {
-		return fmt.Errorf("failed to detect current shell: %w", err)
+		return nil, fmt.Errorf("error getting available shells while looking for %s: %w", shellType, err)
 	}
-
-	// Get the shell's RC file path
-	rcFile := m.getDefaultRCFile(shellInfo.Type)
-
-	// Create or append to the RC file
-	file, err := os.OpenFile(rcFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open RC file: %w", err)
-	}
-	defer file.Close()
-
-	// Write environment variables
-	if len(config.Exports) > 0 {
-		if _, err := file.WriteString("\n# Environment variables\n"); err != nil {
-			return fmt.Errorf("failed to write environment header: %w", err)
-		}
-		for key, value := range config.Exports {
-			if _, err := file.WriteString(fmt.Sprintf("export %s=%s\n", key, value)); err != nil {
-				return fmt.Errorf("failed to write environment variable: %w", err)
-			}
+	for _, info := range list {
+		if info.Type == string(shellType) {
+			return info, nil
 		}
 	}
-
-	// Write aliases
-	if len(config.Aliases) > 0 {
-		if _, err := file.WriteString("\n# Aliases\n"); err != nil {
-			return fmt.Errorf("failed to write aliases header: %w", err)
-		}
-		for name, command := range config.Aliases {
-			if _, err := file.WriteString(fmt.Sprintf("alias %s=%s\n", name, command)); err != nil {
-				return fmt.Errorf("failed to write alias: %w", err)
-			}
-		}
-	}
-
-	// Write functions
-	if len(config.Functions) > 0 {
-		if _, err := file.WriteString("\n# Functions\n"); err != nil {
-			return fmt.Errorf("failed to write functions header: %w", err)
-		}
-		for name, body := range config.Functions {
-			if _, err := file.WriteString(fmt.Sprintf("%s() {\n%s\n}\n", name, body)); err != nil {
-				return fmt.Errorf("failed to write function: %w", err)
-			}
-		}
-	}
-
-	// Add PATH entries
-	if len(config.Path) > 0 {
-		if _, err := file.WriteString("\n# PATH additions\n"); err != nil {
-			return fmt.Errorf("failed to write PATH header: %w", err)
-		}
-		for _, path := range config.Path {
-			if _, err := file.WriteString(fmt.Sprintf("export PATH=%s:$PATH\n", path)); err != nil {
-				return fmt.Errorf("failed to write PATH addition: %w", err)
-			}
-		}
-	}
-
-	// Source additional files
-	if len(config.Source) > 0 {
-		if _, err := file.WriteString("\n# Source additional files\n"); err != nil {
-			return fmt.Errorf("failed to write source header: %w", err)
-		}
-		for _, source := range config.Source {
-			if _, err := file.WriteString(fmt.Sprintf("source %s\n", source)); err != nil {
-				return fmt.Errorf("failed to write source command: %w", err)
-			}
-		}
-	}
-
-	return nil
+	return nil, fmt.Errorf("could not retrieve info for %s, though it was found at %s", shellType, path)
 }
 
-// Helper functions
-
-func (m *DefaultManager) getShellVersion(shellPath string) (string, error) {
-	cmd := exec.Command(shellPath, "--version")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.Split(string(output), "\n")[0], nil
+// ConfigureShell configures a shell with the specified configuration.
+func (m *manager) ConfigureShell(config *interfaces.ShellConfig) error {
+	return fmt.Errorf("ConfigureShell not yet implemented")
 }
 
-func (m *DefaultManager) getConfigFiles(shellType string) []string {
-	home := os.Getenv("HOME")
-	switch shellType {
-	case "bash":
-		return []string{
-			filepath.Join(home, ".bashrc"),
-			filepath.Join(home, ".bash_profile"),
-			filepath.Join(home, ".profile"),
-		}
-	case "zsh":
-		return []string{
-			filepath.Join(home, ".zshrc"),
-			filepath.Join(home, ".zprofile"),
-			filepath.Join(home, ".zshenv"),
-		}
-	case "fish":
-		return []string{
-			filepath.Join(home, ".config", "fish", "config.fish"),
-		}
-	default:
-		return nil
-	}
-}
-
-func (m *DefaultManager) getDefaultRCFile(shellType string) string {
-	home := os.Getenv("HOME")
-	switch shellType {
-	case "bash":
-		return filepath.Join(home, ".bashrc")
-	case "zsh":
-		return filepath.Join(home, ".zshrc")
-	case "fish":
-		return filepath.Join(home, ".config", "fish", "config.fish")
-	default:
-		return filepath.Join(home, ".profile")
-	}
+// pathExists checks if a path exists. Helper function.
+func pathExists(path string) bool {
+    _, err := os.Stat(path)
+    return !os.IsNotExist(err)
 } 

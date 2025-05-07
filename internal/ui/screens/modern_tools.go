@@ -18,7 +18,7 @@ type ModernToolScreen struct {
 
 // NewModernToolScreen creates a new ModernToolScreen.
 func NewModernToolScreen(title string, tools []*interfaces.Tool, preselected []*interfaces.Tool) *ModernToolScreen {
-	selector := components.NewBaseSelector(title)
+	selector := components.NewBaseSelector(title, false)
 	
 	// Convert tools and preselected to []interface{} for BaseSelector
 	items := make([]interface{}, len(tools))

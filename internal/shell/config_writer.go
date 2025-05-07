@@ -27,7 +27,13 @@ func NewConfigWriter() (interfaces.ShellConfigWriter, error) {
 		return nil, fmt.Errorf("failed to get package manager: %w", err)
 	}
 
-	shellInfo, err := NewDefaultManager().DetectCurrent()
+	// Use the new NewManager constructor
+	shellMgr, err := NewManager() // NewManager is from internal/shell/manager.go
+	if err != nil {
+		return nil, fmt.Errorf("failed to create shell manager: %w", err)
+	}
+
+	shellInfo, err := shellMgr.DetectCurrent()
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect current shell: %w", err)
 	}

@@ -1,0 +1,11 @@
+# Placeholder for Zsh shell configuration
+name: zsh
+description: Z Shell
+# install_commands:
+#   apt: sudo apt install -y zsh
+#   brew: brew install zsh
+#   dnf: sudo dnf install -y zsh
+#   pacman: sudo pacman -S --noconfirm zsh
+# path: /bin/zsh
+# set_default_command: chsh -s /bin/zsh
+# verify_command: zsh --version 

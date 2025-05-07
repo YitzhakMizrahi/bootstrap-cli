@@ -2,7 +2,9 @@ package components
 
 import (
 	"fmt"
+	"io"
 
+	// "github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/styles" // Import our styles
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,86 +23,184 @@ type SelectorItem struct {
 // FilterValue implements list.Item interface
 func (i SelectorItem) FilterValue() string { return i.title }
 
-// Title returns the title for the list item
-func (i SelectorItem) Title() string {
-	var checkbox string
-	if i.selected {
-		checkbox = "[x]" // Simple checkbox string
-	} else {
-		checkbox = "[ ]"
+// Title returns the title for the list item, now handling single-select focus and multi-select state.
+func (i SelectorItem) Title(isSingleSelect bool, isFocused bool) string { 
+	var prefix string
+    var titleStr string 
+    var fullTitle string
+
+    baseTitleStyle := styles.NormalTextStyle 
+    if isFocused {
+        // For focused items, both prefix (if applicable) and text might change style
+        baseTitleStyle = styles.SelectedTextStyle 
+    }
+
+	if isSingleSelect {
+		if isFocused {
+			prefix = styles.SelectedTextStyle.Render("(o) ")
+		} else {
+			prefix = styles.NormalTextStyle.Render("( ) ")
+		}
+        titleStr = baseTitleStyle.Render(i.title) // Title text uses focused/normal style
+        fullTitle = prefix + titleStr
+	} else { // Multi-select mode
+		currentCheckboxStyle := styles.NormalTextStyle // Style for [ ] or [x]
+        actualTitleStyle := styles.NormalTextStyle   // Style for the title text next to checkbox
+
+        if i.selected {
+            currentCheckboxStyle = styles.SelectedTextStyle // [x] takes selected style
+        }
+
+        if isFocused {
+            // If the row is focused, both checkbox and title text might take focused style
+            currentCheckboxStyle = styles.SelectedTextStyle 
+            actualTitleStyle = styles.SelectedTextStyle
+        }
+        
+        // Construct prefix based on selection and focus
+        if i.selected {
+            prefix = currentCheckboxStyle.Render("[x] ")
+        } else {
+            prefix = currentCheckboxStyle.Render("[ ] ")
+        }
+        titleStr = actualTitleStyle.Render(i.title)
+        fullTitle = prefix + titleStr
 	}
-	// Return plain string - delegate handles styling
-	return checkbox + " " + i.title
+	return fullTitle
 }
 
 // Description returns the description for the list item
 func (i SelectorItem) Description() string {
-	// Return plain string - delegate handles styling
 	return i.description
 }
 
+// --- Custom Delegate ---
+// itemDelegate wraps the default delegate to customize rendering
+type itemDelegate struct {
+    list.DefaultDelegate
+    singleSelectMode bool
+}
+
+func newItemDelegate(singleSelect bool) itemDelegate {
+    d := list.NewDefaultDelegate()
+
+    // Apply Nord styles
+    d.Styles.SelectedTitle = styles.SelectedTextStyle.Copy().UnsetPadding().Foreground(styles.ColorAccent)
+    d.Styles.SelectedDesc = styles.UnselectedTextStyle.Copy().UnsetPadding() // Keep desc dimmer even if selected title is bright
+    d.Styles.NormalTitle = styles.NormalTextStyle.Copy().UnsetPadding() 
+    d.Styles.NormalDesc = styles.UnselectedTextStyle.Copy().UnsetPadding() 
+
+    d.SetHeight(2) // Allow space for description
+    d.SetSpacing(1)
+
+    return itemDelegate{
+        DefaultDelegate: d,
+        singleSelectMode: singleSelect,
+    }
+}
+
+// Render overrides the default render to use the updated Title method.
+// It now directly prints the string from item.Title() and adds a left border for focused items.
+func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	if item, ok := listItem.(*SelectorItem); ok {
+		desc := item.Description()
+		// Calculate available width, considering potential border+padding
+		// Border = 1, Padding = 1. Total width reduction = 2
+		availableWidth := m.Width() 
+		contentWidth := availableWidth - 2 
+		if contentWidth < 0 {
+			contentWidth = 0
+		}
+
+        isFocused := index == m.Index()
+        
+        // Get the fully pre-styled title string (with prefixes and internal styling)
+        renderedTitle := item.Title(d.singleSelectMode, isFocused)
+		var descStyle lipgloss.Style
+
+		if isFocused {
+            descStyle = d.Styles.SelectedDesc 
+		} else {
+            descStyle = d.Styles.NormalDesc
+		}
+        
+        renderedDesc := descStyle.Width(contentWidth).Render(desc)
+
+        // Combine title and description vertically
+        // Apply width limiting to the title string as well before joining
+        // Note: Applying width directly to renderedTitle might break ANSI styles if not handled carefully.
+        // For now, assume title fits or truncates visually. A better approach might involve lipgloss text wrapping.
+        content := lipgloss.JoinVertical(lipgloss.Left, renderedTitle, renderedDesc)
+
+        // Define styles for focused (border) and non-focused (padding)
+        focusedStyle := lipgloss.NewStyle().
+            Border(lipgloss.NormalBorder(), false, false, false, true).
+            BorderForeground(styles.ColorAccent).
+            PaddingLeft(1)
+        
+        normalStyle := lipgloss.NewStyle().
+            PaddingLeft(2) // Match border(1) + padding(1) of focused style
+
+        // Apply the appropriate style and print
+        var finalOutput string
+        if isFocused {
+            finalOutput = focusedStyle.Render(content)
+        } else {
+            finalOutput = normalStyle.Render(content)
+        }
+        fmt.Fprint(w, finalOutput)
+
+	} else {
+		// Fallback to default delegate rendering for other item types (if any)
+		d.DefaultDelegate.Render(w, m, index, listItem)
+	}
+}
+// --- End Custom Delegate ---
+
 // BaseSelector is the main model for selection
 type BaseSelector struct {
-	list         list.Model
-	selectedItems map[interface{}]struct{} // Stores the actual selected data items for quick lookup
-	quitting     bool
-	done         bool
-	title        string
-	// selectable func(interface{}) bool // This might be complex to integrate with list's filtering
+	list           list.Model
+	selectedItems  map[interface{}]struct{} // For multi-select
+	currentItem    interface{} // For single-select result
+	quitting       bool
+	done           bool
+	title          string
+	singleSelectMode bool // New flag
 }
 
 // NewBaseSelector creates a new base selector
-func NewBaseSelector(title string) *BaseSelector {
-	delegate := list.NewDefaultDelegate()
+func NewBaseSelector(title string, singleSelect bool) *BaseSelector { // Added singleSelect param
+	delegate := newItemDelegate(singleSelect) // Use custom delegate
+	l := list.New([]list.Item{}, delegate, 0, 0)
 
-	// Make selected item more distinct
-	delegate.Styles.SelectedTitle = styles.SelectedTextStyle.Copy().
-		Border(lipgloss.NormalBorder(), false, false, false, true). // Left border
-		BorderForeground(styles.ColorAccent). // Accent color border
-		Padding(0, 0, 0, 1) // Adjust padding slightly
-
-	delegate.Styles.SelectedDesc = styles.UnselectedTextStyle.Copy(). // Keep desc dim but add border
-		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(styles.ColorAccent).
-		Padding(0, 0, 0, 1) // Match padding
-
-	// Keep normal styles simple
-	delegate.Styles.NormalTitle = styles.NormalTextStyle.Copy().Padding(0,0,0,2) // Standard indent
-	delegate.Styles.NormalDesc = styles.UnselectedTextStyle.Copy().Padding(0,0,0,2) // Standard indent
-
-	// Delegate height should account for potential description line
-	delegate.SetHeight(2) // Allocate 2 lines per item (title + desc)
-	delegate.SetSpacing(1) // Add spacing between items
-
-	l := list.New([]list.Item{}, delegate, 0, 0) // Initial size 0,0
-
-	if title != "" {
-		l.Title = title
-		l.Styles.Title = styles.ListTitleStyle
-		l.SetShowTitle(true)
-	} else {
-		l.SetShowTitle(false)
-	}
-	
+    if title != "" {
+        l.Title = title
+        l.Styles.Title = styles.ListTitleStyle
+        l.SetShowTitle(true)
+    } else {
+        l.SetShowTitle(false)
+    }
+    
 	l.Styles.HelpStyle = styles.KeyMapStyle
 	l.Styles.StatusBar = styles.KeyMapStyle.Copy()
 	l.Styles.FilterPrompt = styles.InfoStyle.Copy()
 	l.Styles.FilterCursor = styles.InfoStyle.Copy()
-
 	l.SetShowHelp(true)
 	l.SetFilteringEnabled(true)
 	l.SetShowStatusBar(true)
 
 	return &BaseSelector{
-		list:          l,
-		selectedItems: make(map[interface{}]struct{}),
-		title:         title,
+		list:           l,
+		selectedItems:  make(map[interface{}]struct{}),
+		title:          title,
+		singleSelectMode: singleSelect, // Set the mode
 	}
 }
 
 // Init implements tea.Model
 func (s *BaseSelector) Init() tea.Cmd {
-	return tea.EnterAltScreen // Good practice for full-screen components
+	// Don't enter alt screen here, let parent handle it
+	return nil 
 }
 
 // Update handles keyboard input and updates the selector state
@@ -114,44 +214,35 @@ func (s *BaseSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, nil
 
 	case tea.KeyMsg:
-		if s.list.FilterState() == list.Filtering {
-			break // Let the list handle filtering keys
-		}
+		if s.list.FilterState() == list.Filtering { break } // Let list handle filter keys
+
 		switch msg.String() {
 		case "ctrl+c", "q":
 			s.quitting = true
 			s.done = false
-			return s, tea.Quit // Quit app on ctrl+c or q
+			return s, tea.Quit 
 		case "enter":
+            // Select current item and signal done
+            if item, ok := s.list.SelectedItem().(*SelectorItem); ok {
+                s.currentItem = item.item // Store the single selected item
+            }
 			s.done = true
 			s.quitting = false
-			// Return nil command. The parent app model will detect Finished() state.
-			return s, nil // <<< FIX: Was tea.Quit
-		case " ": // Spacebar to toggle selection
-			if s.list.FilterState() == list.Filtering { break }
-			currentItem, ok := s.list.SelectedItem().(*SelectorItem) 
+			return s, nil // Signal finished, parent handles transition
+		case " ": 
+            if s.singleSelectMode { break } // Ignore space in single select mode
+
+            // Multi-select toggle logic
+			currentItem, ok := s.list.SelectedItem().(*SelectorItem)
 			if !ok { return s, nil }
-
-			currentItem.selected = !currentItem.selected // Toggle internal state
-			if currentItem.selected {
-				s.selectedItems[currentItem.item] = struct{}{}
-			} else {
-				delete(s.selectedItems, currentItem.item)
-			}
-
-            // --- REMOVE SetItem call --- 
-			// No need to call SetItem; the change to currentItem.selected 
-            // will be reflected when the list's View() is called next.
-			// cmd = s.list.SetItem(idx, currentItem) 
-            // cmds = append(cmds, cmd)
-            // --- END REMOVE ---
-
-			// Return existing commands (if any were generated by list.Update earlier)
-			return s, tea.Batch(cmds...)
+			currentItem.selected = !currentItem.selected
+			if currentItem.selected { s.selectedItems[currentItem.item] = struct{}{} } else { delete(s.selectedItems, currentItem.item) }
+            // No SetItem needed, view update handles visual change
+			return s, nil // Just update internal state
 		}
 	}
 
-	// Pass unmatched messages down to the list for default handling
+	// Pass unmatched messages down to the list for default handling (navigation, filtering)
 	s.list, cmd = s.list.Update(msg)
 	cmds = append(cmds, cmd)
 	return s, tea.Batch(cmds...)
@@ -159,27 +250,26 @@ func (s *BaseSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View implements tea.Model
 func (s *BaseSelector) View() string {
-	if s.quitting && !s.done {
-		return styles.InfoStyle.Render("Selection cancelled.")
-	}
-	// The list component handles its own rendering including title, items, help, status bar, etc.
-	return s.list.View()
+	if s.quitting { return styles.InfoStyle.Render("Selection cancelled.") }
+	return s.list.View() // List handles rendering title, items, status, help
 }
 
-// Finished returns true if the selector was completed normally (not quit)
 func (s *BaseSelector) Finished() bool {
 	return s.done && !s.quitting
 }
 
-// GetSelected returns the slice of selected actual data items
+// GetSelected returns selected items
 func (s *BaseSelector) GetSelected() []interface{} {
-	if !s.Finished() {
-		return nil
-	}
+	if !s.Finished() { return nil }
+    if s.singleSelectMode {
+        if s.currentItem != nil {
+             return []interface{}{s.currentItem} // Return single item in a slice
+        }
+        return nil
+    }
+    // Multi-select logic
 	var result []interface{}
-	for item := range s.selectedItems {
-		result = append(result, item)
-	}
+	for item := range s.selectedItems { result = append(result, item) }
 	return result
 }
 
@@ -226,7 +316,7 @@ func (s *BaseSelector) SetSelectedDataItems(dataItemsToSelect []interface{}) {
 // RunSelector is a helper to start this TUI component and get selected items.
 // It expects items as []interface{} and functions to get title/description.
 func RunSelector(title string, items []interface{}, titleFn func(interface{}) string, descFn func(interface{}) string, preselected []interface{}) ([]interface{}, error) {
-	selector := NewBaseSelector(title)
+	selector := NewBaseSelector(title, false)
 	selector.SetItems(items, titleFn, descFn)
 	if len(preselected) > 0 {
 		selector.SetSelectedDataItems(preselected)

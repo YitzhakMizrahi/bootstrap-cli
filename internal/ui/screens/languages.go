@@ -18,7 +18,7 @@ type LanguageScreen struct {
 
 // NewLanguageScreen creates a new LanguageScreen.
 func NewLanguageScreen(title string, languages []*interfaces.Language, preselected []*interfaces.Language) *LanguageScreen {
-	selector := components.NewBaseSelector(title)
+	selector := components.NewBaseSelector(title, false)
 	
 	items := make([]interface{}, len(languages))
 	for i, l := range languages { items[i] = l }

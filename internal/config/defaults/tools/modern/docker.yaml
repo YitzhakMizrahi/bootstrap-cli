@@ -1,0 +1,11 @@
+# Placeholder for Docker (Modern Tool)
+name: docker
+description: Containerization platform
+category: modern # Should match the directory structure if loader relies on it, or be explicit here
+# install_commands:
+#   apt: sudo apt install -y docker.io
+#   brew: brew install docker
+#   dnf: sudo dnf install -y docker
+#   pacman: sudo pacman -S --noconfirm docker
+# verify_command: docker --version
+# post_install_message: "You might need to add your user to the docker group: sudo usermod -aG docker $USER && newgrp docker" 

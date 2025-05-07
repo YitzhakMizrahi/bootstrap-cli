@@ -1,0 +1,9 @@
+# Placeholder for Nerd Fonts
+name: FiraCodeNerdFont
+display_name: "Fira Code Nerd Font"
+url: "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.2.1/FiraCode.zip"
+description: "Fira Code with Nerd Font glyphs for icons and symbols."
+# install_method: download_and_extract_zip # Or a script
+# target_dir_linux: "~/.local/share/fonts"
+# target_dir_macos: "~/Library/Fonts"
+# post_install_command: "fc-cache -fv" 

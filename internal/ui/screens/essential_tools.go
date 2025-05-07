@@ -18,7 +18,7 @@ type EssentialToolScreen struct {
 
 // NewEssentialToolScreen creates a new EssentialToolScreen.
 func NewEssentialToolScreen(title string, tools []*interfaces.Tool, preselected []*interfaces.Tool) *EssentialToolScreen {
-	selector := components.NewBaseSelector(title)
+	selector := components.NewBaseSelector(title, false)
 	
 	// Convert tools and preselected to []interface{} for BaseSelector
 	items := make([]interface{}, len(tools))

@@ -1,0 +1,11 @@
+# Placeholder for Fish shell configuration
+name: fish
+description: Friendly Interactive SHell
+# install_commands:
+#   apt: sudo apt-add-repository ppa:fish-shell/release-3 && sudo apt update && sudo apt install -y fish
+#   brew: brew install fish
+#   dnf: sudo dnf install -y fish
+#   pacman: sudo pacman -S --noconfirm fish
+# path: /usr/bin/fish # Or /usr/local/bin/fish
+# set_default_command: chsh -s $(which fish)
+# verify_command: fish --version 

@@ -159,7 +159,10 @@ func TestDetectCurrent(t *testing.T) {
 
 			os.Setenv("SHELL", tt.shellEnv)
 			
-			m := NewDefaultManager()
+			m, err := NewManager()
+			if err != nil {
+				t.Fatalf("Failed to create shell manager: %v", err)
+			}
 			info, err := m.DetectCurrent()
 			
 			if (err != nil) != tt.wantErr {
@@ -183,7 +186,10 @@ func TestDetectCurrent(t *testing.T) {
 }
 
 func TestListAvailable(t *testing.T) {
-	m := NewDefaultManager()
+	m, err := NewManager()
+	if err != nil {
+		t.Fatalf("Failed to create shell manager: %v", err)
+	}
 	shells, err := m.ListAvailable()
 	if err != nil {
 		t.Errorf("ListAvailable() error = %v", err)

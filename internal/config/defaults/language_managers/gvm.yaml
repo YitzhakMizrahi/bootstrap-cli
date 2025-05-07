@@ -1,0 +1,13 @@
+# Placeholder for GVM (Go Version Manager)
+name: gvm
+description: "Go Version Manager"
+category: language_manager # Special category for these types of tools
+install_commands:
+  script: |
+    set -e
+    bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
+    echo '[[ -s "$HOME/.gvm/scripts/gvm" ]] && source "$HOME/.gvm/scripts/gvm"' >> "$HOME/.bashrc"
+    echo '[[ -s "$HOME/.gvm/scripts/gvm" ]] && source "$HOME/.gvm/scripts/gvm"' >> "$HOME/.zshrc"
+    # For fish, manual sourcing or a plugin might be needed.
+verify_command: "gvm version"
+post_install_message: "GVM installed. Source your shell profile (e.g., source ~/.bashrc) or open a new terminal." 

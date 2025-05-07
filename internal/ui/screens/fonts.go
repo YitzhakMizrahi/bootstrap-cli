@@ -19,7 +19,7 @@ type FontScreen struct {
 
 // NewFontScreen creates a new FontScreen.
 func NewFontScreen(title string, fonts []*interfaces.Font, preselected []*interfaces.Font) *FontScreen {
-	selector := components.NewBaseSelector(title)
+	selector := components.NewBaseSelector(title, false)
 	
 	// Convert fonts and preselected to []interface{} for BaseSelector
 	items := make([]interface{}, len(fonts))

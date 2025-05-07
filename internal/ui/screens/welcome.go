@@ -109,7 +109,7 @@ func (w *WelcomeScreen) View() string {
 	content.WriteString("\n\n\n")
 
 	// Help text
-	helpText := styles.HelpStyle.Render("Press Enter to continue, or q/Ctrl+c to quit.")
+	helpText := styles.HelpStyle.Render("Press Enter to continue.")
 	content.WriteString(helpText)
 
 	// Center the entire block using lipgloss.Place

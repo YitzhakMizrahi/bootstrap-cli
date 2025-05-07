@@ -106,6 +106,19 @@ func (l *Loader) LoadDotfiles() ([]*interfaces.Dotfile, error) {
 	return dotfiles, nil
 }
 
+// LoadShells loads all shell configurations
+func (l *Loader) LoadShells() ([]*interfaces.Shell, error) {
+	configs, err := l.loadConfigsFromDir("shells")
+	if err != nil {
+		return nil, err
+	}
+	shells, ok := configs.([]*interfaces.Shell)
+	if !ok {
+		return nil, fmt.Errorf("failed to convert configs to shells")
+	}
+	return shells, nil
+}
+
 // LoadLanguageManagers loads all language manager configurations
 func (l *Loader) LoadLanguageManagers() ([]*interfaces.Tool, error) {
 	dir := filepath.Join(l.defaultsDir, "language_managers")
@@ -208,6 +221,19 @@ func (l *Loader) loadConfigsFromDir(dir string) (interface{}, error) {
 			}
 		}
 		configs = l.mergeDotfileConfigs(defaultDotfiles, userDotfiles)
+	case "shells":
+		defaultShells, ok := defaultConfigs.([]*interfaces.Shell)
+		if !ok {
+			return nil, fmt.Errorf("invalid default shells configuration type: expected []*interfaces.Shell, got %T", defaultConfigs)
+		}
+		var userShells []*interfaces.Shell
+		if userConfigs != nil {
+			userShells, ok = userConfigs.([]*interfaces.Shell)
+			if !ok {
+				return nil, fmt.Errorf("invalid user shells configuration type: expected []*interfaces.Shell, got %T", userConfigs)
+			}
+		}
+		configs = l.mergeShellConfigs(defaultShells, userShells)
 	case "language_managers":
 		defaultManagers, ok := defaultConfigs.([]*interfaces.Tool)
 		if !ok {
@@ -417,6 +443,48 @@ func (l *Loader) loadDefaultConfigs(dir string) (interface{}, error) {
 		}
 		configs = dotfiles
 		
+	case "shells":
+		shells := make([]*interfaces.Shell, 0)
+		var loadShellsFromDir func(string) error
+		loadShellsFromDir = func(dirPath string) error {
+			entries, err := l.configFS.ReadDir(dirPath)
+			if err != nil {
+				return fmt.Errorf("error reading directory %s: %w", dirPath, err)
+			}
+			
+			for _, entry := range entries {
+				if entry.IsDir() {
+					subdir := filepath.Join(dirPath, entry.Name())
+					if err := loadShellsFromDir(subdir); err != nil {
+						return err
+					}
+					continue
+				}
+				
+				if !strings.HasSuffix(entry.Name(), ".yaml") || entry.Name() == "schema.yaml" {
+					continue
+				}
+				
+				path := filepath.Join(dirPath, entry.Name())
+				data, err := l.configFS.ReadFile(path)
+				if err != nil {
+					return fmt.Errorf("error reading file %s: %w", path, err)
+				}
+				
+				var shell interfaces.Shell
+				if err := yaml.Unmarshal(data, &shell); err != nil {
+					return fmt.Errorf("error parsing shell %s: %w", path, err)
+				}
+				shells = append(shells, &shell)
+			}
+			return nil
+		}
+		
+		if err := loadShellsFromDir(defaultDir); err != nil {
+			return nil, err
+		}
+		configs = shells
+		
 	case "language_managers":
 		managers := make([]*interfaces.Tool, 0)
 		var loadManagersFromDir func(string) error
@@ -555,6 +623,26 @@ func (l *Loader) loadUserConfigs(dir string) (interface{}, error) {
 			return nil, fmt.Errorf("error walking directory %s: %w", userDir, err)
 		}
 		configs = dotfiles
+	case "shells":
+		shells := make([]*interfaces.Shell, 0)
+		err := filepath.Walk(userDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() || !strings.HasSuffix(info.Name(), ".yaml") {
+				return nil
+			}
+			shell, err := l.loadShell(path)
+			if err != nil {
+				return fmt.Errorf("error loading %s: %w", path, err)
+			}
+			shells = append(shells, shell)
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error walking directory %s: %w", userDir, err)
+		}
+		configs = shells
 	case "language_managers":
 		managers := make([]*interfaces.Tool, 0)
 		err := filepath.Walk(userDir, func(path string, info os.FileInfo, err error) error {
@@ -681,31 +769,44 @@ func (l *Loader) mergeLanguageConfigs(defaults, users []*interfaces.Language) []
 
 // mergeDotfileConfigs merges dotfile configurations
 func (l *Loader) mergeDotfileConfigs(defaults, users []*interfaces.Dotfile) []*interfaces.Dotfile {
-	merged := make([]*interfaces.Dotfile, 0)
-	
-	// Create a map of dotfiles by name
-	dotfileMap := make(map[string]*interfaces.Dotfile)
-	for _, dotfile := range defaults {
-		dotfileMap[dotfile.Name] = dotfile
+	merged := make(map[string]*interfaces.Dotfile)
+	for _, d := range defaults {
+		merged[d.Name] = d
 	}
-	
-	// Merge or add user dotfiles
-	for _, dotfile := range users {
-		if defaultDotfile, exists := dotfileMap[dotfile.Name]; exists {
-			merged = append(merged, mergeConfigs(defaultDotfile, dotfile))
+	for _, u := range users {
+		if def, ok := merged[u.Name]; ok {
+			// Simple override, or implement more complex merge if needed
+			merged[u.Name] = mergeConfigs(def, u)
 		} else {
-			merged = append(merged, dotfile)
+			merged[u.Name] = u
 		}
 	}
-	
-	// Add remaining default dotfiles
-	for _, dotfile := range defaults {
-		if _, exists := dotfileMap[dotfile.Name]; !exists {
-			merged = append(merged, dotfile)
+	result := make([]*interfaces.Dotfile, 0, len(merged))
+	for _, v := range merged {
+		result = append(result, v)
+	}
+	return result
+}
+
+// mergeShellConfigs merges default and user shell configurations
+func (l *Loader) mergeShellConfigs(defaults, users []*interfaces.Shell) []*interfaces.Shell {
+	merged := make(map[string]*interfaces.Shell)
+	for _, s := range defaults {
+		merged[s.Name] = s // Assuming Name is unique identifier
+	}
+	for _, u := range users {
+		if def, ok := merged[u.Name]; ok {
+			// Simple override for now, can be made more granular
+			merged[u.Name] = mergeConfigs(def, u)
+		} else {
+			merged[u.Name] = u
 		}
 	}
-	
-	return merged
+	result := make([]*interfaces.Shell, 0, len(merged))
+	for _, v := range merged {
+		result = append(result, v)
+	}
+	return result
 }
 
 // loadTool loads a tool configuration from a file
@@ -723,37 +824,65 @@ func (l *Loader) loadTool(path string) (*interfaces.Tool, error) {
 	return &tool, nil
 }
 
-// GetCategories returns all available categories for a given type
+// GetCategories returns a list of categories for a given configuration type
 func (l *Loader) GetCategories(configType string) ([]string, error) {
-	var categories []string
-	dirPath := filepath.Join(l.baseDir, configType)
-
-	// Walk through the directory
-	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip files and non-yaml files
-		if !info.IsDir() || strings.HasPrefix(info.Name(), ".") {
-			return nil
-		}
-
-		// Get the relative path from the config type directory
-		relPath, err := filepath.Rel(dirPath, path)
-		if err != nil {
-			return err
-		}
-
-		categories = append(categories, relPath)
-		return nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("error walking directory %s: %w", dirPath, err)
+	var dir string
+	switch configType {
+	case "tools":
+		dir = filepath.Join(l.defaultsDir, "tools")
+	case "fonts":
+		dir = filepath.Join(l.defaultsDir, "fonts")
+	case "languages":
+		dir = filepath.Join(l.defaultsDir, "languages")
+	case "shells":
+		dir = filepath.Join(l.defaultsDir, "shells")
+	// Note: Dotfiles and Shells might not have categories in the same way
+	// but if they do, this can be extended.
+	default:
+		return nil, fmt.Errorf("unsupported config type for categories: %s", configType)
 	}
 
-	return categories, nil
+	categories := make(map[string]bool)
+	entries, err := l.configFS.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("error reading default %s directory: %w", configType, err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			// Check if it's a direct subdirectory (potential category)
+			// or a nested structure (like tools/category/subcategory)
+			if configType == "tools" { // Tools can have subcategories
+				subEntries, err := l.configFS.ReadDir(filepath.Join(dir, entry.Name()))
+				if err != nil {
+					// log or handle error, maybe it's not a category dir
+					continue
+				}
+				for _, subEntry := range subEntries {
+					if subEntry.IsDir() {
+						categories[filepath.Join(entry.Name(), subEntry.Name())] = true
+					} else if strings.HasSuffix(subEntry.Name(), ".yaml") && subEntry.Name() != "schema.yaml" {
+						// If a .yaml file is directly in a category folder, that folder is a category
+						categories[entry.Name()] = true
+						break // Found one, no need to check other files in this dir
+					}
+				}
+			} else {
+				// For other types, direct subdirectories are categories
+				categories[entry.Name()] = true
+			}
+		} else if strings.HasSuffix(entry.Name(), ".yaml") && entry.Name() != "schema.yaml" && configType == "tools" {
+			// If a .yaml tool file is at the root of the 'tools' dir, it has no category (or a default one)
+			// This logic might need adjustment based on how uncategorized items are handled.
+			// For now, we assume categories are primarily directories.
+		}
+	}
+
+	result := make([]string, 0, len(categories))
+	for cat := range categories {
+		result = append(result, cat)
+	}
+	return result, nil
 }
 
 // GetToolsByCategory returns all tools in a specific category
@@ -908,37 +1037,37 @@ func (l *Loader) GetDotfiles() ([]*interfaces.Dotfile, error) {
 
 // loadDotfile loads a single dotfile configuration from a YAML file
 func (l *Loader) loadDotfile(path string) (*interfaces.Dotfile, error) {
-	var dotfile interfaces.Dotfile
-	var data []byte
-	var err error
-
-	// Check if the path is in the embedded filesystem
-	if strings.HasPrefix(path, l.defaultsDir) {
-		data, err = l.configFS.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("error reading embedded dotfile %s: %w", path, err)
-		}
-	} else {
-		// Read from the actual filesystem for user dotfiles
-		data, err = os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("error reading user dotfile %s: %w", path, err)
-		}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file %s: %w", path, err)
 	}
-
+	var dotfile interfaces.Dotfile
 	if err := yaml.Unmarshal(data, &dotfile); err != nil {
 		return nil, fmt.Errorf("error parsing dotfile %s: %w", path, err)
 	}
 	return &dotfile, nil
 }
 
+// loadShell loads a single shell configuration from a file
+func (l *Loader) loadShell(path string) (*interfaces.Shell, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file %s: %w", path, err)
+	}
+	var shell interfaces.Shell
+	if err := yaml.Unmarshal(data, &shell); err != nil {
+		return nil, fmt.Errorf("error parsing shell %s: %w", path, err)
+	}
+	return &shell, nil
+}
+
 // ExtractDefaults extracts default configurations to the user's config directory
 func (l *Loader) ExtractDefaults() error {
 	// Create all necessary directories
-	dirs := []string{"tools", "fonts", "languages", "dotfiles", "language_managers"}
+	dirs := []string{"tools", "fonts", "languages", "dotfiles", "language_managers", "shells"}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(filepath.Join(l.baseDir, dir), 0755); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", dir, err)
+			return fmt.Errorf("failed to create directory %s: %w", filepath.Join(l.baseDir, dir), err)
 		}
 	}
 

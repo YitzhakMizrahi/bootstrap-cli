@@ -3,7 +3,9 @@ package pipeline
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 )
 
@@ -105,29 +107,28 @@ func (i *Installer) InstallMultipleUnsafe_DEPRECATED(tools []*Tool) error {
 	return nil
 }
 
-// InstallSelections installs a collection of tools, respecting inter-tool dependencies.
-func (i *Installer) InstallSelections(selectedTools []*Tool) error {
-	if len(selectedTools) == 0 {
-		i.Logger.Printf("No tools selected for installation.")
+// InstallSelections installs a collection of selected items (tools, fonts, etc.), respecting dependencies.
+// TODO: Accept slices for fonts, languages etc. as parameters
+func (i *Installer) InstallSelections(selectedTools []*Tool, manageDotfiles bool, dotfilesRepoURL string) error {
+	if len(selectedTools) == 0 && !manageDotfiles /* && other selections empty */ {
+		i.Logger.Printf("No items selected for installation.")
 		return nil
 	}
-	i.Logger.Printf("Starting dependency-aware installation for %d tools...", len(selectedTools))
+	i.Logger.Printf("Starting dependency-aware installation...")
 
-	// 1. Build Combined Dependency Graph
-	// Use the context's graph, ensure it's clean or create a new one for this run?
-	// Let's assume the context provided to the installer is fresh for this operation.
-	// If not, context might need a Reset() or similar method.
-	// Clear existing graph/installed state for this run
+	// 1. Build Combined Dependency Graph for Tools
+	// TODO: Include dependencies from fonts, languages, dotfiles (e.g., git) if they have them
 	i.Context.dependencyGraph = NewDependencyGraph()
 	i.Context.installedTools = make(map[string]bool)
 	toolMap := make(map[string]*Tool)
 	for _, tool := range selectedTools {
-		i.Context.AddTool(tool) // AddTool populates the dependency graph
+		i.Context.AddTool(tool) 
 		toolMap[tool.Name] = tool
 		i.Logger.Printf("Added tool %s to graph with dependencies: %v", tool.Name, tool.Dependencies)
 	}
+	// TODO: Handle implicit git dependency for dotfiles
 
-	// 2. Calculate Overall Installation Order
+	// 2. Calculate Overall Installation Order (currently only based on tools)
 	installOrder, err := i.Context.dependencyGraph.GetInstallOrder()
 	if err != nil {
 		return fmt.Errorf("failed to calculate installation order: %w", err)
@@ -135,31 +136,25 @@ func (i *Installer) InstallSelections(selectedTools []*Tool) error {
 	i.Logger.Printf("Calculated installation order: %v", installOrder)
 
 	// 3. Create Single Pipeline & Generate Ordered Steps
-	// Use the installer's main pipeline instance. Ensure it's correctly initialized with the channel.
-	i.Pipeline = NewInstallationPipeline(i.progressChanWriter) // Use the installer's write channel
+	i.Pipeline = NewInstallationPipeline(i.progressChanWriter) 
 	i.Pipeline.Logger = i.Logger 
 	i.Pipeline.State = i.Context.State 
 
-	addedSteps := make(map[string]bool) // Prevent adding steps for the same tool multiple times if it appears in order due to complex deps
+	addedSteps := make(map[string]bool) 
 
+	// Add Tool Steps in Order
 	for _, toolName := range installOrder {
-		if _, alreadyAdded := addedSteps[toolName]; alreadyAdded {
+        if _, alreadyAdded := addedSteps[toolName]; alreadyAdded {
 			continue
 		}
-
 		toolToInstall, exists := toolMap[toolName]
 		if !exists {
-			// This means a dependency was identified in the graph but wasn't in the initial selection list.
-			// TODO: Handle this - either load the missing dependency tool config or error out.
-			// For now, we assume all necessary tools (including dependencies) are in the initial selectedTools list, 
-			// which might be incorrect. A robust implementation needs to load dependencies on demand.
-			i.Logger.Printf("Warning: Tool %s found in install order but not in initial selection. Skipping its steps.", toolName)
-			continue
-		}
-
+            // TODO: Handle loading missing dependency tool definitions
+            i.Logger.Printf("Warning: Tool %s found in install order but not in initial selection. Skipping its steps.", toolName)
+            continue
+        }
 		i.Logger.Printf("Generating installation steps for: %s", toolName)
-		// Generate steps for this specific tool, *excluding* the dependency resolution step itself.
-		steps := toolToInstall.GenerateInstallationSteps(i.Context.Platform, i.Context, true)
+		steps := toolToInstall.GenerateInstallationSteps(i.Context.Platform, i.Context, true) // skip dependency step
 		for _, step := range steps {
 			i.Pipeline.AddStep(step)
 			i.Logger.Printf("  Added step: %s", step.Name)
@@ -167,18 +162,33 @@ func (i *Installer) InstallSelections(selectedTools []*Tool) error {
 		addedSteps[toolName] = true
 	}
 
+	// Add Font Steps (TODO)
+	
+	// Add Language Steps (TODO)
+
+	// Add Dotfiles Steps (if selected)
+	if manageDotfiles && dotfilesRepoURL != "" {
+		i.Logger.Printf("Adding dotfiles clone steps for repo: %s", dotfilesRepoURL)
+		// TODO: Determine appropriate targetDir (e.g., ~/.dotfiles)
+		homeDir, _ := os.UserHomeDir() // Handle potential error
+		targetDir := filepath.Join(homeDir, ".dotfiles") // Example target
+		dotfileSteps := GenerateDotfileCloneSteps(dotfilesRepoURL, targetDir)
+		for _, step := range dotfileSteps {
+			i.Pipeline.AddStep(step)
+			i.Logger.Printf("  Added dotfiles step: %s", step.Name)
+		}
+		// TODO: Add symlinking steps after clone
+	}
+
+	// Add Shell Configuration Steps (TODO)
+
 	// 4. Execute the single, ordered pipeline
 	i.Logger.Printf("Executing combined installation pipeline with %d steps...", len(i.Pipeline.Steps))
 	if err := i.Pipeline.Execute(); err != nil {
-		// Execute already logs errors and attempts rollback, and sends events
 		return fmt.Errorf("installation pipeline failed: %w", err)
 	}
 
-	// 5. Final Environment Setup / Verification? 
-	// The original Install method did SetupEnvironment and VerifyInstallation *after* the pipeline.
-	// Should we do a global environment setup (e.g., applying shell changes) once at the end?
-	// Or rely on individual tool steps? Let's assume individual steps handle their own verification/setup for now.
-	// A final shell config apply might be needed.
+	// 5. Final Environment Setup ?
 	i.Logger.Printf("Installation pipeline completed successfully.")
 	return nil
 }

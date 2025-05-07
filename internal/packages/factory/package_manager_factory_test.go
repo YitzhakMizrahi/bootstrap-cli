@@ -204,6 +204,6 @@ func (m *mockPackageManager) Upgrade() error {
 
 func (m *mockPackageManager) SetupSpecialPackage(_ string) error {
 	return nil
-}
+} 
 
 // Removed the second TestPackageManagerFactory function that was causing issues. 

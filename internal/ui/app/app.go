@@ -56,6 +56,8 @@ type Model struct {
 	systemInfo        *system.Info // Store detected system info
 	selectedShell     *interfaces.Shell // Changed type from string
 	shellManager      interfaces.ShellManager // Added ShellManager
+	ManageDotfiles    bool // Exported field for dotfiles choice
+	DotfilesRepoURL   string // Exported field for dotfiles repo URL
 }
 
 // New creates a new application model
@@ -258,6 +260,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case *screens.DotfilesScreen:
 			if screen.Finished() { 
+				m.ManageDotfiles, m.DotfilesRepoURL = screen.GetSelection()
+				// Log selection for debugging
+				fmt.Printf("Dotfiles Selection: Manage=%v, URL=%s\n", m.ManageDotfiles, m.DotfilesRepoURL)
 				cmds = append(cmds, m.transitionTo(InstallationScreen))
 			}
 		
@@ -433,7 +438,8 @@ func (m *Model) transitionTo(targetScreen Screen) tea.Cmd {
 		// 6. Create command to run the installation in the background
 		installCmd := func() tea.Msg {
 			fmt.Println("Starting background installation process...")
-			err := installer.InstallSelections(selectedPipelineTools)
+			// Pass the dotfiles selections along with the tools
+			err := installer.InstallSelections(selectedPipelineTools, m.ManageDotfiles, m.DotfilesRepoURL) 
 			fmt.Println("Background installation process finished.")
 			return installCompleteMsg{err: err} 
 		}
@@ -574,6 +580,16 @@ func (m *Model) SelectedLanguages() []*interfaces.Language {
 // GetSelectedShell returns the selected shell
 func (m *Model) GetSelectedShell() *interfaces.Shell {
 	return m.selectedShell
+}
+
+// GetManageDotfiles returns whether dotfiles should be managed.
+func (m *Model) GetManageDotfiles() bool {
+	return m.ManageDotfiles
+}
+
+// GetDotfilesRepoURL returns the entered dotfiles repository URL.
+func (m *Model) GetDotfilesRepoURL() string {
+	return m.DotfilesRepoURL
 }
 
 // Placeholder adapter - NEEDS REAL IMPLEMENTATION and matching interfaces defined

@@ -86,13 +86,15 @@ func runUp(cmd *cobra.Command, _ []string) error {
 
 	// Gather selections (selectedTools is now []*pipeline.Tool)
 	selectedPipelineTools := m.SelectedTools()      
+	manageDotfiles := m.GetManageDotfiles() // Use getter
+	dotfilesRepoURL := m.GetDotfilesRepoURL() // Use getter
 	// selectedFontInterfaces := m.SelectedFonts()        
 	// selectedLanguageInterfaces := m.SelectedLanguages() 
 	selectedShellInterface := m.GetSelectedShell()     
 	// TODO: Get selected dotfiles
 
 	// Early exit if nothing was selected
-	if len(selectedPipelineTools) == 0 /* && other selections empty */ && selectedShellInterface == nil {
+	if len(selectedPipelineTools) == 0 && !manageDotfiles /* && other selections empty */ && selectedShellInterface == nil {
 		logger.Info("No items selected for installation or configuration. Exiting.")
 		return nil
 	}
@@ -132,17 +134,18 @@ func runUp(cmd *cobra.Command, _ []string) error {
 
 	// TODO: Adapt Fonts, Languages, Shell, Dotfiles for installation
 
-	if len(selectedPipelineTools) > 0 { 
-		logger.Info("Starting installation of selected tools...")
-		if err := installer.InstallSelections(selectedPipelineTools); err != nil { // Pass directly
-			return fmt.Errorf("tool installation failed: %w", err)
+	if len(selectedPipelineTools) > 0 || manageDotfiles { // Use local var
+		logger.Info("Starting installation process...")
+		// Pass dotfiles selections to the installer
+		if err := installer.InstallSelections(selectedPipelineTools, manageDotfiles, dotfilesRepoURL); err != nil { // Use local vars 
+			return fmt.Errorf("installation failed: %w", err)
 		}
-		logger.Info("Tool installation phase complete.")
+		logger.Info("Installation phase complete.")
 	} else {
-		logger.Info("No tools selected for installation.")
+		logger.Info("No tools or dotfiles selected for installation.")
 	}
 
-	// TODO: Add similar blocks for Fonts, Languages, Dotfiles, Shell setup
+	// TODO: Add similar blocks for Fonts, Languages, Shell setup
 
 	if selectedShellInterface != nil {
 		logger.Info("Configuring selected shell: %s", selectedShellInterface.Name)

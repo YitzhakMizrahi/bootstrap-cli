@@ -21,12 +21,12 @@ func (a *PackageManagerAdapter) Install(pkg string) error {
 
 // Uninstall uninstalls a package
 func (a *PackageManagerAdapter) Uninstall(pkg string) error {
-	return a.pm.Remove(pkg)
+	return a.pm.Uninstall(pkg)
 }
 
 // IsInstalled checks if a package is installed
 func (a *PackageManagerAdapter) IsInstalled(pkg string) (bool, error) {
-	return a.pm.IsInstalled(pkg), nil
+	return a.pm.IsInstalled(pkg)
 }
 
 // Update updates the package list
@@ -35,13 +35,11 @@ func (a *PackageManagerAdapter) Update() error {
 }
 
 // SetupSpecialPackage handles special package installation requirements
-func (a *PackageManagerAdapter) SetupSpecialPackage(_ string) error {
-	// This is a no-op for the simple package manager
-	return nil
+func (a *PackageManagerAdapter) SetupSpecialPackage(pkg string) error {
+	return a.pm.SetupSpecialPackage(pkg)
 }
 
 // IsPackageAvailable checks if a package is available
-func (a *PackageManagerAdapter) IsPackageAvailable(_ string) bool {
-	// For the simple package manager, we assume all packages are available
-	return true
+func (a *PackageManagerAdapter) IsPackageAvailable(pkg string) bool {
+	return a.pm.IsPackageAvailable(pkg)
 } 

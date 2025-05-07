@@ -85,7 +85,7 @@ func newRemoveCmd() *cobra.Command {
 			}
 
 			for _, pkg := range args {
-				if err := pm.Remove(pkg); err != nil {
+				if err := pm.Uninstall(pkg); err != nil {
 					return fmt.Errorf("failed to remove package %s: %w", pkg, err)
 				}
 				logger.Info("Successfully removed %s", pkg)
@@ -105,7 +105,7 @@ func newListCmd() *cobra.Command {
 	}
 }
 
-func runList(_ *cobra.Command, args []string) error {
+func runList(cmd *cobra.Command, args []string) error {
 	logger.Info("Listing installed packages...")
 
 	// Get package manager
@@ -118,8 +118,15 @@ func runList(_ *cobra.Command, args []string) error {
 	// List installed packages
 	logger.Info("Installed packages:")
 	for _, pkg := range args {
-		if pm.IsInstalled(pkg) {
-			logger.Info("- %s", pkg)
+		installed, err := pm.IsInstalled(pkg)
+		if err != nil {
+			logger.Error("Failed to check status for package %s: %v", pkg, err)
+			continue
+		}
+		if installed {
+			fmt.Printf("- %s (Installed)\n", pkg)
+		} else {
+			fmt.Printf("- %s (Not Installed)\n", pkg)
 		}
 	}
 

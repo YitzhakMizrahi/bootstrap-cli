@@ -2,46 +2,87 @@
 // and related mock implementations for testing purposes.
 package factory
 
-import "github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+import (
+	"github.com/stretchr/testify/mock"
+)
 
-// MockPackageManager implements interfaces.PackageManager for testing
+// MockPackageManager is a mock implementation of interfaces.PackageManager
 type MockPackageManager struct {
-	name string
+	mock.Mock
 }
 
 // NewMockPackageManager creates a new mock package manager
-func NewMockPackageManager(_ int, name string) interfaces.PackageManager {
-	return &MockPackageManager{
-		name: name,
-	}
+func NewMockPackageManager() *MockPackageManager {
+	return &MockPackageManager{}
 }
 
-// GetName returns the name of the package manager
-func (m *MockPackageManager) GetName() string { return m.name }
+// Install is a mock method
+func (m *MockPackageManager) Install(packageName string) error {
+	args := m.Called(packageName)
+	return args.Error(0)
+}
 
-// IsAvailable checks if the package manager is available on the system
-func (m *MockPackageManager) IsAvailable() bool { return true }
+// IsInstalled is a mock method - Updated Signature
+func (m *MockPackageManager) IsInstalled(packageName string) (bool, error) {
+	args := m.Called(packageName)
+	return args.Bool(0), args.Error(1) // Return bool and error
+}
 
-// Install simulates installing a package
-func (m *MockPackageManager) Install(_ string) error { return nil }
+// GetName is a mock method
+func (m *MockPackageManager) GetName() string {
+	args := m.Called()
+	return args.String(0)
+}
 
-// Update simulates updating the package list
-func (m *MockPackageManager) Update() error { return nil }
+// IsAvailable is a mock method
+func (m *MockPackageManager) IsAvailable() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
 
-// Upgrade simulates upgrading all packages
-func (m *MockPackageManager) Upgrade() error { return nil }
+// IsPackageAvailable is a mock method - Added
+func (m *MockPackageManager) IsPackageAvailable(packageName string) bool {
+	args := m.Called(packageName)
+	return args.Bool(0)
+}
 
-// IsInstalled checks if a package is installed
-func (m *MockPackageManager) IsInstalled(_ string) bool { return true }
+// Update is a mock method
+func (m *MockPackageManager) Update() error {
+	args := m.Called()
+	return args.Error(0)
+}
 
-// Remove simulates removing a package
-func (m *MockPackageManager) Remove(_ string) error { return nil }
+// Upgrade is a mock method
+func (m *MockPackageManager) Upgrade() error {
+	args := m.Called()
+	return args.Error(0)
+}
 
-// GetVersion returns the version of an installed package
-func (m *MockPackageManager) GetVersion(_ string) (string, error) { return "", nil }
+// Uninstall is a mock method - Renamed from Remove
+func (m *MockPackageManager) Uninstall(packageName string) error {
+	args := m.Called(packageName)
+	return args.Error(0)
+}
 
-// ListInstalled returns a list of installed packages
-func (m *MockPackageManager) ListInstalled() ([]string, error) { return nil, nil }
+// GetVersion is a mock method
+func (m *MockPackageManager) GetVersion(packageName string) (string, error) {
+	args := m.Called(packageName)
+	return args.String(0), args.Error(1)
+}
 
-// SetupSpecialPackage simulates setting up a special package
-func (m *MockPackageManager) SetupSpecialPackage(_ string) error { return nil } 
+// ListInstalled is a mock method
+func (m *MockPackageManager) ListInstalled() ([]string, error) {
+	args := m.Called()
+	// Need to handle potential nil slice if error is expected
+	var result []string
+	if args.Get(0) != nil {
+		result = args.Get(0).([]string)
+	}
+	return result, args.Error(1)
+}
+
+// SetupSpecialPackage is a mock method
+func (m *MockPackageManager) SetupSpecialPackage(packageName string) error {
+	args := m.Called(packageName)
+	return args.Error(0)
+} 

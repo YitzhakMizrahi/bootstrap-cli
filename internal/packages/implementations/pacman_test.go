@@ -3,6 +3,8 @@ package implementations
 import (
 	"os/exec"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewPacmanPackageManager(t *testing.T) {
@@ -45,25 +47,18 @@ func TestPacmanPackageManager_Install(t *testing.T) {
 }
 
 func TestPacmanPackageManager_IsInstalled(t *testing.T) {
-	// Skip if not on a system with pacman
-	if _, err := exec.LookPath("pacman"); err != nil {
-		t.Skip("pacman not available, skipping test")
-	}
-
 	pm, err := NewPacmanPackageManager()
-	if err != nil {
-		t.Fatalf("NewPacmanPackageManager() error = %v", err)
-	}
+	assert.NoError(t, err)
 
-	// Test with a package that should be installed
-	if !pm.IsInstalled("pacman") {
-		t.Error("IsInstalled() returned false for pacman package")
-	}
+	// Check for pacman itself (should be installed if test runs)
+	installed, err := pm.IsInstalled("pacman") // Handle error
+	assert.NoError(t, err) // Expect no error
+	assert.True(t, installed, "Expected 'pacman' to be installed")
 
-	// Test with a non-existent package
-	if pm.IsInstalled("non-existent-package-123456") {
-		t.Error("IsInstalled() returned true for non-existent package")
-	}
+	// Check for a non-existent package
+	installed, err = pm.IsInstalled("nonexistent-package-qwertyuiop") // Handle error
+	assert.NoError(t, err) // Expect no error, just false
+	assert.False(t, installed, "Expected 'nonexistent-package-qwertyuiop' not to be installed")
 }
 
 func TestPacmanPackageManager_Remove(t *testing.T) {
@@ -78,14 +73,14 @@ func TestPacmanPackageManager_Remove(t *testing.T) {
 	}
 
 	// Test removing a package that should exist
-	err = pm.Remove("curl")
+	err = pm.Uninstall("curl")
 	if err != nil {
-		t.Errorf("Remove() error = %v", err)
+		t.Errorf("Uninstall() error = %v", err)
 	}
 
 	// Test removing a non-existent package
-	err = pm.Remove("non-existent-package-123456")
+	err = pm.Uninstall("non-existent-package-123456")
 	if err == nil {
-		t.Error("Remove() expected error for non-existent package, got nil")
+		t.Error("Uninstall() expected error for non-existent package, got nil")
 	}
 } 

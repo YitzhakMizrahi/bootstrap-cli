@@ -91,7 +91,7 @@ func (r *retryPackageManager) Install(packageName string) error {
 func (r *retryPackageManager) Remove(pkg string) error {
 	var lastErr error
 	for i := 0; i < r.maxRetries; i++ {
-		if err := r.PackageManager.Remove(pkg); err != nil {
+		if err := r.PackageManager.Uninstall(pkg); err != nil {
 			lastErr = err
 			if i < r.maxRetries-1 {
 				time.Sleep(r.retryDelay)

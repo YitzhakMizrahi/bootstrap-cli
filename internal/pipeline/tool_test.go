@@ -137,13 +137,21 @@ func TestTool_GenerateInstallationSteps(t *testing.T) {
 		PackageManager: "apt",
 	}
 	context := NewInstallationContext(platform, nil)
-	steps := tool.GenerateInstallationSteps(platform, context)
+	steps := tool.GenerateInstallationSteps(platform, context, false)
 
 	// Verify number of steps (pre-install + install + post-install + verify)
 	expectedSteps := len(install.PreInstall) + 1 + len(install.PostInstall) + 1
 	if len(steps) != expectedSteps {
 		t.Errorf("Expected %d steps, got %d", expectedSteps, len(steps))
 	}
+
+	// Test generating installation steps
+	steps = tool.GenerateInstallationSteps(context.Platform, context, false)
+	if len(steps) == 0 {
+		t.Error("Expected installation steps to be generated")
+	}
+
+	// Verify that the steps include installation and verification
 }
 
 func TestTool_CustomInstallation(t *testing.T) {
@@ -170,7 +178,7 @@ func TestTool_CustomInstallation(t *testing.T) {
 		PackageManager: "apt",
 	}
 	context := NewInstallationContext(platform, nil)
-	steps := tool.GenerateInstallationSteps(platform, context)
+	steps := tool.GenerateInstallationSteps(platform, context, false)
 	
 	// Verify number of steps (custom install steps + verify)
 	expectedSteps := len(install.CustomInstall) + 1

@@ -264,7 +264,7 @@ func (c *InstallationContext) ResolveDependencies(tool *Tool) error {
 // installTool installs a tool using the pipeline
 func (c *InstallationContext) installTool(tool *Tool) error {
 	// Generate installation steps
-	steps := tool.GenerateInstallationSteps(c.Platform, c)
+	steps := tool.GenerateInstallationSteps(c.Platform, c, false)
 	
 	// Execute each step
 	for _, step := range steps {

@@ -29,7 +29,12 @@ func TestInstallationState(t *testing.T) {
 }
 
 func TestInstallationPipeline(t *testing.T) {
-	pipeline := NewInstallationPipeline()
+	// Create a dummy channel for testing
+	dummyChan := make(chan ProgressEvent, 10) // Buffered to avoid blocking if not read
+	// Close the channel when the test finishes to prevent leaks if pipeline runs in goroutine (though not here)
+	defer close(dummyChan)
+	
+	pipeline := NewInstallationPipeline(dummyChan)
 
 	// Test successful step
 	successStep := InstallationStep{
@@ -83,7 +88,9 @@ func TestPlatformDetection(t *testing.T) {
 }
 
 func TestPipelineTimeout(t *testing.T) {
-	pipeline := NewInstallationPipeline()
+	dummyChan := make(chan ProgressEvent, 10)
+	defer close(dummyChan)
+	pipeline := NewInstallationPipeline(dummyChan)
 
 	// Test step with timeout
 	timeoutStep := InstallationStep{
@@ -103,7 +110,9 @@ func TestPipelineTimeout(t *testing.T) {
 }
 
 func TestPipelineRetry(t *testing.T) {
-	pipeline := NewInstallationPipeline()
+	dummyChan := make(chan ProgressEvent, 10)
+	defer close(dummyChan)
+	pipeline := NewInstallationPipeline(dummyChan)
 
 	attempts := 0
 	retryStep := InstallationStep{

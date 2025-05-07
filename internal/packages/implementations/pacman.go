@@ -59,26 +59,38 @@ func (p *PacmanPackageManager) Update() error {
 }
 
 // Install installs a package using pacman
-func (p *PacmanPackageManager) Install(packageName string) error {
-	cmd := exec.Command("sudo", "pacman", "-S", "--noconfirm", packageName)
+func (p *PacmanPackageManager) Install(pkg string) error {
+	cmd := exec.Command("sudo", "pacman", "-S", "--noconfirm", pkg)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
-// IsInstalled checks if a package is installed
-func (p *PacmanPackageManager) IsInstalled(pkg string) bool {
-	cmd := exec.Command("pacman", "-Q", pkg)
-	output, err := cmd.Output()
+// IsInstalled checks if a package is installed using Pacman
+func (p *PacmanPackageManager) IsInstalled(pkg string) (bool, error) {
+	cmd := exec.Command(p.sudoPath, "pacman", "-Q", pkg)
+	err := cmd.Run()
 	if err != nil {
-		return false
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if exitErr.ExitCode() == 1 { // Pacman exits 1 if package not found
+				return false, nil
+			}
+		}
+		return false, fmt.Errorf("failed to check pacman installed status for %s: %w", pkg, err)
 	}
-	return strings.Contains(string(output), pkg)
+	return true, nil // Exit code 0 means installed
 }
 
-// Remove removes a package
-func (p *PacmanPackageManager) Remove(packageName string) error {
-	cmd := exec.Command(p.sudoPath, "pacman", "-R", "--noconfirm", packageName)
+// IsPackageAvailable checks if a specific package is available in Pacman repositories
+func (p *PacmanPackageManager) IsPackageAvailable(pkg string) bool {
+	cmd := exec.Command(p.sudoPath, "pacman", "-Si", pkg)
+	err := cmd.Run()
+	return err == nil
+}
+
+// Uninstall removes a package using Pacman (Renamed from Remove)
+func (p *PacmanPackageManager) Uninstall(pkg string) error {
+	cmd := exec.Command(p.sudoPath, "pacman", "-Rns", "--noconfirm", pkg)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -86,7 +98,11 @@ func (p *PacmanPackageManager) Remove(packageName string) error {
 
 // GetVersion returns the version of an installed package
 func (p *PacmanPackageManager) GetVersion(pkg string) (string, error) {
-	if !p.IsInstalled(pkg) {
+	installed, err := p.IsInstalled(pkg)
+	if err != nil {
+		return "", fmt.Errorf("failed to check if package %s is installed: %w", pkg, err)
+	}
+	if !installed {
 		return "", fmt.Errorf("package %s is not installed", pkg)
 	}
 
@@ -134,7 +150,11 @@ func (p *PacmanPackageManager) SetupSpecialPackage(pkg string) error {
 	switch pkg {
 	case "yay":
 		// Install yay from AUR if not already installed
-		if !p.IsInstalled("yay") {
+		installed, err := p.IsInstalled("yay")
+		if err != nil {
+			return fmt.Errorf("failed to check if yay is installed: %w", err)
+		}
+		if !installed {
 			// First ensure base-devel is installed
 			cmd := exec.Command(p.sudoPath, "pacman", "-S", "--noconfirm", "base-devel", "git")
 			cmd.Stdout = os.Stdout
@@ -177,14 +197,4 @@ func (p *PacmanPackageManager) Upgrade() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
-}
-
-// IsPackageAvailable checks if a package is available in the package manager's repositories
-func (p *PacmanPackageManager) IsPackageAvailable(pkg string) bool {
-	cmd := exec.Command("pacman", "-Ss", "^" + pkg + "$")
-	output, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-	return len(output) > 0
 } 

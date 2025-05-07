@@ -94,7 +94,11 @@ func (a *APTManager) addRepository(repo string) error {
 func (a *APTManager) installPrerequisites() error {
 	prerequisites := []string{"software-properties-common", "curl", "gnupg"}
 	for _, pkg := range prerequisites {
-		if !a.IsInstalled(pkg) {
+		installed, err := a.IsInstalled(pkg)
+		if err != nil {
+			return fmt.Errorf("failed to check install status for prerequisite %s: %w", pkg, err)
+		}
+		if !installed {
 			if err := a.Install(pkg); err != nil {
 				return fmt.Errorf("failed to install prerequisite %s: %w", pkg, err)
 			}
@@ -128,14 +132,18 @@ func (a *APTManager) Remove(packageName string) error {
 	return cmd.Run()
 }
 
-// IsInstalled checks if a package is installed
-func (a *APTManager) IsInstalled(packageName string) bool {
-	cmd := exec.Command("dpkg", "-l", packageName)
-	output, err := cmd.Output()
-	if err != nil {
-		return false
+// IsInstalled checks if a package is installed using apt
+func (a *APTManager) IsInstalled(packageName string) (bool, error) {
+	cmd := exec.Command("dpkg", "-s", packageName)
+	if err := cmd.Run(); err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			// dpkg returns non-zero status if package is not installed
+			return false, nil // Not installed, but not an execution error
+		}
+		// Some other error occurred during execution
+		return false, fmt.Errorf("failed to check package status for %s: %w", packageName, err)
 	}
-	return strings.Contains(string(output), packageName)
+	return true, nil // Exit code 0 means installed
 }
 
 // GetVersion returns the version of an installed package
@@ -171,9 +179,23 @@ func (a *APTManager) Upgrade() error {
 	return cmd.Run()
 }
 
-// IsPackageAvailable checks if a package is available in the package manager's repositories
-func (a *APTManager) IsPackageAvailable(pkg string) bool {
-	cmd := exec.Command("apt-cache", "show", pkg)
-	err := cmd.Run()
-	return err == nil
+// IsPackageAvailable checks if a specific package is available in apt repositories
+func (a *APTManager) IsPackageAvailable(packageName string) bool {
+	cmd := exec.Command("apt-cache", "policy", packageName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return !strings.Contains(string(output), "Unable to locate package") && strings.Contains(string(output), "Candidate:")
+}
+
+// Uninstall removes a package using apt (Renamed from Remove)
+func (a *APTManager) Uninstall(packageName string) error {
+	cmd := exec.Command("sudo", "apt-get", "remove", "-y", packageName)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to remove package %s: %w", packageName, err)
+	}
+	return nil
 }

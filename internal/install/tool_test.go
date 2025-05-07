@@ -49,7 +49,7 @@ func (m *MockPackageManager) Install(packageName string) error {
 	return nil
 }
 
-func (m *MockPackageManager) IsInstalled(pkg string) bool {
+func (m *MockPackageManager) IsInstalled(pkg string) (bool, error) {
 	// Extract package name without version
 	name := pkg
 	if strings.Contains(pkg, "=") {
@@ -58,7 +58,12 @@ func (m *MockPackageManager) IsInstalled(pkg string) bool {
 		name = strings.Split(pkg, "@")[0]
 	}
 	_, exists := m.installed[name]
-	return exists
+	return exists, nil
+}
+
+func (m *MockPackageManager) IsPackageAvailable(pkg string) bool {
+	// Simple mock: assume all packages are available
+	return true
 }
 
 func (m *MockPackageManager) Uninstall(pkg string) error {
@@ -87,22 +92,6 @@ func (m *MockPackageManager) IsAvailable() bool {
 
 func (m *MockPackageManager) GetName() string {
 	return m.name
-}
-
-func (m *MockPackageManager) Remove(pkg string) error {
-	// Extract package name without version
-	name := pkg
-	if strings.Contains(pkg, "=") {
-		name = strings.Split(pkg, "=")[0]
-	} else if strings.Contains(pkg, "@") {
-		name = strings.Split(pkg, "@")[0]
-	}
-
-	if _, exists := m.installed[name]; !exists {
-		return fmt.Errorf("package %s not installed", name)
-	}
-	delete(m.installed, name)
-	return nil
 }
 
 func (m *MockPackageManager) Update() error {
@@ -373,7 +362,11 @@ func TestTool_Install(t *testing.T) {
 	}
 
 	// Verify the tool was installed
-	if !mockPM.IsInstalled(tool.Name) {
+	installed, err := mockPM.IsInstalled(tool.Name)
+	if err != nil {
+		t.Errorf("IsInstalled() error = %v", err)
+	}
+	if !installed {
 		t.Errorf("Expected package %s to be installed", tool.Name)
 	}
 } 

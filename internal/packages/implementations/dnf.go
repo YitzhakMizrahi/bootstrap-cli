@@ -63,28 +63,48 @@ func (d *DnfPackageManager) Update() error {
 	return cmd.Run()
 }
 
-// IsInstalled checks if a package is installed
-func (d *DnfPackageManager) IsInstalled(pkg string) bool {
-	cmd := exec.Command("dnf", "list", "installed", pkg)
-	output, err := cmd.Output()
+// IsInstalled checks if a package is installed using dnf
+func (d *DnfPackageManager) IsInstalled(packageName string) (bool, error) {
+	cmd := exec.Command(d.sudoPath, "dnf", "list", "installed", packageName)
+	err := cmd.Run()
 	if err != nil {
-		return false
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if exitErr.ExitCode() == 1 {
+				return false, nil
+			}
+		}
+		return false, fmt.Errorf("failed to check dnf installed status for %s: %w", packageName, err)
 	}
-	return strings.Contains(string(output), pkg)
+	return true, nil
 }
 
-// Remove removes a package
-func (d *DnfPackageManager) Remove(pkg string) error {
-	cmd := exec.Command(d.sudoPath, "dnf", "remove", "-y", pkg)
+// IsPackageAvailable checks if a specific package is available in dnf repositories
+func (d *DnfPackageManager) IsPackageAvailable(packageName string) bool {
+	cmd := exec.Command(d.sudoPath, "dnf", "list", "available", packageName)
+	err := cmd.Run()
+	return err == nil
+}
+
+// Upgrade upgrades all packages using dnf
+func (d *DnfPackageManager) Upgrade() error {
+	cmd := exec.Command("sudo", "dnf", "upgrade", "-y")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Uninstall removes a package using dnf (Renamed from Remove)
+func (d *DnfPackageManager) Uninstall(packageName string) error {
+	cmd := exec.Command(d.sudoPath, "dnf", "remove", "-y", packageName)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove package %s: %w", pkg, err)
+		return fmt.Errorf("failed to remove package %s: %w", packageName, err)
 	}
 	return nil
 }
 
-// GetVersion returns the version of a package
+// GetVersion returns the version of an installed package using dnf
 func (d *DnfPackageManager) GetVersion(packageName string) (string, error) {
 	cmd := exec.Command("dnf", "list", "installed", packageName)
 	output, err := cmd.Output()
@@ -103,7 +123,7 @@ func (d *DnfPackageManager) GetVersion(packageName string) (string, error) {
 	return fields[1], nil
 }
 
-// ListInstalled returns a list of installed packages
+// ListInstalled returns a list of installed packages using dnf
 func (d *DnfPackageManager) ListInstalled() ([]string, error) {
 	cmd := exec.Command("dnf", "list", "installed")
 	output, err := cmd.Output()
@@ -124,13 +144,10 @@ func (d *DnfPackageManager) ListInstalled() ([]string, error) {
 	return packages, nil
 }
 
-// SetupSpecialPackage sets up any special repository requirements for a package
-func (d *DnfPackageManager) SetupSpecialPackage(pkg string) error {
-	// For DNF, we might need to enable additional repositories
-	// This is a placeholder implementation that can be extended based on specific package requirements
-	switch pkg {
+// SetupSpecialPackage for dnf (if any)
+func (d *DnfPackageManager) SetupSpecialPackage(packageName string) error {
+	switch packageName {
 	case "docker":
-		// Enable Docker repository
 		cmd := exec.Command(d.sudoPath, "dnf", "config-manager", "--add-repo", "https://download.docker.com/linux/fedora/docker-ce.repo")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -139,24 +156,6 @@ func (d *DnfPackageManager) SetupSpecialPackage(pkg string) error {
 		}
 		return nil
 	default:
-		return nil // No special setup needed for this package
+		return nil
 	}
-}
-
-// Upgrade upgrades all packages
-func (d *DnfPackageManager) Upgrade() error {
-	cmd := exec.Command("sudo", "dnf", "upgrade", "-y")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-// IsPackageAvailable checks if a package is available in the package manager's repositories
-func (d *DnfPackageManager) IsPackageAvailable(pkg string) bool {
-	cmd := exec.Command("dnf", "list", "available", pkg)
-	output, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-	return strings.Contains(string(output), pkg)
 } 

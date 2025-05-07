@@ -10,6 +10,9 @@ import (
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+	base_iface "github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/packages/factory"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/pipeline"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/shell"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/system"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/components"
@@ -31,6 +34,7 @@ const (
 	LanguageScreen // Renamed back
 	DotfilesScreen
 	FinishScreen
+	InstallationScreen // New screen for progress
 )
 
 // Model represents the main application model and aggregates all UI state.
@@ -46,7 +50,7 @@ type Model struct {
 	screenReady   bool // Flag to prevent rendering before first WindowSizeMsg
 
 	// Stored selections - populated when selection screens finish
-	selectedTools     []*interfaces.Tool
+	selectedTools     []*pipeline.Tool
 	selectedFonts     []*interfaces.Font
 	selectedLanguages []*interfaces.Language
 	systemInfo        *system.Info // Store detected system info
@@ -124,6 +128,12 @@ func detectSystem() tea.Cmd {
 	}
 }
 
+// installCompleteMsg is sent when the background installation goroutine finishes
+// It might contain an error if the installer logic itself failed (not just pipeline steps)
+type installCompleteMsg struct {
+	err error
+}
+
 // --- Update Logic --- 
 
 // Update implements tea.Model
@@ -190,6 +200,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil // Consume this message
+
+	// Handle the message indicating background installation finished
+	case installCompleteMsg:
+		// This message currently signifies the goroutine running the installer finished.
+		// The actual success/failure is handled within the InstallationScreen via pipeline events.
+		// We might use this msg later for final cleanup or error display if the installer itself crashes.
+		if msg.err != nil {
+			m.err = fmt.Errorf("installer runner failed: %w", msg.err)
+			// Potentially transition to an error screen or update InstallationScreen state
+		}
+		// No transition needed here usually, InstallationScreen handles its exit.
+		return m, nil
 	}
 
 	// --- Screen-specific Update Delegation & Transition Logic ---
@@ -233,7 +255,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.transitionTo(DotfilesScreen)) 
 			}
 		case *screens.DotfilesScreen:
-			if screen.Finished() { cmds = append(cmds, m.transitionTo(FinishScreen)) }
+			if screen.Finished() { 
+				cmds = append(cmds, m.transitionTo(InstallationScreen))
+			}
+		
+		// Installation screen handles its own lifecycle, no check needed here
+		case *screens.InstallationScreen:
+			// No transition logic needed here as InstallationScreen quits itself
+			break
+		
 		case *screens.FinishScreen:
 			; // Finish screen quits itself
 		}
@@ -343,6 +373,70 @@ func (m *Model) transitionTo(targetScreen Screen) tea.Cmd {
 		if errL != nil { m.err = fmt.Errorf("Lang load error: %v", errL); newScreen = screens.NewWelcomeScreen(); break }
 		newScreen = screens.NewLanguageScreen("", langs, m.selectedLanguages)
 	case DotfilesScreen: newScreen = screens.NewDotfilesScreen()
+	case InstallationScreen:
+		fmt.Println("Transitioning to Installation Screen...") // Use fmt for now
+
+		// --- Prepare for Installation --- 
+		// 1. Gather all selections (ensure this is done before this transition)
+		selectedPipelineTools := m.SelectedTools()
+		// TODO: Gather fonts, languages, shell, dotfiles
+		selectedToolNames := make([]string, len(selectedPipelineTools))
+		for i, tool := range selectedPipelineTools {
+			selectedToolNames[i] = tool.Name
+		}
+
+		// 2. Load full pipeline tool definitions (PLACEHOLDER - Needs real implementation)
+		selectedPipelineTools = make([]*pipeline.Tool, 0)
+		fmt.Println("TODO: Placeholder: Using empty tool list for pipeline installation start.")
+		// TODO: Implement loading based on selectedToolNames
+
+		// 3. Prepare Platform and PackageManager for Installer
+		sysInfo, err := system.Detect()
+		if err != nil {
+			m.err = fmt.Errorf("failed to detect system info for install: %w", err)
+			newScreen = screens.NewWelcomeScreen()
+			break
+		}
+		pkgManagerFactory := factory.NewPackageManagerFactory()
+		pkgManagerImpl, err := pkgManagerFactory.GetPackageManager() // base_iface.PackageManager
+		if err != nil {
+			m.err = fmt.Errorf("failed to detect package manager for install: %w", err)
+			newScreen = screens.NewWelcomeScreen()
+			break
+		}
+		
+		// Adapt the PackageManager
+		var pipelinePackageManager pipeline.PackageManager = &packageManagerAdapter{impl: pkgManagerImpl}
+		fmt.Println("TODO: Verify and complete PackageManager adapter implementation for pipeline.")
+
+		pipelinePlatform := &pipeline.Platform{
+			OS:             sysInfo.OS,
+			Arch:           sysInfo.Arch,
+			PackageManager: sysInfo.PackageType, // TODO: Use GetName from adapter?
+			Shell:          sysInfo.Shell,
+		}
+
+		// 4. Create Installer
+		installer, err := pipeline.NewInstaller(pipelinePlatform, pipelinePackageManager)
+		if err != nil {
+			m.err = fmt.Errorf("failed to create installer: %w", err)
+			newScreen = screens.NewWelcomeScreen() 
+			break
+		}
+
+		// 5. Create the Installation Screen, passing the READ end of the progress channel
+		newScreen = screens.NewInstallationScreen(installer.ProgressChan)
+
+		// 6. Create command to run the installation in the background
+		installCmd := func() tea.Msg {
+			fmt.Println("Starting background installation process...")
+			err := installer.InstallSelections(selectedPipelineTools)
+			fmt.Println("Background installation process finished.")
+			return installCompleteMsg{err: err} 
+		}
+		
+		initCmd = tea.Batch(newScreen.Init(), installCmd)
+
 	case FinishScreen: newScreen = screens.NewFinishScreen()
 	default: m.err = fmt.Errorf("invalid target screen: %d", targetScreen); newScreen = screens.NewWelcomeScreen()
 	}
@@ -385,10 +479,10 @@ func (m *Model) transitionTo(targetScreen Screen) tea.Cmd {
 }
 
 // Helper function to filter tools by category
-func filterToolsByCategory(tools []*interfaces.Tool, category string) []*interfaces.Tool {
-	filtered := make([]*interfaces.Tool, 0)
+func filterToolsByCategory(tools []*pipeline.Tool, category string) []*pipeline.Tool {
+	filtered := make([]*pipeline.Tool, 0)
 	for _, tool := range tools {
-		if tool.Category == category {
+		if string(tool.Category) == category {
 			filtered = append(filtered, tool)
 		}
 	}
@@ -459,7 +553,7 @@ func (m *Model) View() string {
 }
 
 // SelectedTools returns the selected tools
-func (m *Model) SelectedTools() []*interfaces.Tool {
+func (m *Model) SelectedTools() []*pipeline.Tool {
 	return m.selectedTools
 }
 
@@ -476,4 +570,22 @@ func (m *Model) SelectedLanguages() []*interfaces.Language {
 // GetSelectedShell returns the selected shell
 func (m *Model) GetSelectedShell() *interfaces.Shell {
 	return m.selectedShell
+}
+
+// Placeholder adapter - NEEDS REAL IMPLEMENTATION and matching interfaces defined
+type packageManagerAdapter struct {
+	impl base_iface.PackageManager // The implementation from internal/packages
+}
+
+func (a *packageManagerAdapter) Install(pkg string) error { return a.impl.Install(pkg) }
+func (a *packageManagerAdapter) Uninstall(pkg string) error { return a.impl.Uninstall(pkg) }
+func (a *packageManagerAdapter) IsInstalled(pkg string) (bool, error) {
+	return a.impl.IsInstalled(pkg)
+}
+func (a *packageManagerAdapter) Update() error { return a.impl.Update() }
+func (a *packageManagerAdapter) SetupSpecialPackage(pkg string) error { 
+	return a.impl.SetupSpecialPackage(pkg) 
+}
+func (a *packageManagerAdapter) IsPackageAvailable(pkg string) bool { 
+	return a.impl.IsPackageAvailable(pkg) 
 } 

@@ -57,11 +57,11 @@ func (m *manager) DetectCurrent() (*interfaces.ShellInfo, error) {
 				for _, part := range parts {
 					if _, e := exec.LookPath(part); e != nil && len(part) > 1 && (part[0] >= '0' && part[0] <= '9') { // find first numeric-like part
 						version = part
-						break
-					}
-				}
-			}
+			break
 		}
+	}
+			}
+	}
 	}
 
 	return &interfaces.ShellInfo{
@@ -69,7 +69,7 @@ func (m *manager) DetectCurrent() (*interfaces.ShellInfo, error) {
 		Path:        shellPath,
 		Type:        shellName, 
 		Version:     version,
-		IsAvailable: true, 
+		IsAvailable: true,
 		IsDefault:   os.Getenv("SHELL") == shellPath, // True if $SHELL matches this detected shell
 		// ConfigFiles: Determine actual config files (e.g., [~/.bashrc] for bash)
 	}, nil
@@ -101,8 +101,8 @@ func (m *manager) ListAvailable() ([]*interfaces.ShellInfo, error) {
 						if _, e := exec.LookPath(part); e != nil && len(part) > 1 && (part[0] >= '0' && part[0] <= '9') {
 							version = part
 							break
-						}
-					}
+			}
+		}
 					if version == "unknown" && len(parts) > 1 {
 						version = parts[1] // fallback to second field if numeric not found
 					}
@@ -116,7 +116,7 @@ func (m *manager) ListAvailable() ([]*interfaces.ShellInfo, error) {
 				configFiles = append(configFiles, filepath.Join(homeDir, ".bashrc"))
 				if profilePath := filepath.Join(homeDir, ".bash_profile"); pathExists(profilePath) {
 				    configFiles = append(configFiles, profilePath)
-				}
+			}
 			case interfaces.ZshShell:
 				configFiles = append(configFiles, filepath.Join(homeDir, ".zshrc"))
 			case interfaces.FishShell:
@@ -133,8 +133,8 @@ func (m *manager) ListAvailable() ([]*interfaces.ShellInfo, error) {
 				Current: shellName, // Set Current to the shellName for consistency in ShellInfo
 			}
 			available = append(available, info)
+			}
 		}
-	}
 	return available, nil
 }
 

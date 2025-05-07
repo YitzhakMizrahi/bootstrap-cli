@@ -60,12 +60,12 @@ func (i SelectorItem) Title(isSingleSelect bool, isFocused bool) string {
         // Construct prefix based on selection and focus
         if i.selected {
             prefix = currentCheckboxStyle.Render("[x] ")
-        } else {
+	} else {
             prefix = currentCheckboxStyle.Render("[ ] ")
         }
         titleStr = actualTitleStyle.Render(i.title)
         fullTitle = prefix + titleStr
-	}
+    }
 	return fullTitle
 }
 
@@ -113,13 +113,13 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		}
 
         isFocused := index == m.Index()
-        
+
         // Get the fully pre-styled title string (with prefixes and internal styling)
         renderedTitle := item.Title(d.singleSelectMode, isFocused)
 		var descStyle lipgloss.Style
 
 		if isFocused {
-            descStyle = d.Styles.SelectedDesc 
+            descStyle = d.Styles.SelectedDesc
 		} else {
             descStyle = d.Styles.NormalDesc
 		}

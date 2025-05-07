@@ -6,13 +6,16 @@ type PackageManager interface {
 	Install(packageName string) error
 	
 	// IsInstalled checks if a package is installed
-	IsInstalled(packageName string) bool
+	IsInstalled(packageName string) (bool, error)
 	
 	// GetName returns the name of the package manager (apt, brew, dnf, pacman)
 	GetName() string
 	
 	// IsAvailable checks if the package manager is available on the system
 	IsAvailable() bool
+
+	// IsPackageAvailable checks if a specific package is available in the repositories
+	IsPackageAvailable(packageName string) bool
 	
 	// Update updates the package list
 	Update() error
@@ -20,8 +23,8 @@ type PackageManager interface {
 	// Upgrade upgrades all packages
 	Upgrade() error
 
-	// Remove removes a package
-	Remove(packageName string) error
+	// Uninstall removes a package
+	Uninstall(packageName string) error
 
 	// GetVersion returns the version of an installed package
 	GetVersion(packageName string) (string, error)

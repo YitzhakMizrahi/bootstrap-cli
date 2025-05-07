@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/pipeline"
 )
 
 //go:embed defaults/**
@@ -54,15 +55,15 @@ func mergeConfigs[T any](defaultConfig, userConfig *T) *T {
 	return &merged
 }
 
-// LoadTools loads all tool configurations
-func (l *Loader) LoadTools() ([]*interfaces.Tool, error) {
+// LoadTools loads all tool configurations as pipeline.Tool structs
+func (l *Loader) LoadTools() ([]*pipeline.Tool, error) {
 	configs, err := l.loadConfigsFromDir("tools")
 	if err != nil {
 		return nil, err
 	}
-	tools, ok := configs.([]*interfaces.Tool)
+	tools, ok := configs.([]*pipeline.Tool)
 	if !ok {
-		return nil, fmt.Errorf("failed to convert configs to tools")
+		return nil, fmt.Errorf("failed to convert configs to []*pipeline.Tool, got %T", configs)
 	}
 	return tools, nil
 }
@@ -120,9 +121,9 @@ func (l *Loader) LoadShells() ([]*interfaces.Shell, error) {
 }
 
 // LoadLanguageManagers loads all language manager configurations
-func (l *Loader) LoadLanguageManagers() ([]*interfaces.Tool, error) {
+func (l *Loader) LoadLanguageManagers() ([]*pipeline.Tool, error) {
 	dir := filepath.Join(l.defaultsDir, "language_managers")
-	managers := make([]*interfaces.Tool, 0)
+	managers := make([]*pipeline.Tool, 0)
 
 	entries, err := l.configFS.ReadDir(dir)
 	if err != nil {
@@ -140,7 +141,7 @@ func (l *Loader) LoadLanguageManagers() ([]*interfaces.Tool, error) {
 			return nil, fmt.Errorf("error reading language manager file %s: %w", path, err)
 		}
 
-		var manager interfaces.Tool
+		var manager pipeline.Tool
 		if err := yaml.Unmarshal(data, &manager); err != nil {
 			return nil, fmt.Errorf("error parsing language manager %s: %w", path, err)
 		}
@@ -170,15 +171,15 @@ func (l *Loader) loadConfigsFromDir(dir string) (interface{}, error) {
 	// Merge configs based on type
 	switch dir {
 	case "tools":
-		defaultTools, ok := defaultConfigs.([]*interfaces.Tool)
+		defaultTools, ok := defaultConfigs.([]*pipeline.Tool)
 		if !ok {
-			return nil, fmt.Errorf("invalid default tools configuration type: expected []*interfaces.Tool, got %T", defaultConfigs)
+			return nil, fmt.Errorf("invalid default tools configuration type: expected []*pipeline.Tool, got %T", defaultConfigs)
 		}
-		var userTools []*interfaces.Tool
+		var userTools []*pipeline.Tool
 		if userConfigs != nil {
-			userTools, ok = userConfigs.([]*interfaces.Tool)
+			userTools, ok = userConfigs.([]*pipeline.Tool)
 			if !ok {
-				return nil, fmt.Errorf("invalid user tools configuration type: expected []*interfaces.Tool, got %T", userConfigs)
+				return nil, fmt.Errorf("invalid user tools configuration type: expected []*pipeline.Tool, got %T", userConfigs)
 			}
 		}
 		configs = l.mergeToolConfigs(defaultTools, userTools)
@@ -235,15 +236,15 @@ func (l *Loader) loadConfigsFromDir(dir string) (interface{}, error) {
 		}
 		configs = l.mergeShellConfigs(defaultShells, userShells)
 	case "language_managers":
-		defaultManagers, ok := defaultConfigs.([]*interfaces.Tool)
+		defaultManagers, ok := defaultConfigs.([]*pipeline.Tool)
 		if !ok {
-			return nil, fmt.Errorf("invalid default language managers configuration type: expected []*interfaces.Tool, got %T", defaultConfigs)
+			return nil, fmt.Errorf("invalid default language managers configuration type: expected []*pipeline.Tool, got %T", defaultConfigs)
 		}
-		var userManagers []*interfaces.Tool
+		var userManagers []*pipeline.Tool
 		if userConfigs != nil {
-			userManagers, ok = userConfigs.([]*interfaces.Tool)
+			userManagers, ok = userConfigs.([]*pipeline.Tool)
 			if !ok {
-				return nil, fmt.Errorf("invalid user language managers configuration type: expected []*interfaces.Tool, got %T", userConfigs)
+				return nil, fmt.Errorf("invalid user language managers configuration type: expected []*pipeline.Tool, got %T", userConfigs)
 			}
 		}
 		configs = l.mergeToolConfigs(defaultManagers, userManagers)
@@ -261,7 +262,7 @@ func (l *Loader) loadDefaultConfigs(dir string) (interface{}, error) {
 	var configs interface{}
 	switch dir {
 	case "tools":
-		tools := make([]*interfaces.Tool, 0)
+		tools := make([]*pipeline.Tool, 0)
 		
 		// Function to load tools from a directory
 		var loadToolsFromDir func(string) error
@@ -292,7 +293,7 @@ func (l *Loader) loadDefaultConfigs(dir string) (interface{}, error) {
 					return fmt.Errorf("error reading file %s: %w", path, err)
 				}
 				
-				var tool interfaces.Tool
+				var tool pipeline.Tool
 				if err := yaml.Unmarshal(data, &tool); err != nil {
 					return fmt.Errorf("error parsing tool %s: %w", path, err)
 				}
@@ -301,7 +302,7 @@ func (l *Loader) loadDefaultConfigs(dir string) (interface{}, error) {
 				if tool.Category == "" {
 					rel, _ := filepath.Rel(defaultDir, dirPath)
 					if rel != "." {
-						tool.Category = rel
+						tool.Category = pipeline.ToolCategory(rel)
 					}
 				}
 				
@@ -486,7 +487,7 @@ func (l *Loader) loadDefaultConfigs(dir string) (interface{}, error) {
 		configs = shells
 		
 	case "language_managers":
-		managers := make([]*interfaces.Tool, 0)
+		managers := make([]*pipeline.Tool, 0)
 		var loadManagersFromDir func(string) error
 		loadManagersFromDir = func(dirPath string) error {
 			entries, err := l.configFS.ReadDir(dirPath)
@@ -513,7 +514,7 @@ func (l *Loader) loadDefaultConfigs(dir string) (interface{}, error) {
 					return fmt.Errorf("error reading file %s: %w", path, err)
 				}
 				
-				var tool interfaces.Tool
+				var tool pipeline.Tool
 				if err := yaml.Unmarshal(data, &tool); err != nil {
 					return fmt.Errorf("error parsing language manager %s: %w", path, err)
 				}
@@ -544,7 +545,7 @@ func (l *Loader) loadUserConfigs(dir string) (interface{}, error) {
 	var configs interface{}
 	switch dir {
 	case "tools":
-		tools := make([]*interfaces.Tool, 0)
+		tools := make([]*pipeline.Tool, 0)
 		err := filepath.Walk(userDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -644,7 +645,7 @@ func (l *Loader) loadUserConfigs(dir string) (interface{}, error) {
 		}
 		configs = shells
 	case "language_managers":
-		managers := make([]*interfaces.Tool, 0)
+		managers := make([]*pipeline.Tool, 0)
 		err := filepath.Walk(userDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -671,7 +672,7 @@ func (l *Loader) loadUserConfigs(dir string) (interface{}, error) {
 }
 
 // mergeToolConfigs merges user tool configs into default configs
-func (l *Loader) mergeToolConfigs(defaults, users []*interfaces.Tool) []*interfaces.Tool {
+func (l *Loader) mergeToolConfigs(defaults, users []*pipeline.Tool) []*pipeline.Tool {
 	if users == nil {
 		return defaults
 	}
@@ -680,13 +681,13 @@ func (l *Loader) mergeToolConfigs(defaults, users []*interfaces.Tool) []*interfa
 	}
 	
 	// Create map of default tools by name
-	defaultMap := make(map[string]*interfaces.Tool)
+	defaultMap := make(map[string]*pipeline.Tool)
 	for _, tool := range defaults {
 		defaultMap[tool.Name] = tool
 	}
 	
 	// Merge or append user tools
-	result := make([]*interfaces.Tool, 0)
+	result := make([]*pipeline.Tool, 0)
 	for _, user := range users {
 		if def, exists := defaultMap[user.Name]; exists {
 			merged := mergeConfigs(def, user)
@@ -784,10 +785,10 @@ func (l *Loader) mergeDotfileConfigs(defaults, users []*interfaces.Dotfile) []*i
 	result := make([]*interfaces.Dotfile, 0, len(merged))
 	for _, v := range merged {
 		result = append(result, v)
-	}
+		}
 	return result
-}
-
+	}
+	
 // mergeShellConfigs merges default and user shell configurations
 func (l *Loader) mergeShellConfigs(defaults, users []*interfaces.Shell) []*interfaces.Shell {
 	merged := make(map[string]*interfaces.Shell)
@@ -805,18 +806,18 @@ func (l *Loader) mergeShellConfigs(defaults, users []*interfaces.Shell) []*inter
 	result := make([]*interfaces.Shell, 0, len(merged))
 	for _, v := range merged {
 		result = append(result, v)
-	}
+		}
 	return result
 }
 
-// loadTool loads a tool configuration from a file
-func (l *Loader) loadTool(path string) (*interfaces.Tool, error) {
+// loadTool loads a tool configuration from a file into pipeline.Tool
+func (l *Loader) loadTool(path string) (*pipeline.Tool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("error reading file %s: %w", path, err)
 	}
 	
-	var tool interfaces.Tool
+	var tool pipeline.Tool
 	if err := yaml.Unmarshal(data, &tool); err != nil {
 		return nil, fmt.Errorf("error unmarshaling YAML from %s: %w", path, err)
 	}
@@ -844,7 +845,7 @@ func (l *Loader) GetCategories(configType string) ([]string, error) {
 
 	categories := make(map[string]bool)
 	entries, err := l.configFS.ReadDir(dir)
-	if err != nil {
+		if err != nil {
 		return nil, fmt.Errorf("error reading default %s directory: %w", configType, err)
 	}
 
@@ -854,7 +855,7 @@ func (l *Loader) GetCategories(configType string) ([]string, error) {
 			// or a nested structure (like tools/category/subcategory)
 			if configType == "tools" { // Tools can have subcategories
 				subEntries, err := l.configFS.ReadDir(filepath.Join(dir, entry.Name()))
-				if err != nil {
+	if err != nil {
 					// log or handle error, maybe it's not a category dir
 					continue
 				}
@@ -885,10 +886,10 @@ func (l *Loader) GetCategories(configType string) ([]string, error) {
 	return result, nil
 }
 
-// GetToolsByCategory returns all tools in a specific category
-func (l *Loader) GetToolsByCategory(category, subcategory string) ([]*interfaces.Tool, error) {
-	dir := filepath.Join(l.baseDir, category, subcategory)
-	tools := make([]*interfaces.Tool, 0)
+// GetToolsByCategory loads tools for a specific category and optional subcategory.
+func (l *Loader) GetToolsByCategory(category, subcategory string) ([]*pipeline.Tool, error) {
+	dir := filepath.Join(l.baseDir, "tools", category, subcategory)
+	tools := make([]*pipeline.Tool, 0)
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -1038,9 +1039,9 @@ func (l *Loader) GetDotfiles() ([]*interfaces.Dotfile, error) {
 // loadDotfile loads a single dotfile configuration from a YAML file
 func (l *Loader) loadDotfile(path string) (*interfaces.Dotfile, error) {
 	data, err := os.ReadFile(path)
-	if err != nil {
+		if err != nil {
 		return nil, fmt.Errorf("error reading file %s: %w", path, err)
-	}
+		}
 	var dotfile interfaces.Dotfile
 	if err := yaml.Unmarshal(data, &dotfile); err != nil {
 		return nil, fmt.Errorf("error parsing dotfile %s: %w", path, err)

@@ -1,7 +1,7 @@
 package screens
 
 import (
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/pipeline"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/components"
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/styles"
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,7 +17,7 @@ type ModernToolScreen struct {
 }
 
 // NewModernToolScreen creates a new ModernToolScreen.
-func NewModernToolScreen(title string, tools []*interfaces.Tool, preselected []*interfaces.Tool) *ModernToolScreen {
+func NewModernToolScreen(title string, tools []*pipeline.Tool, preselected []*pipeline.Tool) *ModernToolScreen {
 	selector := components.NewBaseSelector(title, false)
 	
 	// Convert tools and preselected to []interface{} for BaseSelector
@@ -27,8 +27,14 @@ func NewModernToolScreen(title string, tools []*interfaces.Tool, preselected []*
 	for i, t := range preselected { selectedItems[i] = t }
 
 	selector.SetItems(items, 
-		func(item interface{}) string { if t, ok := item.(*interfaces.Tool); ok { return t.Name }; return "" }, 
-		func(item interface{}) string { if t, ok := item.(*interfaces.Tool); ok { return t.Description }; return "" },
+		func(item interface{}) string { 
+			if t, ok := item.(*pipeline.Tool); ok { return t.Name }
+			return ""
+		}, 
+		func(item interface{}) string { 
+			if t, ok := item.(*pipeline.Tool); ok { return t.Description }
+			return ""
+		},
 	)
 	if len(selectedItems) > 0 {
 		selector.SetSelectedDataItems(selectedItems)
@@ -79,12 +85,12 @@ func (s *ModernToolScreen) View() string {
 
 func (s *ModernToolScreen) Finished() bool { return s.finished }
 
-func (s *ModernToolScreen) GetSelected() []*interfaces.Tool {
+func (s *ModernToolScreen) GetSelected() []*pipeline.Tool {
 	if s.selector != nil && s.selector.Finished() {
 		items := s.selector.GetSelected()
-		tools := make([]*interfaces.Tool, 0, len(items))
+		tools := make([]*pipeline.Tool, 0, len(items))
 		for _, item := range items {
-			if tool, ok := item.(*interfaces.Tool); ok { tools = append(tools, tool) }
+			if tool, ok := item.(*pipeline.Tool); ok { tools = append(tools, tool) }
 		}
 		return tools
 	}

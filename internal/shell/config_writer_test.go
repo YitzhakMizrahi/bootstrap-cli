@@ -20,11 +20,12 @@ func (m *mockPackageManager) IsAvailable() bool                   { return true 
 func (m *mockPackageManager) Install(_ string) error             { return nil }
 func (m *mockPackageManager) Update() error                      { return nil }
 func (m *mockPackageManager) Upgrade() error                     { return nil }
-func (m *mockPackageManager) IsInstalled(_ string) bool          { return true }
-func (m *mockPackageManager) Remove(_ string) error              { return nil }
+func (m *mockPackageManager) IsInstalled(_ string) (bool, error) { return true, nil }
+func (m *mockPackageManager) Uninstall(_ string) error           { return nil }
 func (m *mockPackageManager) GetVersion(_ string) (string, error) { return "", nil }
 func (m *mockPackageManager) ListInstalled() ([]string, error)   { return nil, nil }
 func (m *mockPackageManager) SetupSpecialPackage(_ string) error { return nil }
+func (m *mockPackageManager) IsPackageAvailable(_ string) bool  { return true }
 
 // testConfigWriter creates a DefaultConfigWriter for testing
 func testConfigWriter(t *testing.T, shell interfaces.ShellType) (*DefaultConfigWriter, string, func()) {

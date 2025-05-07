@@ -237,18 +237,24 @@ func (t *Tool) determineInstallationMethod(context *InstallationContext) (Instal
 	return PackageManagerInstall, nil
 }
 
-// GenerateInstallationSteps generates the steps needed to install a tool
-func (t *Tool) GenerateInstallationSteps(platform *Platform, context *InstallationContext) []InstallationStep {
+// GenerateInstallationSteps generates the steps needed to install a tool.
+// If skipDependencyResolution is true, the initial dependency resolution step is omitted.
+func (t *Tool) GenerateInstallationSteps(platform *Platform, context *InstallationContext, skipDependencyResolution bool) []InstallationStep {
 	var steps []InstallationStep
 	
-	// First, resolve dependencies
+	// First, resolve dependencies unless skipped
+	if !skipDependencyResolution {
 	steps = append(steps, InstallationStep{
 		Name: fmt.Sprintf("%s-resolve-dependencies", t.Name),
 		Action: func() error {
+				// Note: This might still be problematic if context.ResolveDependencies assumes
+				// it should install ALL dependencies in the graph vs just those for 't'.
+				// It might need adjustment if called from the old single Install path.
 			return context.ResolveDependencies(t)
 		},
 		Timeout: 5 * time.Minute,
 	})
+	}
 	
 	// Determine installation method
 	method, err := t.determineInstallationMethod(context)

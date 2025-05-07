@@ -39,8 +39,8 @@ func (h *HomebrewPackageManager) IsAvailable() bool {
 }
 
 // Install installs a package using Homebrew
-func (h *HomebrewPackageManager) Install(packageName string) error {
-	cmd := exec.Command("brew", "install", packageName)
+func (h *HomebrewPackageManager) Install(pkg string) error {
+	cmd := exec.Command("brew", "install", pkg)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -62,33 +62,42 @@ func (h *HomebrewPackageManager) Upgrade() error {
 	return cmd.Run()
 }
 
-// IsInstalled checks if a package is installed
-func (h *HomebrewPackageManager) IsInstalled(pkg string) bool {
+// IsInstalled checks if a package is installed using Homebrew
+func (h *HomebrewPackageManager) IsInstalled(pkg string) (bool, error) {
 	cmd := exec.Command(h.brewPath, "list", "--formula", pkg)
-	output, err := cmd.Output()
-	if err != nil {
-		return false
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
 	}
-	return strings.Contains(string(output), pkg)
+
+	cmd = exec.Command(h.brewPath, "list", "--cask", pkg)
+	err = cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		if exitErr.ExitCode() == 1 {
+			return false, nil
+		}
+	}
+	return false, fmt.Errorf("failed to check brew list status for %s: %w", pkg, err)
 }
 
-// Remove removes a package
-func (h *HomebrewPackageManager) Remove(pkg string) error {
-	cmd := exec.Command(h.brewPath, "uninstall", "--ignore-dependencies", pkg)
+// Uninstall removes a package using Homebrew
+func (h *HomebrewPackageManager) Uninstall(pkg string) error {
+	cmd := exec.Command(h.brewPath, "uninstall", pkg)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove package %s: %w", pkg, err)
-	}
-	return nil
+	return cmd.Run()
 }
 
-// GetVersion returns the version of a package
-func (h *HomebrewPackageManager) GetVersion(packageName string) (string, error) {
-	cmd := exec.Command(h.brewPath, "info", "--json", packageName)
+// GetVersion returns the version of an installed package using Homebrew
+func (h *HomebrewPackageManager) GetVersion(pkg string) (string, error) {
+	cmd := exec.Command(h.brewPath, "info", "--json", pkg)
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to get version for package %s: %w", packageName, err)
+		return "", fmt.Errorf("failed to get version for package %s: %w", pkg, err)
 	}
 	// Parse version from output
 	lines := strings.Split(string(output), "\n")
@@ -101,10 +110,10 @@ func (h *HomebrewPackageManager) GetVersion(packageName string) (string, error) 
 			}
 		}
 	}
-	return "", fmt.Errorf("no version information found for package %s", packageName)
+	return "", fmt.Errorf("no version information found for package %s", pkg)
 }
 
-// ListInstalled returns a list of installed packages
+// ListInstalled returns a list of installed packages using Homebrew
 func (h *HomebrewPackageManager) ListInstalled() ([]string, error) {
 	cmd := exec.Command(h.brewPath, "list", "--formula")
 	output, err := cmd.Output()
@@ -127,18 +136,15 @@ func (h *HomebrewPackageManager) GetName() string {
 }
 
 // SetupSpecialPackage sets up a special package that requires additional setup
-func (h *HomebrewPackageManager) SetupSpecialPackage(_ string) error {
+func (h *HomebrewPackageManager) SetupSpecialPackage(pkg string) error {
 	// For Homebrew, most packages don't require special setup
 	// This method is kept for other packages that might need special repository setup
 	return nil
 }
 
-// IsPackageAvailable checks if a package is available in the package manager's repositories
+// IsPackageAvailable checks if a package (formula or cask) is available via Homebrew
 func (h *HomebrewPackageManager) IsPackageAvailable(pkg string) bool {
-	cmd := exec.Command(h.brewPath, "search", pkg)
-	output, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-	return strings.Contains(string(output), pkg)
+	cmd := exec.Command(h.brewPath, "info", pkg)
+	err := cmd.Run()
+	return err == nil
 } 

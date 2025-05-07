@@ -48,25 +48,18 @@ func TestAptPackageManager_Install(t *testing.T) {
 }
 
 func TestAptPackageManager_IsInstalled(t *testing.T) {
-	// Skip if not on a system with apt-get
-	if _, err := exec.LookPath("apt-get"); err != nil {
-		t.Skip("apt-get not available, skipping test")
-	}
-
 	pm, err := NewAptPackageManager()
-	if err != nil {
-		t.Fatalf("NewAptPackageManager() error = %v", err)
-	}
+	assert.NoError(t, err)
 
-	// Test with a package that should be installed
-	if !pm.IsInstalled("apt") {
-		t.Error("IsInstalled() returned false for apt package")
-	}
+	// Check for a known installed package (e.g., apt itself or bash)
+	installed, err := pm.IsInstalled("bash") // Handle error
+	assert.NoError(t, err) // Expect no error running the check
+	assert.True(t, installed, "Expected 'bash' to be installed")
 
-	// Test with a non-existent package
-	if pm.IsInstalled("non-existent-package-123456") {
-		t.Error("IsInstalled() returned true for non-existent package")
-	}
+	// Check for a non-existent package
+	installed, err = pm.IsInstalled("nonexistent-package-kjshdfg") // Handle error
+	assert.NoError(t, err) // Expect no error running the check, just false result
+	assert.False(t, installed, "Expected 'nonexistent-package-kjshdfg' not to be installed")
 }
 
 func TestAptPackageManager_Update(t *testing.T) {
@@ -123,15 +116,15 @@ func TestAptPackageManager_Remove(t *testing.T) {
 	}
 
 	// Test removing a package that should exist
-	err = pm.Remove("curl")
+	err = pm.Uninstall("curl")
 	if err != nil {
-		t.Errorf("Remove() error = %v", err)
+		t.Errorf("Uninstall() error = %v", err)
 	}
 
 	// Test removing a non-existent package
-	err = pm.Remove("non-existent-package-123456")
+	err = pm.Uninstall("non-existent-package-123456")
 	if err == nil {
-		t.Error("Remove() expected error for non-existent package, got nil")
+		t.Error("Uninstall() expected error for non-existent package, got nil")
 	}
 }
 

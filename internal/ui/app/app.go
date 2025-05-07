@@ -26,15 +26,15 @@ import (
 type Screen int
 
 const (
-	WelcomeScreen Screen = iota // Includes System Info now
-	ShellSelectionScreen // New screen
-	EssentialToolScreen 
-	ModernToolScreen    
-	FontScreen
-	LanguageScreen // Renamed back
-	DotfilesScreen
-	FinishScreen
-	InstallationScreen // New screen for progress
+	WelcomeScreen Screen = iota // 0
+	ShellSelectionScreen        // 1
+	EssentialToolScreen         // 2
+	ModernToolScreen            // 3
+	FontScreen                  // 4
+	LanguageScreen              // 5
+	DotfilesScreen              // 6
+	InstallationScreen          // 7 // New screen for progress (Moved before Finish)
+	FinishScreen                // 8
 )
 
 // Model represents the main application model and aggregates all UI state.
@@ -64,12 +64,13 @@ func New(config *config.Loader) *Model {
 	
 	// Adjusted step names for indicator
 	stepNames := []string{
-		"Shell", // New Step
+		"Shell", 
 		"Essential Tools", 
 		"Modern Tools",    
 		"Fonts",
-		"Languages", // Simpler name again
+		"Languages",
 		"Dotfiles",
+		"Installation", // Added Installation step
 		"Finish",
 	}
 	stepIndicatorModel := components.NewModel(stepNames)
@@ -162,7 +163,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// --- Recalculate static element heights ---
 		indicatorView := ""
 		indicatorHeight := 0
-		if m.currentScreen >= EssentialToolScreen && m.currentScreen < FinishScreen {
+		// Show indicator starting from Shell selection screen
+		if m.currentScreen >= ShellSelectionScreen && m.currentScreen < FinishScreen {
 			m.stepIndicator.SetWidth(availableWidth)
 			indicatorView = m.stepIndicator.View()
 			indicatorHeight = lipgloss.Height(indicatorView) + 1
@@ -277,11 +279,12 @@ func (m *Model) transitionTo(targetScreen Screen) tea.Cmd {
 	// --- State Update ---
 	m.currentScreen = targetScreen 
 	visualStepIndex := -1
-	// Adjust index mapping for removed steps
-	// EssentialTools=0, ModernTools=1, Fonts=2, Languages=3, Dotfiles=4, Finish=5 (but finish isn't shown)
-	if targetScreen >= EssentialToolScreen && targetScreen < FinishScreen { 
-		visualStepIndex = int(targetScreen) - 1 
-	}
+	// Adjust index mapping for new steps
+	// Shell=0, EssentialTools=1, ModernTools=2, Fonts=3, Languages=4, Dotfiles=5, Installation=6, Finish=7
+	if targetScreen >= ShellSelectionScreen && targetScreen <= InstallationScreen { 
+		visualStepIndex = int(targetScreen) - 1 // Shell(1)->0, Essential(2)->1, ..., Installation(7)->6
+	} 
+	// If target is FinishScreen or WelcomeScreen, visualStepIndex remains -1 (indicator hidden)
 	m.stepIndicator.SetCurrentStep(visualStepIndex)
 
 	// --- Create New Screen --- 
@@ -508,7 +511,8 @@ func (m *Model) View() string {
 	// --- Determine Indicator Height & Render ---
 	indicatorView := ""
 	indicatorHeight := 0
-	if m.currentScreen >= EssentialToolScreen && m.currentScreen < FinishScreen { 
+	// Show indicator starting from Shell selection screen
+	if m.currentScreen >= ShellSelectionScreen && m.currentScreen < FinishScreen { 
 		m.stepIndicator.SetWidth(availableWidth) 
 		indicatorView = m.stepIndicator.View()
 		indicatorHeight = lipgloss.Height(indicatorView) 

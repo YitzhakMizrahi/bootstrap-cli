@@ -3,17 +3,18 @@ package components
 import (
 	"fmt"
 
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
-	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/styles"
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/styles" // Import our styles
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	// Import lipgloss for direct use if needed
 )
 
 // SelectorItem represents an item in the selection list
 type SelectorItem struct {
 	title       string
 	description string
-	item        interface{}
+	item        interface{} // The actual data item
 	selected    bool
 }
 
@@ -22,119 +23,149 @@ func (i SelectorItem) FilterValue() string { return i.title }
 
 // Title returns the title for the list item
 func (i SelectorItem) Title() string {
-	checkbox := "[ ]"
+	var checkbox string
+	var itemStyle lipgloss.Style
+
 	if i.selected {
-		checkbox = "[✓]"
-		return styles.SelectedStyle.Render(fmt.Sprintf("%s %s", checkbox, i.title))
+		checkbox = styles.SelectedTextStyle.Render("[x]") // Styled checkbox
+		itemStyle = styles.SelectedTextStyle // Use selected style for text
+	} else {
+		checkbox = styles.NormalTextStyle.Render("[ ]") // Normal checkbox
+		itemStyle = styles.NormalTextStyle // Use normal style for text
 	}
-	return styles.UnselectedStyle.Render(fmt.Sprintf("%s %s", checkbox, i.title))
+	return checkbox + " " + itemStyle.Render(i.title) // Render title with style
 }
 
 // Description returns the description for the list item
-func (i SelectorItem) Description() string { return i.description }
+func (i SelectorItem) Description() string {
+	if i.description == "" {
+		return ""
+	}
+	// Apply dim style and indent based on selection state
+	descStyle := styles.UnselectedTextStyle.Copy().PaddingLeft(4) // Default dim, indented
+	if i.selected {
+		// Make selected description stand out a bit more (using AccentAlt color)
+		descStyle = styles.NormalTextStyle.Copy().PaddingLeft(4).Foreground(styles.ColorAccentAlt)
+	}
+	return descStyle.Render(i.description)
+}
 
 // BaseSelector is the main model for selection
 type BaseSelector struct {
-	list      list.Model
-	selected  map[int]interface{}
-	quitting  bool
-	width     int
-	height    int
-	done      bool
-	title     string
-	selectable func(interface{}) bool
+	list         list.Model
+	selectedItems map[interface{}]struct{} // Stores the actual selected data items for quick lookup
+	quitting     bool
+	done         bool
+	title        string
+	// selectable func(interface{}) bool // This might be complex to integrate with list's filtering
 }
 
 // NewBaseSelector creates a new base selector
 func NewBaseSelector(title string) *BaseSelector {
-	// Create a custom delegate
 	delegate := list.NewDefaultDelegate()
-	delegate.SetHeight(2) // Give more space for items
-	delegate.SetSpacing(1) // Add spacing between items
-	delegate.UpdateFunc = func(_ tea.Msg, _ *list.Model) tea.Cmd {
-		return nil
-	}
 
-	// Create and configure the list
-	l := list.New([]list.Item{}, delegate, 40, 10) // Explicit width and height for debug
-	l.SetShowHelp(false)
+	// Explicitly set styles we want to customize for Nord theme
+	delegate.Styles.SelectedTitle = styles.SelectedTextStyle.Copy().UnsetPadding()
+	delegate.Styles.SelectedDesc = styles.SelectedTextStyle.Copy().UnsetPadding().Foreground(styles.ColorDimText) 
+	
+	delegate.Styles.NormalTitle = styles.NormalTextStyle.Copy().UnsetPadding()
+	delegate.Styles.NormalDesc = styles.UnselectedTextStyle.Copy().UnsetPadding() 
+
+	// Customize spacing and height if needed
+	delegate.SetHeight(1) // Title only
+	delegate.SetSpacing(0)
+
+	l := list.New([]list.Item{}, delegate, 0, 0) // Initial size 0,0
+
+	if title != "" {
+		l.Title = title
+		l.Styles.Title = styles.ListTitleStyle
+		l.SetShowTitle(true)
+	} else {
+		l.SetShowTitle(false)
+	}
+	
+	l.Styles.HelpStyle = styles.KeyMapStyle
+	l.Styles.StatusBar = styles.KeyMapStyle.Copy()
+	l.Styles.FilterPrompt = styles.InfoStyle.Copy()
+	l.Styles.FilterCursor = styles.InfoStyle.Copy()
+
+	l.SetShowHelp(true)
 	l.SetFilteringEnabled(true)
-	l.SetShowStatusBar(false)
-	// l.Title = styles.TitleStyle.Render(title) // Remove extra title for debug
+	l.SetShowStatusBar(true)
 
 	return &BaseSelector{
-		list:     l,
-		selected: make(map[int]interface{}),
-		title:    title,
+		list:          l,
+		selectedItems: make(map[interface{}]struct{}),
+		title:         title, 
 	}
 }
 
 // Init implements tea.Model
 func (s *BaseSelector) Init() tea.Cmd {
-	return nil
+	return tea.EnterAltScreen // Good practice for full-screen components
 }
 
 // Update handles keyboard input and updates the selector state
 func (s *BaseSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		s.list.SetSize(msg.Width, msg.Height)
+		return s, nil
+
 	case tea.KeyMsg:
+		if s.list.FilterState() == list.Filtering {
+			break // Let the list handle filtering keys
+		}
 		switch msg.String() {
-		case "ctrl+c":
+		case "ctrl+c", "q":
 			s.quitting = true
 			s.done = false
-			return s, tea.Quit
+			return s, tea.Quit // Quit app on ctrl+c or q
 		case "enter":
-			// Allow advancing even if nothing is selected
 			s.done = true
 			s.quitting = false
-			return s, nil
-		case " ":
-			// Get current item and index
-			idx := s.list.Index()
-			items := s.list.Items()
-			if idx >= len(items) {
-				return s, nil
+			// Return nil command. The parent app model will detect Finished() state.
+			return s, nil // <<< FIX: Was tea.Quit
+		case " ": // Spacebar to toggle selection
+			if s.list.FilterState() == list.Filtering { break }
+			currentItem, ok := s.list.SelectedItem().(*SelectorItem) 
+			if !ok { return s, nil }
+
+			currentItem.selected = !currentItem.selected // Toggle internal state
+			if currentItem.selected {
+				s.selectedItems[currentItem.item] = struct{}{}
+			} else {
+				delete(s.selectedItems, currentItem.item)
 			}
 
-			// Get the current item and cast it
-			currentItem, ok := items[idx].(*SelectorItem)
-			if !ok {
-				return s, nil
-			}
+            // --- REMOVE SetItem call --- 
+			// No need to call SetItem; the change to currentItem.selected 
+            // will be reflected when the list's View() is called next.
+			// cmd = s.list.SetItem(idx, currentItem) 
+            // cmds = append(cmds, cmd)
+            // --- END REMOVE ---
 
-			// Only allow selection if item is selectable
-			if s.selectable == nil || s.selectable(currentItem.item) {
-				// Toggle selection state
-				if _, exists := s.selected[idx]; exists {
-					delete(s.selected, idx)
-					currentItem.selected = false
-				} else {
-					s.selected[idx] = currentItem.item
-					currentItem.selected = true
-				}
-
-				// Update just this item in the list
-				items[idx] = currentItem
-				s.list.SetItems(items)
-			}
+			// Return existing commands (if any were generated by list.Update earlier)
+			return s, tea.Batch(cmds...)
 		}
-	case tea.WindowSizeMsg:
-		s.width = msg.Width
-		s.height = msg.Height
-		s.list.SetWidth(msg.Width)
-		s.list.SetHeight(msg.Height)
 	}
 
-	var cmd tea.Cmd
+	// Pass unmatched messages down to the list for default handling
 	s.list, cmd = s.list.Update(msg)
-	return s, cmd
+	cmds = append(cmds, cmd)
+	return s, tea.Batch(cmds...)
 }
 
 // View implements tea.Model
 func (s *BaseSelector) View() string {
-	if s.quitting {
-		return ""
+	if s.quitting && !s.done {
+		return styles.InfoStyle.Render("Selection cancelled.")
 	}
+	// The list component handles its own rendering including title, items, help, status bar, etc.
 	return s.list.View()
 }
 
@@ -143,96 +174,102 @@ func (s *BaseSelector) Finished() bool {
 	return s.done && !s.quitting
 }
 
-// GetSelected returns the map of selected items
-func (s *BaseSelector) GetSelected() map[int]interface{} {
+// GetSelected returns the slice of selected actual data items
+func (s *BaseSelector) GetSelected() []interface{} {
 	if !s.Finished() {
 		return nil
 	}
-	return s.selected
+	var result []interface{}
+	for item := range s.selectedItems {
+		result = append(result, item)
+	}
+	return result
 }
 
-// SetItems sets the items to be displayed in the selector
-func (s *BaseSelector) SetItems(items interface{}, titleFn func(interface{}) string, descFn func(interface{}) string) {
-	// Convert items to a slice of list.Item
-	var listItems []list.Item
-
-	// Handle different types of input
-	switch v := items.(type) {
-	case []interface{}:
-		listItems = make([]list.Item, len(v))
-		for i, item := range v {
-			listItems[i] = &SelectorItem{
-				title:       titleFn(item),
-				description: descFn(item),
-				item:        item,
-				selected:    false,
-			}
+// SetItems prepares SelectorItem for the list from a slice of actual data items
+func (s *BaseSelector) SetItems(items []interface{}, titleFn func(interface{}) string, descFn func(interface{}) string) {
+	listItems := make([]list.Item, len(items))
+	for i, dataItem := range items {
+		_, isSelected := s.selectedItems[dataItem] // Preserve selection if item already exists
+		listItems[i] = &SelectorItem{
+			title:       titleFn(dataItem),
+			description: descFn(dataItem),
+			item:        dataItem,
+			selected:    isSelected,
 		}
-	case []*interfaces.Tool:
-		listItems = make([]list.Item, len(v))
-		for i, item := range v {
-			listItems[i] = &SelectorItem{
-				title:       titleFn(item),
-				description: descFn(item),
-				item:        item,
-				selected:    false,
-			}
-		}
-	case []*interfaces.Font:
-		listItems = make([]list.Item, len(v))
-		for i, item := range v {
-			listItems[i] = &SelectorItem{
-				title:       titleFn(item),
-				description: descFn(item),
-				item:        item,
-				selected:    false,
-			}
-		}
-	case []*interfaces.Language:
-		listItems = make([]list.Item, len(v))
-		for i, item := range v {
-			listItems[i] = &SelectorItem{
-				title:       titleFn(item),
-				description: descFn(item),
-				item:        item,
-				selected:    false,
-			}
-		}
-	default:
-		fmt.Printf("Warning: Unhandled item type in SetItems: %T\n", items)
-		return
 	}
-
-	// Only clear selections if this is a new set of items
-	if len(s.list.Items()) == 0 {
-		s.selected = make(map[int]interface{})
-	}
-	
 	s.list.SetItems(listItems)
 }
 
-// SetSize sets the width and height of the selector
+// SetSize sets the width and height of the selector - usually called on tea.WindowSizeMsg
 func (s *BaseSelector) SetSize(width, height int) {
-	s.width = width
-	s.height = height
-	s.list.SetWidth(width)
-	s.list.SetHeight(height)
+	s.list.SetSize(width, height)
 }
 
-// SetSelectedItems sets the selected items by value
-func (s *BaseSelector) SetSelectedItems(selectedItems []interface{}) {
-	selectedMap := make(map[int]interface{})
-	items := s.list.Items()
-	for i, item := range items {
-		if selectorItem, ok := item.(*SelectorItem); ok {
-			for _, sel := range selectedItems {
-				if sel == selectorItem.item {
-					selectorItem.selected = true
-					selectedMap[i] = selectorItem.item
-				}
+// SetSelectedDataItems allows pre-selecting items by providing the actual data items
+func (s *BaseSelector) SetSelectedDataItems(dataItemsToSelect []interface{}) {
+	s.selectedItems = make(map[interface{}]struct{}) // Clear previous selections
+	for _, dataItem := range dataItemsToSelect {
+		s.selectedItems[dataItem] = struct{}{}
+	}
+	// Update the 'selected' field on the list.Item wrappers (SelectorItem)
+	currentListItems := s.list.Items()
+	for i, listItem := range currentListItems {
+		if si, ok := listItem.(*SelectorItem); ok {
+			if _, ok := s.selectedItems[si.item]; ok {
+				si.selected = true
+			} else {
+				si.selected = false
 			}
+			_ = s.list.SetItem(i, si) // Update item in list for visual consistency
 		}
 	}
-	s.selected = selectedMap
-	s.list.SetItems(items) // Force re-render with updated selection state
-} 
+}
+
+// RunSelector is a helper to start this TUI component and get selected items.
+// It expects items as []interface{} and functions to get title/description.
+func RunSelector(title string, items []interface{}, titleFn func(interface{}) string, descFn func(interface{}) string, preselected []interface{}) ([]interface{}, error) {
+	selector := NewBaseSelector(title)
+	selector.SetItems(items, titleFn, descFn)
+	if len(preselected) > 0 {
+		selector.SetSelectedDataItems(preselected)
+	}
+
+	p := tea.NewProgram(selector)
+	finalModel, err := p.StartReturningModel()
+	if err != nil {
+		return nil, fmt.Errorf("error running selector: %w", err)
+	}
+
+	castedModel, ok := finalModel.(*BaseSelector)
+	if !ok {
+		return nil, fmt.Errorf("could not cast final model to BaseSelector")
+	}
+
+	if castedModel.Finished() {
+		return castedModel.GetSelected(), nil
+	}
+	return nil, nil // Selection cancelled or quit
+}
+
+// Specific SetItems for common types (Tool, Font, Language) - REMOVED
+// These are convenience wrappers around the generic SetItems.
+
+// func (s *BaseSelector) SetToolItems(tools []*interfaces.Tool, preselectedTools []*interfaces.Tool) {
+// 	genericItems := make([]interface{}, len(tools))
+// 	for i, t := range tools { genericItems[i] = t }
+// 	
+// 	genericPreselected := make([]interface{}, len(preselectedTools))
+// 	for i, t := range preselectedTools { genericPreselected[i] = t }
+// 
+// 	s.SetItems(genericItems, 
+// 		func(item interface{}) string { return item.(*interfaces.Tool).Name }, 
+// 		func(item interface{}) string { return item.(*interfaces.Tool).Description },
+// 	)
+// 	if len(genericPreselected) > 0 {
+// 		s.SetSelectedDataItems(genericPreselected)
+// 	}
+// }
+
+// Add similar SetFontItems, SetLanguageItems etc. as needed
+

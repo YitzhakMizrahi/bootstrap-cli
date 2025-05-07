@@ -13,9 +13,12 @@ func RenderSimpleProgressBar(percent float64) string {
 	filled := int(percent * 20)
 	empty := 20 - filled
 
-	// Create the bar
+	// Create the bar with modern Unicode characters
 	bar := strings.Repeat("█", filled) + strings.Repeat("░", empty)
 
-	// Format with percentage
-	return fmt.Sprintf("%s %3.0f%%", styles.ProgressStyle.Render(bar), percent*100)
+	// Format with percentage and add a subtle border
+	content := fmt.Sprintf("%s %3.0f%%", bar, percent*100)
+	
+	// Apply styling with padding and subtle border
+	return styles.ProgressStyle.Render(content)
 } 

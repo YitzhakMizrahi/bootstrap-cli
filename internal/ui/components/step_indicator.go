@@ -6,77 +6,178 @@ import (
 	"strings"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/styles"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
-// Step represents a step in the installation process
+const (
+	StatusPending   = "pending"
+	StatusCurrent   = "current"
+	StatusCompleted = "completed"
+	StatusError     = "error" // Added for more comprehensive status
+)
+
+// Step represents a single step in a sequence.
 type Step struct {
 	Name   string
-	Status string // "pending", "current", "completed"
+	Status string // e.g., StatusPending, StatusCurrent, StatusCompleted, StatusError
 }
 
-// StepIndicator is a component that renders a beautiful step indicator showing installation progress
-type StepIndicator struct {
+// Model is the Bubble Tea model for the step indicator.
+type Model struct {
 	steps      []Step
-	currentIdx int
+	currentIdx int // Index of the current step
+	width      int // Store available width for layout calculations
+	Title      string // Optional title for the step group, e.g., "Installation Progress"
 }
 
-// NewStepIndicator creates a new step indicator component
-func NewStepIndicator(steps []Step) *StepIndicator {
-	return &StepIndicator{
-		steps:      steps,
-		currentIdx: 0,
+// NewModel creates a new step indicator model with the given step names.
+// Initially, all steps are pending and the first step is current.
+func NewModel(stepNames []string) Model {
+	steps := make([]Step, len(stepNames))
+	for i, name := range stepNames {
+		steps[i] = Step{Name: name, Status: StatusPending}
 	}
+
+	m := Model{
+		steps:      steps,
+		currentIdx: -1, // No step is current initially, call SetCurrentStep to activate
+	}
+	if len(steps) > 0 {
+		m.SetCurrentStep(0) // Make the first step current by default if steps exist
+	}
+	return m
 }
 
-// SetCurrentStep sets the current step index
-func (s *StepIndicator) SetCurrentStep(idx int) {
-	if idx >= 0 && idx < len(s.steps) {
-		s.currentIdx = idx
-		for i := range s.steps {
-			if i < idx {
-				s.steps[i].Status = "completed"
-			} else if i == idx {
-				s.steps[i].Status = "current"
-			} else {
-				s.steps[i].Status = "pending"
+// SetWidth sets the width for the component, used for layout.
+func (m *Model) SetWidth(width int) {
+	m.width = width
+}
+
+// Init does nothing for this simple component.
+func (m Model) Init() tea.Cmd {
+	return nil
+}
+
+// SetCurrentStepMsg is a message to update the current step.
+type SetCurrentStepMsg struct {
+	Index int
+}
+
+// SetStepStatusMsg is a message to update a specific step's status.
+type SetStepStatusMsg struct {
+	Index  int
+	Status string
+	Name   string // Optional: if you want to update the name too
+}
+
+// Update handles messages for the step indicator.
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width // Store width for responsive rendering
+		return m, nil
+	case SetCurrentStepMsg:
+		m.SetCurrentStep(msg.Index)
+		return m, nil
+	case SetStepStatusMsg:
+		if msg.Index >= 0 && msg.Index < len(m.steps) {
+			m.steps[msg.Index].Status = msg.Status
+			if msg.Name != "" { // Allow updating name too
+				m.steps[msg.Index].Name = msg.Name
 			}
 		}
+		return m, nil
 	}
+	return m, nil
 }
 
-// View renders the step indicator
-func (s *StepIndicator) View() string {
-	var parts []string
+// View renders the step indicator.
+func (m Model) View() string {
+	if len(m.steps) == 0 { return "" }
 
-	for i, step := range s.steps {
+	separator := styles.HelpStyle.Copy().Faint(true).SetString(" ::: ").String() // Different separator
+    
+    stepBlockStyle := lipgloss.NewStyle().Padding(0, 1).Bold(true)
+	completedStyle := stepBlockStyle.Copy().Foreground(styles.NordAuroraGreen) 
+	currentStyle := stepBlockStyle.Copy().
+                      Foreground(styles.ColorBrightText). 
+                      Background(styles.ColorAccent). 
+                      Padding(0, 2) 
+	pendingStyle := stepBlockStyle.Copy().Foreground(styles.NordPolarNight4) 
+	errorStyle := stepBlockStyle.Copy().
+                    Foreground(styles.ColorBrightText).
+                    Background(styles.ColorError).
+					Bold(true)
+
+	var stepViews []string
+	for i, step := range m.steps {
 		var styledStep string
+        name := fmt.Sprintf("%d. %s", i+1, step.Name) // Add step number
+
 		switch step.Status {
-		case "completed":
-			styledStep = styles.StepCompletedStyle.Render("✔ " + step.Name)
-		case "current":
-			// Make current step more visually prominent
-			styledStep = styles.StepCurrentStyle.Copy().Underline(true).Bold(true).Render("➤ " + step.Name)
+		case StatusCompleted:
+			styledStep = completedStyle.Render("✔ " + name)
+		case StatusCurrent:
+			styledStep = currentStyle.Render(name) 
+		case StatusError:
+			styledStep = errorStyle.Render("✘ " + name)
+		case StatusPending:
+			fallthrough
 		default:
-			styledStep = styles.StepPendingStyle.Render("● " + step.Name)
+			styledStep = pendingStyle.Render(name) 
 		}
-		if i == s.currentIdx {
-			styledStep = styles.StepCurrentStyle.Copy().Underline(true).Bold(true).Render("➤ " + step.Name)
-		}
-		parts = append(parts, styledStep)
+		stepViews = append(stepViews, styledStep)
 	}
 
-	indicator := strings.Join(parts, "  ")
-	// Add header
-	header := styles.StepIndicatorHeaderStyle.Render("Installation Progress")
-	return fmt.Sprintf("%s\n%s\n", header, indicator)
+	joinedSteps := strings.Join(stepViews, separator)
+
+	return joinedSteps
 }
 
-// GetSteps returns the current steps
-func (s *StepIndicator) GetSteps() []Step {
-	return s.steps
+// SetCurrentStep updates the current step and recalculates statuses.
+func (m *Model) SetCurrentStep(idx int) {
+	if idx < 0 || idx >= len(m.steps) {
+		// Consider logging an error or handling this case more gracefully
+		m.currentIdx = -1 // or idx to clamp, or just return
+		// Clear all statuses or set to pending if idx is invalid
+		for i := range m.steps {
+			m.steps[i].Status = StatusPending
+		}
+		return
+	}
+	m.currentIdx = idx
+	for i := range m.steps {
+		if i < idx {
+			m.steps[i].Status = StatusCompleted
+		} else if i == idx {
+			m.steps[i].Status = StatusCurrent
+		} else {
+			m.steps[i].Status = StatusPending
+		}
+	}
 }
 
-// SetSteps updates the steps
-func (s *StepIndicator) SetSteps(steps []Step) {
-	s.steps = steps
+// SetSteps allows replacing the entire list of steps.
+func (m *Model) SetSteps(stepNames []string) {
+	newSteps := make([]Step, len(stepNames))
+	for i, name := range stepNames {
+		newSteps[i] = Step{Name: name, Status: StatusPending}
+	}
+	m.steps = newSteps
+	if len(m.steps) > 0 {
+		m.SetCurrentStep(0) // Default to first step as current
+	} else {
+		m.currentIdx = -1
+	}
+}
+
+// GetSteps returns the current steps.
+func (m *Model) GetSteps() []Step {
+	return m.steps
+}
+
+// CurrentStepIndex returns the index of the current step.
+func (m *Model) CurrentStepIndex() int {
+	return m.currentIdx
 } 

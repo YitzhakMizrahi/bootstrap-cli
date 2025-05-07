@@ -86,15 +86,14 @@ func runUp(cmd *cobra.Command, _ []string) error {
 
 	// Gather selections (selectedTools is now []*pipeline.Tool)
 	selectedPipelineTools := m.SelectedTools()      
-	manageDotfiles := m.GetManageDotfiles() // Use getter
-	dotfilesRepoURL := m.GetDotfilesRepoURL() // Use getter
-	// selectedFontInterfaces := m.SelectedFonts()        
-	// selectedLanguageInterfaces := m.SelectedLanguages() 
-	selectedShellInterface := m.GetSelectedShell()     
-	// TODO: Get selected dotfiles
+	manageDotfiles := m.GetManageDotfiles() 
+	dotfilesRepoURL := m.GetDotfilesRepoURL() 
+	selectedFonts := m.SelectedFonts()        
+	selectedLanguages := m.SelectedLanguages() 
+	selectedShell := m.GetSelectedShell()     // Get selected shell
 
 	// Early exit if nothing was selected
-	if len(selectedPipelineTools) == 0 && !manageDotfiles /* && other selections empty */ && selectedShellInterface == nil {
+	if len(selectedPipelineTools) == 0 && !manageDotfiles && len(selectedFonts) == 0 && len(selectedLanguages) == 0 && selectedShell == nil {
 		logger.Info("No items selected for installation or configuration. Exiting.")
 		return nil
 	}
@@ -132,25 +131,23 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to create installer: %w", err)
 	}
 
-	// TODO: Adapt Fonts, Languages, Shell, Dotfiles for installation
-
-	if len(selectedPipelineTools) > 0 || manageDotfiles { // Use local var
+	// Pass the selections to InstallSelections
+	if len(selectedPipelineTools) > 0 || manageDotfiles || len(selectedFonts) > 0 || len(selectedLanguages) > 0 || selectedShell != nil { // Updated condition
 		logger.Info("Starting installation process...")
-		// Pass dotfiles selections to the installer
-		if err := installer.InstallSelections(selectedPipelineTools, manageDotfiles, dotfilesRepoURL); err != nil { // Use local vars 
+		// Pass all selections to the installer
+		if err := installer.InstallSelections(selectedPipelineTools, manageDotfiles, dotfilesRepoURL, selectedFonts, selectedLanguages, selectedShell); err != nil { // Pass selectedShell
 			return fmt.Errorf("installation failed: %w", err)
 		}
 		logger.Info("Installation phase complete.")
 	} else {
-		logger.Info("No tools or dotfiles selected for installation.")
+		logger.Info("No items selected for installation.") // Updated log
 	}
 
-	// TODO: Add similar blocks for Fonts, Languages, Shell setup
-
-	if selectedShellInterface != nil {
-		logger.Info("Configuring selected shell: %s", selectedShellInterface.Name)
-		// TODO: Implement shell configuration logic
-	}
+	// Shell configuration is now handled within InstallSelections
+	// if selectedShell != nil {
+	// 	logger.Info("Configuring selected shell: %s", selectedShell.Name)
+	// 	// TODO: Implement shell configuration logic
+	// }
 
 	logger.Info("Bootstrap setup process finished.")
 	return nil

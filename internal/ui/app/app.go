@@ -438,8 +438,15 @@ func (m *Model) transitionTo(targetScreen Screen) tea.Cmd {
 		// 6. Create command to run the installation in the background
 		installCmd := func() tea.Msg {
 			fmt.Println("Starting background installation process...")
-			// Pass the dotfiles selections along with the tools
-			err := installer.InstallSelections(selectedPipelineTools, m.ManageDotfiles, m.DotfilesRepoURL) 
+			// Pass all the collected selections to the installer
+			err := installer.InstallSelections(
+				selectedPipelineTools, 
+				m.ManageDotfiles, 
+				m.DotfilesRepoURL, 
+				m.SelectedFonts(),     // Pass selected fonts
+				m.SelectedLanguages(), // Pass selected languages
+				m.GetSelectedShell(),  // Pass selected shell
+			)
 			fmt.Println("Background installation process finished.")
 			return installCompleteMsg{err: err} 
 		}

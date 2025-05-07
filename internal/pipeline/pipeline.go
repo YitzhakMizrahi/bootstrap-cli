@@ -2,16 +2,17 @@ package pipeline
 
 import (
 	"fmt"
-	"log"
 	"time"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 )
 
 // InstallationStep represents a single step in the installation pipeline
 type InstallationStep struct {
 	Name        string
 	Description string
-	Action      func() error
-	Rollback    func() error
+	Action      func(ctx *InstallationContext) error
+	Rollback    func(ctx *InstallationContext) error
 	Timeout     time.Duration
 	RetryCount  int
 	RetryDelay  time.Duration
@@ -21,17 +22,19 @@ type InstallationStep struct {
 type InstallationPipeline struct {
 	Steps        []InstallationStep
 	State        *InstallationState
-	Logger       *log.Logger
-	progressChan chan<- ProgressEvent // Channel to send progress updates (write-only)
+	Logger       interfaces.Logger
+	progressChan chan<- ProgressEvent
+	Context      *InstallationContext
 }
 
 // NewInstallationPipeline creates a new installation pipeline
-// It now accepts a channel for sending progress events.
-func NewInstallationPipeline(progressChan chan<- ProgressEvent) *InstallationPipeline {
+func NewInstallationPipeline(context *InstallationContext) *InstallationPipeline {
 	return &InstallationPipeline{
 		Steps:        make([]InstallationStep, 0),
-		State:        NewInstallationState(),
-		progressChan: progressChan,
+		State:        context.State,
+		progressChan: context.ProgressChan,
+		Context:      context,
+		Logger:       context.Logger,
 	}
 }
 
@@ -61,7 +64,7 @@ func (p *InstallationPipeline) Execute() error {
 
 	for i, step := range p.Steps {
 		stepStartTime := time.Now()
-		p.State.UpdateState(step.Name, "running", nil)
+		p.Context.State.UpdateState(step.Name, "running", nil)
 		p.sendProgress(TaskStart{TaskID: step.Name, Description: step.Description})
 		
 		// Execute step with retry
@@ -69,7 +72,7 @@ func (p *InstallationPipeline) Execute() error {
 		duration := time.Since(stepStartTime)
 
 		if err != nil {
-			p.State.UpdateState(step.Name, "failed", err)
+			p.Context.State.UpdateState(step.Name, "failed", err)
 			p.sendProgress(TaskEnd{TaskID: step.Name, Success: false, Error: err, Duration: duration})
 			
 			// Attempt rollback of completed steps
@@ -85,11 +88,11 @@ func (p *InstallationPipeline) Execute() error {
 			return finalError // Stop pipeline execution
 		}
 		
-		p.State.UpdateState(step.Name, "completed", nil)
+		p.Context.State.UpdateState(step.Name, "completed", nil)
 		p.sendProgress(TaskEnd{TaskID: step.Name, Success: true, Duration: duration})
 	}
 	
-	p.State.UpdateState("pipeline", "completed", nil)
+	p.Context.State.UpdateState("pipeline", "completed", nil)
 	// TODO: Maybe add overall duration to PipelineComplete event if needed?
 	p.sendProgress(PipelineComplete{OverallSuccess: true, FinalError: nil})
 	return nil
@@ -101,7 +104,7 @@ func (p *InstallationPipeline) executeStepWithRetry(step InstallationStep) error
 	
 	for attempt := 0; attempt <= step.RetryCount; attempt++ {
 		if attempt > 0 {
-			p.State.UpdateState(step.Name, "retrying", lastErr)
+			p.Context.State.UpdateState(step.Name, "retrying", lastErr)
 			// TODO: Send a TaskLog or specific Retry message?
 			p.sendProgress(TaskLog{TaskID: step.Name, Line: fmt.Sprintf("Retrying (attempt %d/%d)... Error: %v", attempt, step.RetryCount, lastErr)})
 			time.Sleep(step.RetryDelay)
@@ -109,7 +112,7 @@ func (p *InstallationPipeline) executeStepWithRetry(step InstallationStep) error
 		
 		// Execute step
 		// TODO: Capture stdout/stderr from step.Action() and send as TaskLog events if possible.
-		err := step.Action()
+		err := step.Action(p.Context)
 		if err == nil {
 			return nil
 		}
@@ -133,25 +136,25 @@ func (p *InstallationPipeline) rollback(lastCompletedIndex int) error {
 	for i := lastCompletedIndex; i >= 0; i-- {
 		step := p.Steps[i]
 		stepStartTime := time.Now()
-		p.State.UpdateState(step.Name, "rolling_back", nil)
+		p.Context.State.UpdateState(step.Name, "rolling_back", nil)
 		p.sendProgress(TaskStart{TaskID: step.Name + "-rollback", Description: "Rolling back: " + step.Name})
 		
 		// Execute rollback action if defined
 		var rollbackErr error
 		if step.Rollback != nil {
-			rollbackErr = step.Rollback() // TODO: Add retry logic to rollback?
+			rollbackErr = step.Rollback(p.Context) // TODO: Add retry logic to rollback?
 		}
 		duration := time.Since(stepStartTime)
 
 		if rollbackErr != nil {
-			p.State.UpdateState(step.Name, "rollback_failed", rollbackErr)
+			p.Context.State.UpdateState(step.Name, "rollback_failed", rollbackErr)
 			p.sendProgress(TaskEnd{TaskID: step.Name + "-rollback", Success: false, Error: rollbackErr, Duration: duration})
 			if firstRollbackErr == nil {
 				firstRollbackErr = fmt.Errorf("rollback failed for step '%s': %w", step.Name, rollbackErr)
 			}
 			// Continue trying to rollback other steps even if one fails
 		} else {
-		p.State.UpdateState(step.Name, "rolled_back", nil)
+		p.Context.State.UpdateState(step.Name, "rolled_back", nil)
 			p.sendProgress(TaskEnd{TaskID: step.Name + "-rollback", Success: true, Duration: duration})
 		}
 	}
@@ -167,7 +170,7 @@ func (p *InstallationPipeline) sendProgress(event ProgressEvent) {
 		p.progressChan <- event
 	}
 	if p.Logger != nil { // Also log the event string representation
-		p.Logger.Printf("Progress Event: %s", event)
+		p.Logger.Debug("Progress Event: %s", event)
 	}
 }
 

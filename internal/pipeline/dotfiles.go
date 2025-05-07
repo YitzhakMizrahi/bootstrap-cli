@@ -36,29 +36,29 @@ func GenerateDotfileCloneSteps(repoURL, targetDir string) []InstallationStep {
 	cloneStep := InstallationStep{
 		Name:        fmt.Sprintf("clone-dotfiles-%s", filepath.Base(repoURL)),
 		Description: fmt.Sprintf("Cloning dotfiles from %s", fullRepoURL),
-		Action: func() error {
-			// TODO: Add logging via context logger
-			fmt.Printf("Attempting to clone %s into %s\n", fullRepoURL, targetDir)
-			cmd := exec.Command("git", "clone", "--depth=1", fullRepoURL, targetDir) // Shallow clone
+		Action: func(ctx *InstallationContext) error {
+			ctx.sendProgress(TaskLog{TaskID: ctx.State.CurrentStep, Line: fmt.Sprintf("Attempting to clone %s into %s", fullRepoURL, targetDir)})
+			cmd := exec.Command("git", "clone", "--depth=1", fullRepoURL, targetDir)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
-				return fmt.Errorf("failed to clone dotfiles repo '%s': %w\nOutput:\n%s", fullRepoURL, err, string(output))
+				ctx.sendProgress(TaskLog{TaskID: ctx.State.CurrentStep, Line: fmt.Sprintf("Clone failed: %s", string(output))})
+				return fmt.Errorf("failed to clone dotfiles repo '%s': %w", fullRepoURL, err)
 			}
-			fmt.Printf("Successfully cloned dotfiles.\n")
+			ctx.sendProgress(TaskLog{TaskID: ctx.State.CurrentStep, Line: "Successfully cloned dotfiles."})
 			return nil
 		},
-		// TODO: Implement Rollback? (e.g., remove targetDir)
-		Rollback: func() error {
-			fmt.Printf("Attempting to roll back dotfiles clone by removing %s\n", targetDir)
+		Rollback: func(ctx *InstallationContext) error {
+			ctx.sendProgress(TaskLog{TaskID: ctx.State.CurrentStep, Line: fmt.Sprintf("Attempting to roll back dotfiles clone by removing %s", targetDir)})
 			cmd := exec.Command("rm", "-rf", targetDir)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
-				return fmt.Errorf("failed to remove dotfiles directory during rollback '%s': %w\nOutput:\n%s", targetDir, err, string(output))
+				ctx.sendProgress(TaskLog{TaskID: ctx.State.CurrentStep, Line: fmt.Sprintf("Rollback failed: %s", string(output))})
+				return fmt.Errorf("failed to remove dotfiles directory during rollback '%s': %w", targetDir, err)
 			}
 			return nil
 		},
-		Timeout:    5 * time.Minute, // Cloning can take time
-		RetryCount: 1, // Usually no point retrying a failed clone immediately
+		Timeout:    5 * time.Minute,
+		RetryCount: 1,
 	}
 	steps = append(steps, cloneStep)
 

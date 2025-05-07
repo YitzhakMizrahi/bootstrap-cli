@@ -136,7 +136,10 @@ func TestTool_GenerateInstallationSteps(t *testing.T) {
 		OS:             "linux",
 		PackageManager: "apt",
 	}
-	context := NewInstallationContext(platform, nil)
+	// Create a dummy channel for the context
+	dummyChan := make(chan ProgressEvent, 1)
+	defer close(dummyChan)
+	context := NewInstallationContext(platform, nil, dummyChan) // Pass dummy channel
 	steps := tool.GenerateInstallationSteps(platform, context, false)
 
 	// Verify number of steps (pre-install + install + post-install + verify)
@@ -177,7 +180,10 @@ func TestTool_CustomInstallation(t *testing.T) {
 		OS:             "linux",
 		PackageManager: "apt",
 	}
-	context := NewInstallationContext(platform, nil)
+	// Create a dummy channel for the context
+	dummyChan := make(chan ProgressEvent, 1)
+	defer close(dummyChan)
+	context := NewInstallationContext(platform, nil, dummyChan) // Pass dummy channel
 	steps := tool.GenerateInstallationSteps(platform, context, false)
 	
 	// Verify number of steps (custom install steps + verify)

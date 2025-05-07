@@ -2,18 +2,19 @@ package pipeline
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/YitzhakMizrahi/bootstrap-cli/internal/interfaces"
 )
 
 // Installer manages the installation of tools using a pipeline-based approach
 type Installer struct {
 	Context  *InstallationContext
 	Pipeline *InstallationPipeline
-	Logger   *log.Logger
+	Logger   interfaces.Logger
 	// Add a field to hold the read-end of the channel for the UI
 	ProgressChan <-chan ProgressEvent
 	progressChanWriter chan<- ProgressEvent // Internal write-end for the pipeline
@@ -21,18 +22,19 @@ type Installer struct {
 
 // NewInstaller creates a new installer instance
 func NewInstaller(platform *Platform, pkgManager PackageManager) (*Installer, error) {
-	context := NewInstallationContext(platform, pkgManager)
-	
 	// Create a buffered channel for progress events
-	// Buffer size 100 is arbitrary, adjust as needed.
 	progChan := make(chan ProgressEvent, 100)
 
-	pipeline := NewInstallationPipeline(progChan) // Pass write-end to pipeline
+	// Create context first, passing the channel
+	context := NewInstallationContext(platform, pkgManager, progChan)
+
+	// Pipeline creation is handled within InstallSelections/Install now
+	// pipeline := NewInstallationPipeline(context) // Remove pipeline creation here
 	
 	return &Installer{
 		Context:  context,
-		Pipeline: pipeline,
-		Logger:   log.New(log.Writer(), "[Installer] ", log.LstdFlags),
+		// Pipeline: pipeline, // Remove field storage if pipeline is per-execution
+		Logger:   context.Logger.(interfaces.Logger), // Use interface type directly
 		ProgressChan: progChan, // Expose read-end
 		progressChanWriter: progChan, // Keep write-end internally
 	}, nil
@@ -40,26 +42,20 @@ func NewInstaller(platform *Platform, pkgManager PackageManager) (*Installer, er
 
 // Install installs a tool using the pipeline-based approach
 func (i *Installer) Install(tool *Tool) error {
-	i.Logger.Printf("Starting installation of %s", tool.Name)
+	i.Logger.Info("Starting installation of %s", tool.Name)
 	
-	// Create installation steps (including dependency resolution for single tool install)
-	steps := tool.GenerateInstallationSteps(i.Context.Platform, i.Context, false)
+	// Generate steps (including dependency resolution)
+	steps := tool.GenerateInstallationSteps(i.Context.Platform, i.Context, false) 
 	
-	// Use a new pipeline for single install, passing the installer's channel writer
-	p := NewInstallationPipeline(i.progressChanWriter)
-	p.Logger = i.Logger
-	p.State = NewInstallationState() // Give it its own state tracker for single install?
-	
-	// Add steps to the new pipeline
+	// Create and execute a pipeline specifically for this single tool install
+	p := NewInstallationPipeline(i.Context) // Pass the shared context
 	for _, step := range steps {
 		p.AddStep(step)
 	}
-	
-	// Execute the pipeline
 	if err := p.Execute(); err != nil {
 		return fmt.Errorf("installation failed: %w", err)
 	}
-	
+
 	// Setup environment
 	if err := i.Context.SetupEnvironment(tool); err != nil {
 		return fmt.Errorf("environment setup failed: %w", err)
@@ -70,7 +66,7 @@ func (i *Installer) Install(tool *Tool) error {
 		return fmt.Errorf("verification failed: %w", err)
 	}
 	
-	i.Logger.Printf("Successfully installed %s", tool.Name)
+	i.Logger.Info("Successfully installed %s", tool.Name)
 	return nil
 }
 
@@ -78,7 +74,7 @@ func (i *Installer) Install(tool *Tool) error {
 // This is generally unsafe if tools depend on each other. Use InstallSelections instead.
 // TODO: Remove this method once InstallSelections is fully integrated.
 func (i *Installer) InstallMultipleUnsafe_DEPRECATED(tools []*Tool) error {
-	i.Logger.Printf("[DEPRECATED] Starting unsafe parallel installation of %d tools", len(tools))
+	i.Logger.Info("[DEPRECATED] Starting unsafe parallel installation of %d tools", len(tools))
 	
 	// Create a channel to collect errors
 	errChan := make(chan error, len(tools))
@@ -103,42 +99,48 @@ func (i *Installer) InstallMultipleUnsafe_DEPRECATED(tools []*Tool) error {
 		return fmt.Errorf("some installations failed: %v", errors)
 	}
 	
-	i.Logger.Printf("Successfully installed all tools")
+	i.Logger.Info("Successfully installed all tools")
 	return nil
 }
 
-// InstallSelections installs a collection of selected items (tools, fonts, etc.), respecting dependencies.
-// TODO: Accept slices for fonts, languages etc. as parameters
-func (i *Installer) InstallSelections(selectedTools []*Tool, manageDotfiles bool, dotfilesRepoURL string) error {
-	if len(selectedTools) == 0 && !manageDotfiles /* && other selections empty */ {
-		i.Logger.Printf("No items selected for installation.")
+// InstallSelections installs a collection of selected items, respecting dependencies.
+func (i *Installer) InstallSelections(
+	selectedTools []*Tool, 
+	manageDotfiles bool, dotfilesRepoURL string,
+	selectedFonts []*interfaces.Font,
+	selectedLanguages []*interfaces.Language,
+	selectedShell *interfaces.Shell,
+) error { 
+	if len(selectedTools) == 0 && !manageDotfiles && len(selectedFonts) == 0 && len(selectedLanguages) == 0 && selectedShell == nil {
+		i.Logger.Info("No items selected for installation.")
 		return nil
 	}
-	i.Logger.Printf("Starting dependency-aware installation...")
+	i.Logger.Info("Starting dependency-aware installation...")
 
 	// 1. Build Combined Dependency Graph for Tools
-	// TODO: Include dependencies from fonts, languages, dotfiles (e.g., git) if they have them
+	// TODO: Include dependencies from fonts, languages, dotfiles (e.g., git)
 	i.Context.dependencyGraph = NewDependencyGraph()
 	i.Context.installedTools = make(map[string]bool)
 	toolMap := make(map[string]*Tool)
 	for _, tool := range selectedTools {
 		i.Context.AddTool(tool) 
 		toolMap[tool.Name] = tool
-		i.Logger.Printf("Added tool %s to graph with dependencies: %v", tool.Name, tool.Dependencies)
+		i.Logger.Info("Added tool %s to graph with dependencies: %v", tool.Name, tool.Dependencies)
 	}
-	// TODO: Handle implicit git dependency for dotfiles
+	// TODO: Add implicit dependencies (like git for dotfiles, curl/unzip for fonts?)
 
 	// 2. Calculate Overall Installation Order (currently only based on tools)
 	installOrder, err := i.Context.dependencyGraph.GetInstallOrder()
 	if err != nil {
 		return fmt.Errorf("failed to calculate installation order: %w", err)
 	}
-	i.Logger.Printf("Calculated installation order: %v", installOrder)
+	i.Logger.Info("Calculated installation order: %v", installOrder)
 
 	// 3. Create Single Pipeline & Generate Ordered Steps
-	i.Pipeline = NewInstallationPipeline(i.progressChanWriter) 
-	i.Pipeline.Logger = i.Logger 
-	i.Pipeline.State = i.Context.State 
+	// Create the pipeline using the installer's context (which has the channel)
+	pipeline := NewInstallationPipeline(i.Context)
+	// No need to set Logger/State again as NewInstallationPipeline does it from context
+	i.Pipeline = pipeline // Store the pipeline instance for this run? Or just execute?
 
 	addedSteps := make(map[string]bool) 
 
@@ -150,85 +152,115 @@ func (i *Installer) InstallSelections(selectedTools []*Tool, manageDotfiles bool
 		toolToInstall, exists := toolMap[toolName]
 		if !exists {
             // TODO: Handle loading missing dependency tool definitions
-            i.Logger.Printf("Warning: Tool %s found in install order but not in initial selection. Skipping its steps.", toolName)
+            i.Logger.Info("Warning: Tool %s found in install order but not in initial selection. Skipping its steps.", toolName)
             continue
         }
-		i.Logger.Printf("Generating installation steps for: %s", toolName)
+		i.Logger.Info("Generating installation steps for: %s", toolName)
 		steps := toolToInstall.GenerateInstallationSteps(i.Context.Platform, i.Context, true) // skip dependency step
 		for _, step := range steps {
 			i.Pipeline.AddStep(step)
-			i.Logger.Printf("  Added step: %s", step.Name)
+			i.Logger.Info("  Added step: %s", step.Name)
 		}
 		addedSteps[toolName] = true
 	}
 
-	// Add Font Steps (TODO)
+	// Add Font Steps
+	if len(selectedFonts) > 0 {
+		i.Logger.Info("Adding steps for %d fonts...", len(selectedFonts))
+		for _, font := range selectedFonts {
+			i.Logger.Info("Generating steps for font: %s", font.Name)
+			fontSteps := GenerateFontInstallSteps(font, i.Context.Platform) // Call font step generator
+			for _, step := range fontSteps {
+				i.Pipeline.AddStep(step)
+				i.Logger.Info("  Added font step: %s", step.Name)
+			}
+		}
+	}
 	
-	// Add Language Steps (TODO)
+	// Add Language Steps 
+	if len(selectedLanguages) > 0 {
+		i.Logger.Info("Adding steps for %d languages...", len(selectedLanguages))
+		for _, lang := range selectedLanguages {
+			i.Logger.Info("Generating steps for language: %s", lang.Name)
+			// Pass context to generator as it might be needed for strategy decisions
+			langSteps := GenerateLanguageInstallSteps(lang, i.Context) 
+			for _, step := range langSteps {
+				i.Pipeline.AddStep(step)
+				i.Logger.Info("  Added language step: %s", step.Name)
+			}
+		}
+	}
 
 	// Add Dotfiles Steps (if selected)
 	if manageDotfiles && dotfilesRepoURL != "" {
-		i.Logger.Printf("Adding dotfiles clone steps for repo: %s", dotfilesRepoURL)
+		i.Logger.Info("Adding dotfiles clone steps for repo: %s", dotfilesRepoURL)
 		// TODO: Determine appropriate targetDir (e.g., ~/.dotfiles)
 		homeDir, _ := os.UserHomeDir() // Handle potential error
 		targetDir := filepath.Join(homeDir, ".dotfiles") // Example target
 		dotfileSteps := GenerateDotfileCloneSteps(dotfilesRepoURL, targetDir)
 		for _, step := range dotfileSteps {
 			i.Pipeline.AddStep(step)
-			i.Logger.Printf("  Added dotfiles step: %s", step.Name)
+			i.Logger.Info("  Added dotfiles step: %s", step.Name)
 		}
 		// TODO: Add symlinking steps after clone
 	}
 
-	// Add Shell Configuration Steps (TODO)
+	// Add Shell Configuration Steps (if selected)
+	if selectedShell != nil {
+		i.Logger.Info("Adding steps for shell configuration: %s", selectedShell.Name)
+		shellSteps := GenerateShellConfigSteps(selectedShell, i.Context)
+		for _, step := range shellSteps {
+			i.Pipeline.AddStep(step)
+			i.Logger.Info("  Added shell config step: %s", step.Name)
+		}
+	}
 
 	// 4. Execute the single, ordered pipeline
-	i.Logger.Printf("Executing combined installation pipeline with %d steps...", len(i.Pipeline.Steps))
+	i.Logger.Info("Executing combined installation pipeline with %d steps...", len(i.Pipeline.Steps))
 	if err := i.Pipeline.Execute(); err != nil {
 		return fmt.Errorf("installation pipeline failed: %w", err)
 	}
 
 	// 5. Final Environment Setup ?
-	i.Logger.Printf("Installation pipeline completed successfully.")
+	i.Logger.Info("Installation pipeline completed successfully.")
 	return nil
 }
 
 // Uninstall removes a tool and its dependencies
 func (i *Installer) Uninstall(tool *Tool) error {
-	i.Logger.Printf("Starting uninstallation of %s", tool.Name)
+	i.Logger.Info("Starting uninstallation of %s", tool.Name)
 	
 	// Create uninstallation steps
 	steps := []InstallationStep{
 		{
 			Name: "Remove package",
-			Action: func() error {
-				strategy := tool.GetInstallStrategy(i.Context.Platform)
-				if pkgName, ok := strategy.PackageNames[i.Context.Platform.PackageManager]; ok {
-					return i.Context.PackageManager.Uninstall(pkgName)
+			Action: func(ctx *InstallationContext) error {
+				strategy := tool.GetInstallStrategy(ctx.Platform)
+				if pkgName, ok := strategy.PackageNames[ctx.Platform.PackageManager]; ok {
+					return ctx.PackageManager.Uninstall(pkgName)
 				}
-				return i.Context.PackageManager.Uninstall(tool.Name)
+				return ctx.PackageManager.Uninstall(tool.Name)
 			},
 		},
 		{
 			Name: "Clean up configuration",
-			Action: func() error {
-				// TODO: Implement configuration cleanup
+			Action: func(ctx *InstallationContext) error {
+				ctx.Logger.Info("TODO: Implement configuration cleanup for %s", tool.Name)
 				return nil
 			},
 		},
 	}
 	
-	// Add steps to pipeline
+	// Create and execute a pipeline for uninstall
+	p := NewInstallationPipeline(i.Context) // Pass the shared context
 	for _, step := range steps {
-		i.Pipeline.AddStep(step)
+		p.AddStep(step)
 	}
-	
-	// Execute pipeline
-	if err := i.Pipeline.Execute(); err != nil {
+	if err := p.Execute(); err != nil {
 		return fmt.Errorf("uninstallation failed: %w", err)
 	}
 	
-	i.Logger.Printf("Successfully uninstalled %s", tool.Name)
+	i.Logger.Info("Successfully uninstalled %s", tool.Name)
 	return nil
 }
 

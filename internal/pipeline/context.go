@@ -30,10 +30,11 @@ type InstallationContext struct {
 	dependencyGraph *DependencyGraph
 	// Track installed tools
 	installedTools map[string]bool
+	ProgressChan   chan<- ProgressEvent
 }
 
 // NewInstallationContext creates a new installation context
-func NewInstallationContext(platform *Platform, pkgManager PackageManager) *InstallationContext {
+func NewInstallationContext(platform *Platform, pkgManager PackageManager, progressChan chan<- ProgressEvent) *InstallationContext {
 	logger := log.NewInstallLogger(false)
 	return &InstallationContext{
 		Platform:       platform,
@@ -47,6 +48,7 @@ func NewInstallationContext(platform *Platform, pkgManager PackageManager) *Inst
 		shellConfig:   shell.NewConfig(platform.Shell, logger),
 		dependencyGraph: NewDependencyGraph(),
 		installedTools: make(map[string]bool),
+		ProgressChan:   progressChan,
 	}
 }
 
@@ -270,8 +272,8 @@ func (c *InstallationContext) installTool(tool *Tool) error {
 	for _, step := range steps {
 		c.Logger.Info("Executing step: %s", step.Name)
 		
-		// Execute the step
-		if err := step.Action(); err != nil {
+		// Execute the step, passing context
+		if err := step.Action(c); err != nil {
 			c.Logger.Error("Step failed: %v", err)
 			return fmt.Errorf("step %s failed: %w", step.Name, err)
 		}
@@ -280,4 +282,11 @@ func (c *InstallationContext) installTool(tool *Tool) error {
 	}
 	
 	return nil
+}
+
+// sendProgress convenience method on context
+func (c *InstallationContext) sendProgress(event ProgressEvent) {
+	if c.ProgressChan != nil {
+		c.ProgressChan <- event
+	}
 } 

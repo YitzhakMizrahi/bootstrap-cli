@@ -244,16 +244,17 @@ func (t *Tool) GenerateInstallationSteps(platform *Platform, context *Installati
 	
 	// First, resolve dependencies unless skipped
 	if !skipDependencyResolution {
-	steps = append(steps, InstallationStep{
-		Name: fmt.Sprintf("%s-resolve-dependencies", t.Name),
-		Action: func() error {
+		steps = append(steps, InstallationStep{
+			Name: fmt.Sprintf("%s-resolve-dependencies", t.Name),
+			Description: fmt.Sprintf("Resolving dependencies for %s", t.Name),
+			Action: func(ctx *InstallationContext) error {
 				// Note: This might still be problematic if context.ResolveDependencies assumes
 				// it should install ALL dependencies in the graph vs just those for 't'.
 				// It might need adjustment if called from the old single Install path.
-			return context.ResolveDependencies(t)
-		},
-		Timeout: 5 * time.Minute,
-	})
+				return ctx.ResolveDependencies(t)
+			},
+			Timeout: 5 * time.Minute,
+		})
 	}
 	
 	// Determine installation method
@@ -268,22 +269,24 @@ func (t *Tool) GenerateInstallationSteps(platform *Platform, context *Installati
 	
 	// Add pre-install steps
 	for i, cmd := range strategy.PreInstall {
+		stepName := fmt.Sprintf("%s-pre-install-%d", t.Name, i)
+		preCmd := cmd
 		steps = append(steps, InstallationStep{
-			Name: fmt.Sprintf("%s-pre-install-%d", t.Name, i),
-			Action: func() error {
-				t.logger.CommandStart(cmd.Command, 1, 1)
+			Name: stepName,
+			Description: preCmd.Description,
+			Action: func(ctx *InstallationContext) error {
+				ctx.Logger.CommandStart(preCmd.Command, 1, 1)
 				start := time.Now()
 				
-				execCmd := exec.Command("sh", "-c", cmd.Command)
+				execCmd := exec.Command("sh", "-c", preCmd.Command)
 				output, err := execCmd.CombinedOutput()
 				
 				duration := time.Since(start)
 				if err != nil {
-					t.logger.CommandError(cmd.Command, err, 1, 1)
+					ctx.Logger.CommandError(preCmd.Command, err, 1, 1)
 					return fmt.Errorf("pre-install command failed: %w (Output: %s)", err, string(output))
 				}
-				
-				t.logger.CommandSuccess(cmd.Command, duration)
+				ctx.Logger.CommandSuccess(preCmd.Command, duration)
 				return nil
 			},
 			Timeout: 5 * time.Minute,
@@ -300,34 +303,35 @@ func (t *Tool) GenerateInstallationSteps(platform *Platform, context *Installati
 			return steps
 		}
 		
+		stepName := fmt.Sprintf("%s-install-package", t.Name)
 		steps = append(steps, InstallationStep{
-			Name: fmt.Sprintf("%s-install-package", t.Name),
-			Action: func() error {
-				var cmd string
+			Name: stepName,
+			Description: fmt.Sprintf("Installing %s via %s", pkgName, platform.PackageManager),
+			Action: func(ctx *InstallationContext) error {
+				var cmdStr string
 				switch platform.PackageManager {
 				case "apt":
-					cmd = fmt.Sprintf("sudo apt-get install -y %s", pkgName)
+					cmdStr = fmt.Sprintf("sudo apt-get install -y %s", pkgName)
 				case "brew":
-					cmd = fmt.Sprintf("brew install %s", pkgName)
+					cmdStr = fmt.Sprintf("brew install %s", pkgName)
 				case "pacman":
-					cmd = fmt.Sprintf("sudo pacman -S --noconfirm %s", pkgName)
+					cmdStr = fmt.Sprintf("sudo pacman -S --noconfirm %s", pkgName)
 				default:
 					return fmt.Errorf("unsupported package manager: %s", platform.PackageManager)
 				}
 				
-				t.logger.CommandStart(cmd, 1, 1)
+				ctx.Logger.CommandStart(cmdStr, 1, 1)
 				start := time.Now()
 				
-				execCmd := exec.Command("sh", "-c", cmd)
+				execCmd := exec.Command("sh", "-c", cmdStr)
 				output, err := execCmd.CombinedOutput()
 				
 				duration := time.Since(start)
 				if err != nil {
-					t.logger.CommandError(cmd, err, 1, 1)
+					ctx.Logger.CommandError(cmdStr, err, 1, 1)
 					return fmt.Errorf("package installation failed: %w (Output: %s)", err, string(output))
 				}
-				
-				t.logger.CommandSuccess(cmd, duration)
+				ctx.Logger.CommandSuccess(cmdStr, duration)
 				return nil
 			},
 			Timeout: 10 * time.Minute,
@@ -342,22 +346,24 @@ func (t *Tool) GenerateInstallationSteps(platform *Platform, context *Installati
 	case CustomInstall:
 		// Custom installation steps
 		for i, cmd := range strategy.CustomInstall {
+			stepName := fmt.Sprintf("%s-custom-install-%d", t.Name, i)
+			customCmd := cmd
 			steps = append(steps, InstallationStep{
-				Name: fmt.Sprintf("%s-custom-install-%d", t.Name, i),
-				Action: func() error {
-					t.logger.CommandStart(cmd.Command, 1, 1)
+				Name: stepName,
+				Description: customCmd.Description,
+				Action: func(ctx *InstallationContext) error {
+					ctx.Logger.CommandStart(customCmd.Command, 1, 1)
 					start := time.Now()
 					
-					execCmd := exec.Command("sh", "-c", cmd.Command)
+					execCmd := exec.Command("sh", "-c", customCmd.Command)
 					output, err := execCmd.CombinedOutput()
 					
 					duration := time.Since(start)
 					if err != nil {
-						t.logger.CommandError(cmd.Command, err, 1, 1)
+						ctx.Logger.CommandError(customCmd.Command, err, 1, 1)
 						return fmt.Errorf("custom installation command failed: %w (Output: %s)", err, string(output))
 					}
-					
-					t.logger.CommandSuccess(cmd.Command, duration)
+					ctx.Logger.CommandSuccess(customCmd.Command, duration)
 					return nil
 				},
 				Timeout: 5 * time.Minute,
@@ -367,22 +373,24 @@ func (t *Tool) GenerateInstallationSteps(platform *Platform, context *Installati
 	
 	// Add post-install steps
 	for i, cmd := range strategy.PostInstall {
+		stepName := fmt.Sprintf("%s-post-install-%d", t.Name, i)
+		postCmd := cmd
 		steps = append(steps, InstallationStep{
-			Name: fmt.Sprintf("%s-post-install-%d", t.Name, i),
-			Action: func() error {
-				t.logger.CommandStart(cmd.Command, 1, 1)
+			Name: stepName,
+			Description: postCmd.Description,
+			Action: func(ctx *InstallationContext) error {
+				ctx.Logger.CommandStart(postCmd.Command, 1, 1)
 				start := time.Now()
 				
-				execCmd := exec.Command("sh", "-c", cmd.Command)
+				execCmd := exec.Command("sh", "-c", postCmd.Command)
 				output, err := execCmd.CombinedOutput()
 				
 				duration := time.Since(start)
 				if err != nil {
-					t.logger.CommandError(cmd.Command, err, 1, 1)
+					ctx.Logger.CommandError(postCmd.Command, err, 1, 1)
 					return fmt.Errorf("post-install command failed: %w (Output: %s)", err, string(output))
 				}
-				
-				t.logger.CommandSuccess(cmd.Command, duration)
+				ctx.Logger.CommandSuccess(postCmd.Command, duration)
 				return nil
 			},
 			Timeout: 5 * time.Minute,
@@ -392,8 +400,9 @@ func (t *Tool) GenerateInstallationSteps(platform *Platform, context *Installati
 	// Add verification step
 	steps = append(steps, InstallationStep{
 		Name: fmt.Sprintf("%s-verify", t.Name),
-		Action: func() error {
-			return t.VerifyInstallation(context)
+		Description: fmt.Sprintf("Verifying installation of %s", t.Name),
+		Action: func(ctx *InstallationContext) error {
+			return t.VerifyInstallation(ctx)
 		},
 		Timeout: 1 * time.Minute,
 	})

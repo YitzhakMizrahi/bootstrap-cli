@@ -45,7 +45,10 @@ var (
 	// General
 	BaseStyle = lipgloss.NewStyle().Padding(0, 1)
 
-	AppStyle = lipgloss.NewStyle().Margin(1, 2)
+	AppStyle = lipgloss.NewStyle().
+			Margin(1, 2).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(ColorSubtleBorder)
 
 	// Text Styles
 	TitleStyle = lipgloss.NewStyle().

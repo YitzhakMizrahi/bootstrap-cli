@@ -2,9 +2,6 @@
 package components
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/ui/styles"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -96,43 +93,55 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() string {
 	if len(m.steps) == 0 { return "" }
 
-	separator := styles.HelpStyle.Copy().Faint(true).SetString(" ::: ").String() // Different separator
+	// separator := styles.HelpStyle.Copy().Faint(true).SetString(" ").String() // Unused variable removed
     
-    stepBlockStyle := lipgloss.NewStyle().Padding(0, 1).Bold(true)
-	completedStyle := stepBlockStyle.Copy().Foreground(styles.NordAuroraGreen) 
-	currentStyle := stepBlockStyle.Copy().
-                      Foreground(styles.ColorBrightText). 
-                      Background(styles.ColorAccent). 
-                      Padding(0, 2) 
-	pendingStyle := stepBlockStyle.Copy().Foreground(styles.NordPolarNight4) 
-	errorStyle := stepBlockStyle.Copy().
-                    Foreground(styles.ColorBrightText).
-                    Background(styles.ColorError).
-					Bold(true)
+    // Define styles for the step blocks
+    baseStepStyle := lipgloss.NewStyle().
+        Padding(0, 1). // Horizontal padding within each block
+        MarginRight(1) // Space between blocks
+
+	completedStyle := baseStepStyle.Copy().
+		Foreground(styles.NordAuroraGreen). // Green text for completed
+        Faint(true) // Make completed steps less prominent
+
+	currentStyle := baseStepStyle.Copy().
+        Foreground(styles.ColorBrightText). // Bright text for current
+        Background(styles.ColorAccent). // Accent background
+		Bold(true)
+
+	pendingStyle := baseStepStyle.Copy().
+        Foreground(styles.NordPolarNight4) // Dark gray for pending
+
+	errorStyle := baseStepStyle.Copy().
+        Foreground(styles.ColorBrightText).
+        Background(styles.ColorError).
+		Bold(true)
 
 	var stepViews []string
-	for i, step := range m.steps {
+	// Use blank identifier for index 'i' as it's not used
+	for _, step := range m.steps { 
 		var styledStep string
-        name := fmt.Sprintf("%d. %s", i+1, step.Name) // Add step number
+        name := step.Name // Use only the name
 
 		switch step.Status {
 		case StatusCompleted:
-			styledStep = completedStyle.Render("✔ " + name)
+			styledStep = completedStyle.Render("✓ " + name) // Checkmark prefix
 		case StatusCurrent:
-			styledStep = currentStyle.Render(name) 
+			styledStep = currentStyle.Render(name) // Current step stands out
 		case StatusError:
-			styledStep = errorStyle.Render("✘ " + name)
+			styledStep = errorStyle.Render("✘ " + name) // Error prefix
 		case StatusPending:
 			fallthrough
 		default:
-			styledStep = pendingStyle.Render(name) 
+			styledStep = pendingStyle.Render(name) // Pending are faint
 		}
 		stepViews = append(stepViews, styledStep)
 	}
 
-	joinedSteps := strings.Join(stepViews, separator)
+    // Join horizontally. Lipgloss handles joining styled blocks.
+	joinedSteps := lipgloss.JoinHorizontal(lipgloss.Top, stepViews...)
 
-	return joinedSteps
+	return joinedSteps // Return joined steps
 }
 
 // SetCurrentStep updates the current step and recalculates statuses.

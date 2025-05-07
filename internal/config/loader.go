@@ -231,7 +231,6 @@ func (l *Loader) loadConfigsFromDir(dir string) (interface{}, error) {
 // loadDefaultConfigs loads configurations from embedded defaults
 func (l *Loader) loadDefaultConfigs(dir string) (interface{}, error) {
 	defaultDir := filepath.Join(l.defaultsDir, dir)
-	fmt.Printf("Loading default configs from: %s\n", defaultDir)
 	
 	var configs interface{}
 	switch dir {
@@ -246,13 +245,10 @@ func (l *Loader) loadDefaultConfigs(dir string) (interface{}, error) {
 				return fmt.Errorf("error reading directory %s: %w", dirPath, err)
 			}
 			
-			fmt.Printf("Found %d entries in directory %s\n", len(entries), dirPath)
-			
 			for _, entry := range entries {
 				if entry.IsDir() {
 					// Recursively load tools from subdirectory
 					subdir := filepath.Join(dirPath, entry.Name())
-					fmt.Printf("Loading tools from subdirectory: %s\n", subdir)
 					if err := loadToolsFromDir(subdir); err != nil {
 						return err
 					}
@@ -264,7 +260,6 @@ func (l *Loader) loadDefaultConfigs(dir string) (interface{}, error) {
 				}
 				
 				path := filepath.Join(dirPath, entry.Name())
-				fmt.Printf("Loading tool from: %s\n", path)
 				
 				data, err := l.configFS.ReadFile(path)
 				if err != nil {
@@ -294,7 +289,6 @@ func (l *Loader) loadDefaultConfigs(dir string) (interface{}, error) {
 			return nil, err
 		}
 		
-		fmt.Printf("Loaded %d tools total\n", len(tools))
 		configs = tools
 		
 	case "fonts":

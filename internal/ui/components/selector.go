@@ -24,30 +24,19 @@ func (i SelectorItem) FilterValue() string { return i.title }
 // Title returns the title for the list item
 func (i SelectorItem) Title() string {
 	var checkbox string
-	var itemStyle lipgloss.Style
-
 	if i.selected {
-		checkbox = styles.SelectedTextStyle.Render("[x]") // Styled checkbox
-		itemStyle = styles.SelectedTextStyle // Use selected style for text
+		checkbox = "[x]" // Simple checkbox string
 	} else {
-		checkbox = styles.NormalTextStyle.Render("[ ]") // Normal checkbox
-		itemStyle = styles.NormalTextStyle // Use normal style for text
+		checkbox = "[ ]"
 	}
-	return checkbox + " " + itemStyle.Render(i.title) // Render title with style
+	// Return plain string - delegate handles styling
+	return checkbox + " " + i.title
 }
 
 // Description returns the description for the list item
 func (i SelectorItem) Description() string {
-	if i.description == "" {
-		return ""
-	}
-	// Apply dim style and indent based on selection state
-	descStyle := styles.UnselectedTextStyle.Copy().PaddingLeft(4) // Default dim, indented
-	if i.selected {
-		// Make selected description stand out a bit more (using AccentAlt color)
-		descStyle = styles.NormalTextStyle.Copy().PaddingLeft(4).Foreground(styles.ColorAccentAlt)
-	}
-	return descStyle.Render(i.description)
+	// Return plain string - delegate handles styling
+	return i.description
 }
 
 // BaseSelector is the main model for selection
@@ -64,16 +53,24 @@ type BaseSelector struct {
 func NewBaseSelector(title string) *BaseSelector {
 	delegate := list.NewDefaultDelegate()
 
-	// Explicitly set styles we want to customize for Nord theme
-	delegate.Styles.SelectedTitle = styles.SelectedTextStyle.Copy().UnsetPadding()
-	delegate.Styles.SelectedDesc = styles.SelectedTextStyle.Copy().UnsetPadding().Foreground(styles.ColorDimText) 
-	
-	delegate.Styles.NormalTitle = styles.NormalTextStyle.Copy().UnsetPadding()
-	delegate.Styles.NormalDesc = styles.UnselectedTextStyle.Copy().UnsetPadding() 
+	// Make selected item more distinct
+	delegate.Styles.SelectedTitle = styles.SelectedTextStyle.Copy().
+		Border(lipgloss.NormalBorder(), false, false, false, true). // Left border
+		BorderForeground(styles.ColorAccent). // Accent color border
+		Padding(0, 0, 0, 1) // Adjust padding slightly
 
-	// Customize spacing and height if needed
-	delegate.SetHeight(1) // Title only
-	delegate.SetSpacing(0)
+	delegate.Styles.SelectedDesc = styles.UnselectedTextStyle.Copy(). // Keep desc dim but add border
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(styles.ColorAccent).
+		Padding(0, 0, 0, 1) // Match padding
+
+	// Keep normal styles simple
+	delegate.Styles.NormalTitle = styles.NormalTextStyle.Copy().Padding(0,0,0,2) // Standard indent
+	delegate.Styles.NormalDesc = styles.UnselectedTextStyle.Copy().Padding(0,0,0,2) // Standard indent
+
+	// Delegate height should account for potential description line
+	delegate.SetHeight(2) // Allocate 2 lines per item (title + desc)
+	delegate.SetSpacing(1) // Add spacing between items
 
 	l := list.New([]list.Item{}, delegate, 0, 0) // Initial size 0,0
 
@@ -97,7 +94,7 @@ func NewBaseSelector(title string) *BaseSelector {
 	return &BaseSelector{
 		list:          l,
 		selectedItems: make(map[interface{}]struct{}),
-		title:         title, 
+		title:         title,
 	}
 }
 

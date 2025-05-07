@@ -4,6 +4,7 @@ package app
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/YitzhakMizrahi/bootstrap-cli/internal/config"
@@ -307,13 +308,15 @@ func filterToolsByCategory(tools []*interfaces.Tool, category string) []*interfa
 	return filtered
 }
 
-// View method - Using explicit height constraint + JoinVertical
+// View method - Removing debug prints
 func (m *Model) View() string {
 	if !m.screenReady {
 		return styles.AppStyle.Render(styles.SubtitleStyle.Render("Initializing...")) 
 	}
 
-	// --- Calculate Available Space ---
+	var finalView strings.Builder // Use builder for efficiency
+
+	// --- Calculate Available Space (Inside App Margin) ---
 	appHorizontalMargin := styles.AppStyle.GetHorizontalFrameSize()
 	appVerticalMargin := styles.AppStyle.GetVerticalFrameSize()
 	availableWidth := m.width - appHorizontalMargin
@@ -321,29 +324,30 @@ func (m *Model) View() string {
 	if availableWidth < 0 { availableWidth = 0 }
 	if availableHeight < 0 { availableHeight = 0 }
 
-	// --- Prepare Indicator --- 
+	// --- Determine Indicator Height & Render ---
 	indicatorView := ""
 	indicatorHeight := 0
 	if m.currentScreen >= EssentialToolScreen && m.currentScreen < FinishScreen { 
-		m.stepIndicator.SetWidth(availableWidth) // Set width first
+		m.stepIndicator.SetWidth(availableWidth) 
 		indicatorView = m.stepIndicator.View()
-		indicatorHeight = lipgloss.Height(indicatorView) // Get actual height
-        // Don't add newline height here, JoinVertical will handle spacing
+		indicatorHeight = lipgloss.Height(indicatorView) 
+        if indicatorHeight > 0 { 
+            finalView.WriteString(indicatorView)
+            finalView.WriteString("\n") 
+            indicatorHeight++ 
+        } 
 	}
 
-	// --- Prepare Footer --- 
+	// --- Determine Footer Height ---
 	footerStr := ""
 	if m.err != nil { footerStr = styles.ErrorStyle.Render(m.err.Error()) } else { footerStr = styles.HelpStyle.Render("q/Ctrl+c: quit") } 
-	footerHeight := lipgloss.Height(footerStr)
+	footerHeight := lipgloss.Height(footerStr) + 2 
 
-    // --- Calculate Height for Active View ---
-    spacingHeight := 0 
-    if indicatorView != "" { spacingHeight++ } // Space after indicator
-    spacingHeight += 2 // Space before footer
-	activeViewHeight := availableHeight - indicatorHeight - footerHeight - spacingHeight
-	if activeViewHeight < 1 { activeViewHeight = 1 } // Min height 1
+	// --- Calculate Height for Active View ---
+	activeViewHeight := availableHeight - indicatorHeight - footerHeight
+    if activeViewHeight < 1 { activeViewHeight = 1 }
 
-	// --- Get Raw Active View ---
+	// --- Get Raw Active View --- 
 	activeViewRaw := ""
 	if m.activeModel != nil {
 		activeViewRaw = m.activeModel.View()
@@ -351,30 +355,20 @@ func (m *Model) View() string {
 		activeViewRaw = styles.ErrorStyle.Render("Error: No active screen model.")
 	}
     
-    // --- Create Constrained Active View Block ---
-    activeViewBlock := lipgloss.NewStyle().
-        Width(availableWidth).
-        Height(activeViewHeight).
-        MaxWidth(availableWidth).
-        MaxHeight(activeViewHeight).
-        Render(activeViewRaw)
+	// --- Constrain and Render Active View --- 
+    activeViewStyled := lipgloss.NewStyle().
+		Width(availableWidth).
+		Height(activeViewHeight).
+		Render(activeViewRaw)
 
+    finalView.WriteString(activeViewStyled) 
 
-    // --- Assemble Final View using Place or JoinVertical carefully ---
-    var finalViewContent []string
+    // --- Render Footer --- 
+    finalView.WriteString("\n\n") 
+	finalView.WriteString(footerStr)
 
-    if indicatorView != "" {
-        finalViewContent = append(finalViewContent, indicatorView)
-        finalViewContent = append(finalViewContent, "") // Spacer
-    }
-    finalViewContent = append(finalViewContent, activeViewBlock)
-    finalViewContent = append(finalViewContent, "") // Spacer
-    finalViewContent = append(finalViewContent, footerStr)
-
-    joinedView := lipgloss.JoinVertical(lipgloss.Top, finalViewContent...)
-
-	// Apply outer AppStyle margin last
-	return styles.AppStyle.Render(joinedView)
+	// Apply outer margin last
+	return styles.AppStyle.Render(finalView.String())
 }
 
 // SelectedTools returns the selected tools
